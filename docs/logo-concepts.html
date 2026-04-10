@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Needle Space — Logo Concepts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,200;9..144,300;9..144,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #F0E4B8;
+      font-family: 'DM Sans', sans-serif;
+      padding: 52px 48px 80px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 44px;
+      border-bottom: 1px solid #C8B480;
+      padding-bottom: 18px;
+    }
+    header h1 { font-weight:400; font-size:12px; letter-spacing:0.16em; text-transform:uppercase; color:#7D6540; }
+    header p  { font-size:12px; color:#A08848; letter-spacing:0.04em; }
+
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; max-width:1040px; }
+    .card {
+      background:#F0E4B8;
+      border-radius:8px;
+      padding:64px 48px 32px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:32px;
+      min-height:460px;
+      border:1px solid rgba(0,0,0,0.05);
+    }
+    .card.white { background:#FFFFFF; }
+    .card.dark  { background:#10100C; }
+    .card.wide  { grid-column:span 2; }
+
+    .logo-area { flex:1; display:flex; align-items:center; justify-content:center; gap:60px; }
+    .card-meta { display:flex; justify-content:space-between; width:100%; }
+    .cid   { font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#A08848; }
+    .cname { font-size:11px; color:#B89A5A; font-style:italic; }
+    .card.dark .cid   { color:#3A2E20; }
+    .card.dark .cname { color:#2E2418; }
+
+    .usage { width:100%; padding-top:14px; border-top:1px solid #D4C080; font-size:11px; color:#A08848; line-height:1.65; }
+    .card.white .usage { border-color:#F0E8D8; color:#B09880; }
+    .card.dark  .usage { border-color:#221A10; color:#3A2A18; }
+
+    /* ─── THE BRAND ICON (uses the reference image directly) ─── */
+    .brand-icon {
+      display: block;
+      background: transparent;
+      /* blend mode removes the cream background of the PNG so the card colour shows through */
+      mix-blend-mode: multiply;
+    }
+    .brand-icon.hero     { height: 300px; width: auto; }
+    .brand-icon.large    { height: 180px; width: auto; }
+    .brand-icon.medium   { height: 110px; width: auto; }
+    .brand-icon.small    { height: 56px;  width: auto; }
+    .brand-icon.lockup   { height: 170px; width: auto; }
+
+    /* For dark backgrounds: invert the cream bg to dark, preserving cup/legs */
+    .brand-icon.on-dark {
+      mix-blend-mode: screen;
+      filter: brightness(1.1);
+    }
+
+    /* App icon container — crops the icon nicely inside a rounded square */
+    .app-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 22px;
+    }
+    .app-icon.light  { background: #F0E4B8; }
+    .app-icon.dark   { background: #1C3448; }
+    .app-icon img    { height: 115%; width: auto; object-position: center; mix-blend-mode: multiply; }
+    .app-icon.dark img { mix-blend-mode: screen; filter: brightness(1.05); }
+
+    .notes { max-width:1040px; margin-top:18px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; }
+    .note  { background:white; border-radius:8px; padding:28px; border:1px solid rgba(0,0,0,0.05); }
+    .note h3 { font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#7D6540; margin-bottom:12px; font-weight:400; }
+    .note p  { font-size:13px; color:#443225; line-height:1.75; }
+    .note strong { color:#1C1209; }
+    .rec { display:inline-block; background:#CC2222; color:#fff; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; padding:3px 8px; border-radius:2px; margin-bottom:10px; }
+
+    .missing-image-notice {
+      grid-column: span 2;
+      background: #FFF3CD;
+      border: 1px solid #E0C060;
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-size: 13px;
+      color: #7D5A20;
+      line-height: 1.6;
+    }
+    .missing-image-notice strong { color: #4A3A10; }
+    .missing-image-notice code { background: #F8E8A8; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Needle Space — Logo Concepts</h1>
+  <p>April 2026 &nbsp;/&nbsp; Brand Identity v6 — Final</p>
+</header>
+
+<div class="grid">
+
+  <!-- ═══ A: Hero Icon (the image, full size) ═══ -->
+  <div class="card">
+    <div class="logo-area" style="gap:60px; align-items:flex-end;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <img src="/needle-space-icon.png" alt="Needle Space icon" class="brand-icon hero" />
+        <span style="font-size:10px;color:#A08848;letter-spacing:.08em;text-transform:uppercase;">Hero · 300px</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <img src="/needle-space-icon.png" alt="Needle Space icon" class="brand-icon medium" />
+        <span style="font-size:10px;color:#A08848;letter-spacing:.08em;text-transform:uppercase;">Medium · 110px</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <img src="/needle-space-icon.png" alt="Needle Space icon" class="brand-icon small" />
+        <span style="font-size:10px;color:#A08848;letter-spacing:.08em;text-transform:uppercase;">Small · 56px</span>
+      </div>
+    </div>
+    <div class="card-meta">
+      <span class="cid">A</span><span class="cname">Brand Icon — Reference Image</span>
+    </div>
+    <div class="usage">The final brand icon. Preserves the original illustration exactly. Shown at three sizes to verify legibility.</div>
+  </div>
+
+  <!-- ═══ B: App Icon variants ═══ -->
+  <div class="card white">
+    <div class="logo-area" style="gap:32px;">
+      <!-- Sand/cream app icon -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <div class="app-icon light" style="width:128px; height:128px;">
+          <img src="/needle-space-icon.png" alt="app icon" />
+        </div>
+        <span style="font-size:10px;color:#A08848;letter-spacing:.06em;">Sand 128px</span>
+      </div>
+      <!-- Dark navy app icon -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <div class="app-icon dark" style="width:96px; height:96px;">
+          <img src="/needle-space-icon.png" alt="app icon dark" />
+        </div>
+        <span style="font-size:10px;color:#A08848;letter-spacing:.06em;">Navy 96px</span>
+      </div>
+      <!-- Favicon -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <div class="app-icon light" style="width:56px; height:56px;">
+          <img src="/needle-space-icon.png" alt="favicon" />
+        </div>
+        <span style="font-size:10px;color:#A08848;letter-spacing:.06em;">Favicon 56px</span>
+      </div>
+    </div>
+    <div class="card-meta">
+      <span class="cid">B</span><span class="cname">App Icon — 3 colorways</span>
+    </div>
+    <div class="usage">iOS/Android rounded squares. The cream background of the image blends with the coloured square container — on dark, the cream inverts automatically.</div>
+  </div>
+
+  <!-- ═══ C: Primary Horizontal Lockup — Light ═══ -->
+  <div class="card wide white" style="padding:72px 64px 36px; min-height:340px;">
+    <div class="logo-area">
+      <div style="display:flex; align-items:center; gap:40px;">
+        <img src="/needle-space-icon.png" alt="Needle Space" class="brand-icon lockup" />
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <span style="font-family:'Fraunces',Georgia,serif; font-weight:300; font-size:78px; line-height:0.95; color:#1C3448; letter-spacing:-0.02em;">Needle</span>
+          <span style="font-family:'DM Sans',sans-serif; font-weight:400; font-size:15px; letter-spacing:0.36em; color:#3EA090; text-transform:uppercase; padding-left:5px;">Space</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-meta">
+      <span class="cid">C</span><span class="cname">Primary Lockup — Light</span>
+    </div>
+    <div class="usage">Main brand mark. Reference-image icon sits alongside the wordmark. "Needle" in Fraunces Light, navy. "SPACE" in tracked teal small caps echoing the saucer underside in the illustration.</div>
+  </div>
+
+  <!-- ═══ D: Primary Horizontal Lockup — Dark ═══ -->
+  <div class="card dark wide" style="padding:72px 64px 36px; min-height:340px;">
+    <div class="logo-area">
+      <div style="display:flex; align-items:center; gap:40px;">
+        <img src="/needle-space-icon.png" alt="Needle Space" class="brand-icon lockup on-dark" />
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <span style="font-family:'Fraunces',Georgia,serif; font-weight:300; font-size:78px; line-height:0.95; color:#F0E4B8; letter-spacing:-0.02em;">Needle</span>
+          <span style="font-family:'DM Sans',sans-serif; font-weight:400; font-size:15px; letter-spacing:0.36em; color:#3EA090; text-transform:uppercase; padding-left:5px;">Space</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-meta">
+      <span class="cid">D</span><span class="cname">Primary Lockup — Dark</span>
+    </div>
+    <div class="usage" style="border-color:#221A10;color:#3A2A18;">Dark navy bg. Image uses `mix-blend-mode: screen` so the cream background drops out and the red cup + teal elements glow against the dark surface.</div>
+  </div>
+
+</div>
+
+<!-- ── Notes ── -->
+<div class="notes">
+  <div class="note">
+    <div class="rec">Recommended</div>
+    <h3>Brand Name</h3>
+    <p><strong>Needle Space</strong> — reverses "Space Needle." The icon says everything: a red coffee cup at the top of the Space Needle. Tagline: <em>"Where Seattle works."</em></p>
+  </div>
+  <div class="note">
+    <h3>The Icon</h3>
+    <p>The reference illustration is the final brand mark — <strong>not recreated as SVG, used directly</strong>. This preserves every curve, gradient, and proportion of the original design.</p>
+  </div>
+  <div class="note">
+    <h3>Next Steps</h3>
+    <p>1. Export the PNG as SVG or high-res PNG (2x, 3x) for production<br>
+       2. Generate favicon + app icon set from the master<br>
+       3. Apply to Next.js app: header, <code>favicon.ico</code>, Open Graph image</p>
+  </div>
+</div>
+
+</body>
+</html>

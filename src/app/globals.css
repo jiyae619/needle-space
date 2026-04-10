@@ -1,0 +1,408 @@
+@import "tailwindcss";
+
+/* ── Design tokens ─────────────────────────────────────────── */
+:root {
+  --gs-cream:       #F5EFE3;
+  --gs-paper:       #EDE3CF;
+  --gs-espresso:    #2A1D14;
+  --gs-ink:         #4A3728;
+  --gs-kraft:       #9C7E62;
+  --gs-rule:        #D9CAAF;
+  --gs-accent:      #E8521C;
+  --gs-accent-soft: #F5C4AE;
+  --gs-good:        #4A7C40;
+  --gs-good-bg:     #EAF3E8;
+  --gs-warn:        #B07820;
+  --gs-warn-bg:     #FBF2DC;
+  --gs-bad:         #B03020;
+  --gs-bad-bg:      #FAE8E6;
+}
+
+/* ── Base ───────────────────────────────────────────────────── */
+html {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--gs-cream);
+  color: var(--gs-ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  /* Subtle paper grain via SVG noise */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+/* ── Typography utilities ───────────────────────────────────── */
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+.gs-header {
+  background-color: color-mix(in srgb, var(--gs-cream) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.gs-nav-link {
+  color: var(--gs-ink);
+  transition: color 150ms ease;
+}
+.gs-nav-link:hover {
+  color: var(--gs-espresso);
+}
+
+.gs-nav-pill {
+  background-color: var(--gs-espresso);
+  color: var(--gs-cream);
+  transition: background-color 150ms ease;
+}
+.gs-nav-pill:hover {
+  background-color: var(--gs-ink);
+}
+
+/* ── Cards ──────────────────────────────────────────────────── */
+.gs-card {
+  background-color: var(--gs-paper);
+  border: 1px solid var(--gs-rule);
+  border-radius: 12px;
+  box-shadow: 0 1px 0 rgba(42, 29, 20, 0.06);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.gs-card:hover {
+  box-shadow: 0 4px 16px rgba(42, 29, 20, 0.1);
+  transform: translateY(-1px);
+}
+
+/* ── Filter chips ───────────────────────────────────────────── */
+.gs-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--gs-rule);
+  background: var(--gs-cream);
+  color: var(--gs-ink);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.gs-chip:hover {
+  background: var(--gs-paper);
+  border-color: var(--gs-kraft);
+}
+
+.gs-chip:active {
+  transform: scale(0.97);
+}
+
+.gs-chip-active {
+  background: var(--gs-espresso);
+  color: var(--gs-cream);
+  border-color: var(--gs-espresso);
+}
+
+.gs-chip-active:hover {
+  background: var(--gs-ink);
+  border-color: var(--gs-ink);
+  color: var(--gs-cream);
+}
+
+/* ── Tags (on cards) ────────────────────────────────────────── */
+.gs-tag {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.gs-tag-good    { background: var(--gs-good-bg); color: var(--gs-good); }
+.gs-tag-neutral { background: var(--gs-paper);   color: var(--gs-kraft); border: 1px solid var(--gs-rule); }
+.gs-tag-bad     { background: var(--gs-bad-bg);  color: var(--gs-bad); }
+
+/* ── Score badge ────────────────────────────────────────────── */
+.gs-score {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--gs-espresso);
+}
+
+.gs-score-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gs-kraft);
+}
+
+/* ── Search input ───────────────────────────────────────────── */
+.gs-input {
+  width: 100%;
+  background: var(--gs-paper);
+  border: 1px solid var(--gs-rule);
+  border-radius: 10px;
+  padding: 0.65rem 1rem 0.65rem 2.5rem;
+  font-size: 0.9rem;
+  color: var(--gs-espresso);
+  font-family: var(--font-body), system-ui, sans-serif;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gs-input::placeholder { color: var(--gs-kraft); }
+
+.gs-input:focus {
+  outline: none;
+  border-color: var(--gs-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gs-accent) 15%, transparent);
+}
+
+/* ── Staggered reveal animation ─────────────────────────────── */
+@keyframes gs-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.gs-rise {
+  animation: gs-rise 0.4s ease both;
+}
+
+/* ── CTA button ─────────────────────────────────────────────── */
+.gs-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  background: var(--gs-accent);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.gs-btn-primary:hover  { background: color-mix(in srgb, var(--gs-accent) 85%, black); }
+.gs-btn-primary:active { transform: scale(0.97); }
+
+/* ── View toggle ────────────────────────────────────────────── */
+.gs-view-toggle {
+  display: flex;
+  border: 1px solid var(--gs-rule);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.gs-view-btn {
+  padding: 0.3rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--gs-kraft);
+  background: var(--gs-cream);
+  transition: background 0.12s, color 0.12s;
+  cursor: pointer;
+}
+
+.gs-view-btn:hover          { background: var(--gs-paper); color: var(--gs-ink); }
+.gs-view-btn-active         { background: var(--gs-espresso); color: var(--gs-cream); }
+.gs-view-btn-active:hover   { background: var(--gs-espresso); color: var(--gs-cream); }
+
+/* ── Score badge ────────────────────────────────────────────── */
+.gs-score-denom {
+  font-size: 0.85rem;
+  color: var(--gs-kraft);
+  font-weight: 500;
+  font-family: var(--font-display), Georgia, serif;
+}
+
+/* ── Vibe keyword tags (editorial, italic) ──────────────────── */
+.gs-vibe-tag {
+  display: inline-block;
+  font-family: var(--font-display), Georgia, serif;
+  font-style: italic;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  color: var(--gs-ink);
+  border-bottom: 1px dotted var(--gs-kraft);
+  padding-bottom: 1px;
+}
+
+/* ── Onboarding fork CTA cards ──────────────────────────────── */
+.gs-card-cta {
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 1.5rem 1.25rem;
+  background: var(--gs-paper);
+  border: 1px solid var(--gs-rule);
+  border-radius: 14px;
+  position: relative;
+  min-height: 200px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  text-decoration: none;
+  box-shadow: 0 1px 0 rgba(42, 29, 20, 0.06);
+}
+
+.gs-card-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(42, 29, 20, 0.12);
+}
+
+.gs-card-cta-accent {
+  background: var(--gs-accent);
+  color: #fff;
+  border-color: var(--gs-accent);
+}
+
+.gs-card-cta-accent:hover {
+  background: color-mix(in srgb, var(--gs-accent) 92%, black);
+}
+
+.gs-cta-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gs-kraft);
+  margin-bottom: 0.75rem;
+}
+
+.gs-card-cta-accent .gs-cta-eyebrow {
+  color: #fff;
+  opacity: 0.85;
+}
+
+.gs-cta-headline {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 700;
+  font-size: 1.6rem;
+  line-height: 1.15;
+  color: var(--gs-espresso);
+}
+
+.gs-card-cta-accent .gs-cta-headline {
+  color: #fff;
+}
+
+.gs-cta-sub {
+  font-size: 0.875rem;
+  color: var(--gs-kraft);
+  margin-top: 0.5rem;
+  flex: 1;
+}
+
+.gs-card-cta-accent .gs-cta-sub {
+  color: #fff;
+  opacity: 0.9;
+}
+
+.gs-cta-arrow {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.5rem;
+  align-self: flex-end;
+  margin-top: 0.5rem;
+  color: var(--gs-espresso);
+  transition: transform 0.18s ease;
+}
+
+.gs-card-cta-accent .gs-cta-arrow {
+  color: #fff;
+}
+
+.gs-card-cta:hover .gs-cta-arrow {
+  transform: translateX(4px);
+}
+
+/* ── Treasure swipe deck ────────────────────────────────────── */
+.gs-treasure-card {
+  background: var(--gs-paper);
+  border: 1px solid var(--gs-rule);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(42, 29, 20, 0.12);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+}
+
+.gs-treasure-card:active {
+  cursor: grabbing;
+}
+
+.gs-treasure-stamp {
+  position: absolute;
+  top: 1.25rem;
+  z-index: 10;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 800;
+  font-size: 2.25rem;
+  letter-spacing: 0.08em;
+  padding: 0.4rem 1rem;
+  border: 4px solid;
+  border-radius: 8px;
+  transform: rotate(-12deg);
+  pointer-events: none;
+  text-transform: uppercase;
+  opacity: 1;
+}
+
+.gs-treasure-yes {
+  right: 1.25rem;
+  color: var(--gs-good);
+  border-color: var(--gs-good);
+  background: color-mix(in srgb, var(--gs-good-bg) 85%, transparent);
+}
+
+.gs-treasure-no {
+  left: 1.25rem;
+  color: var(--gs-bad);
+  border-color: var(--gs-bad);
+  background: color-mix(in srgb, var(--gs-bad-bg) 85%, transparent);
+  transform: rotate(12deg);
+}
+
+.gs-treasure-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid;
+  font-size: 1.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gs-cream);
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
+  box-shadow: 0 2px 8px rgba(42, 29, 20, 0.1);
+}
+
+.gs-treasure-btn:hover  { transform: scale(1.06); }
+.gs-treasure-btn:active { transform: scale(0.94); }
+
+.gs-treasure-btn-yes {
+  color: var(--gs-good);
+  border-color: var(--gs-good);
+}
+.gs-treasure-btn-yes:hover { background: var(--gs-good-bg); }
+
+.gs-treasure-btn-no {
+  color: var(--gs-bad);
+  border-color: var(--gs-bad);
+}
+.gs-treasure-btn-no:hover { background: var(--gs-bad-bg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-rise { animation: none; }
+  .gs-card, .gs-chip, .gs-btn-primary, .gs-card-cta, .gs-treasure-card, .gs-treasure-btn { transition: none; }
+}
