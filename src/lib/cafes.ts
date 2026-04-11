@@ -7,7 +7,12 @@ const USE_SAMPLE_DATA = !process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("supabas
 // Fetches all cafes. Filtering happens client-side in HomeClient via useMemo
 // (faster UX — no DB round-trip when toggling chips).
 export async function getCafes(): Promise<Cafe[]> {
-  if (USE_SAMPLE_DATA) return SAMPLE_CAFES;
+  if (USE_SAMPLE_DATA) {
+    console.error("[getCafes] USE_SAMPLE_DATA is true. SUPABASE_URL =", process.env.NEXT_PUBLIC_SUPABASE_URL);
+    return SAMPLE_CAFES;
+  }
+
+  console.error("[getCafes] Querying Supabase at:", process.env.NEXT_PUBLIC_SUPABASE_URL);
 
   const { data, error } = await supabase
     .from("cafes")
@@ -15,9 +20,10 @@ export async function getCafes(): Promise<Cafe[]> {
     .order("productivity_score", { ascending: false, nullsFirst: false });
 
   if (error) {
-    console.error("Supabase error:", error.message);
+    console.error("[getCafes] Supabase error:", error.message, error);
     return [];
   }
+  console.error("[getCafes] Got", data?.length ?? 0, "cafes");
   return (data as Cafe[]) || [];
 }
 
