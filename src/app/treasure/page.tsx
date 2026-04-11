@@ -1,6 +1,8 @@
 import TreasureDeck from "@/components/TreasureDeck";
 import { getVerifiedCafes } from "@/lib/cafes";
 
+export const dynamic = "force-dynamic";
+
 // Five random verified cafes — swipe yes/no, end with a shortlist.
 export default async function Treasure() {
   const pool = await getVerifiedCafes();

@@ -4,6 +4,8 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import ScoreBreakdown from "@/components/ScoreBreakdown";
 
+export const dynamic = "force-dynamic";
+
 export default async function CafeDetailPage({
   params,
 }: {

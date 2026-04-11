@@ -16,6 +16,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.15.9",
     "@tailwindcss/postcss": "^4",
     "@types/google.maps": "^3.58.1",
     "@types/node": "^20",
