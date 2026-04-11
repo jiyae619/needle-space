@@ -4,10 +4,11 @@ out/
 build/
 dist/
 
+# Environment / secrets (never commit)
 .env
-.env.local
 .env.development
 .env.production
+.env*.local
 
 next-env.d.ts
 
