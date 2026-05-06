@@ -9,11 +9,20 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@google/genai": "^1.51.0",
     "@googlemaps/js-api-loader": "^2.0.2",
+    "@langchain/anthropic": "^0.3.8",
+    "@langchain/core": "^0.3.27",
+    "@langchain/langgraph": "^0.2.34",
+    "@phosphor-icons/react": "^2.1.10",
     "@supabase/supabase-js": "^2.101.1",
+    "lru-cache": "^11.0.2",
     "next": "16.2.2",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "voyageai": "^0.0.4",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@netlify/plugin-nextjs": "^5.15.9",

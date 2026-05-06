@@ -1,4 +1,4 @@
--- Needle Space Database Schema
+ -- Needle Space Database Schema
 -- Run this in your Supabase SQL editor from your dashboard:
 -- https://supabase.com/dashboard
 
@@ -60,3 +60,26 @@ create policy "Public cafes are readable by everyone"
 
 -- Only allow inserts/updates from the service role (your batch script)
 -- Client-side (anon key) cannot write to this table
+
+-- Cafe reviews table: accumulates unique reviews across monthly batch runs
+-- Each run fetches "most relevant" (v1 API) + "newest" (legacy API) reviews.
+-- The unique constraint deduplicates across runs while growing the corpus.
+create table if not exists cafe_reviews (
+  id              uuid primary key default gen_random_uuid(),
+  google_place_id text not null references cafes(google_place_id),
+  author_name     text,
+  publish_time    timestamptz,
+  rating          int,
+  text            text not null,
+  source_sort     text check (source_sort in ('relevant', 'newest')),
+  fetched_at      timestamptz default now(),
+
+  unique(google_place_id, author_name, publish_time)
+);
+
+create index if not exists cafe_reviews_place_idx on cafe_reviews (google_place_id);
+
+alter table cafe_reviews enable row level security;
+
+create policy "Public reviews readable by everyone"
+  on cafe_reviews for select using (true);

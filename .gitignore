@@ -19,3 +19,9 @@ data/
 
 .vscode/
 .idea/
+
+# Claude Code local settings
+.claude/
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo

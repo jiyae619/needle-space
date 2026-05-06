@@ -21,6 +21,8 @@
 /* ── Base ───────────────────────────────────────────────────── */
 html {
   color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -29,13 +31,23 @@ body {
   font-family: var(--font-body), system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.6;
+  text-wrap: pretty;
   /* Subtle paper grain via SVG noise */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+h1, h2, h3, .font-display {
+  text-wrap: balance;
 }
 
 /* ── Typography utilities ───────────────────────────────────── */
 .font-display {
   font-family: var(--font-display), Georgia, serif;
+}
+
+/* Tabular figures for any number that updates while the user reads it. */
+.gs-num {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Header ─────────────────────────────────────────────────── */
@@ -49,17 +61,16 @@ body {
   color: var(--gs-ink);
   transition: color 150ms ease;
 }
-.gs-nav-link:hover {
-  color: var(--gs-espresso);
-}
 
 .gs-nav-pill {
   background-color: var(--gs-espresso);
   color: var(--gs-cream);
   transition: background-color 150ms ease;
 }
-.gs-nav-pill:hover {
-  background-color: var(--gs-ink);
+
+@media (hover: hover) {
+  .gs-nav-link:hover { color: var(--gs-espresso); }
+  .gs-nav-pill:hover { background-color: var(--gs-ink); }
 }
 
 /* ── Cards ──────────────────────────────────────────────────── */
@@ -71,17 +82,20 @@ body {
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
-.gs-card:hover {
-  box-shadow: 0 4px 16px rgba(42, 29, 20, 0.1);
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .gs-card:hover {
+    box-shadow: 0 4px 16px rgba(42, 29, 20, 0.1);
+    transform: translateY(-1px);
+  }
 }
 
 /* ── Filter chips ───────────────────────────────────────────── */
 .gs-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0.3rem 0.85rem;
-  border-radius: 6px;
+  /* Hit area ≥ 40px tall — vertical padding is the lever. */
+  padding: 0.55rem 0.95rem;
+  border-radius: 8px;
   border: 1px solid var(--gs-rule);
   background: var(--gs-cream);
   color: var(--gs-ink);
@@ -93,9 +107,16 @@ body {
   white-space: nowrap;
 }
 
-.gs-chip:hover {
-  background: var(--gs-paper);
-  border-color: var(--gs-kraft);
+@media (hover: hover) {
+  .gs-chip:hover {
+    background: var(--gs-paper);
+    border-color: var(--gs-kraft);
+  }
+  .gs-chip-active:hover {
+    background: var(--gs-ink);
+    border-color: var(--gs-ink);
+    color: var(--gs-cream);
+  }
 }
 
 .gs-chip:active {
@@ -108,11 +129,22 @@ body {
   border-color: var(--gs-espresso);
 }
 
-.gs-chip-active:hover {
-  background: var(--gs-ink);
-  border-color: var(--gs-ink);
-  color: var(--gs-cream);
+/* Single-row, snap-scrollable chip strip used by FilterChips. */
+.gs-chip-strip {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  /* Soft fade hint at the right edge so users see there's more. */
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+          mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
 }
+.gs-chip-strip::-webkit-scrollbar { display: none; }
+.gs-chip-strip > * { scroll-snap-align: start; flex-shrink: 0; }
 
 /* ── Tags (on cards) ────────────────────────────────────────── */
 .gs-tag {
@@ -129,6 +161,16 @@ body {
 .gs-tag-neutral { background: var(--gs-paper);   color: var(--gs-kraft); border: 1px solid var(--gs-rule); }
 .gs-tag-bad     { background: var(--gs-bad-bg);  color: var(--gs-bad); }
 
+/* "Sources disagree" marker — dotted underline for tags where regex and LLM
+   committed to different values. Meaning is documented in the top-right
+   "How it works" popover so we don't need an awkward per-tag tooltip. */
+.gs-tag-uncertain {
+  text-decoration: underline dotted;
+  text-decoration-color: currentColor;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
 /* ── Score badge ────────────────────────────────────────────── */
 .gs-score {
   font-family: var(--font-display), Georgia, serif;
@@ -136,6 +178,7 @@ body {
   font-weight: 700;
   line-height: 1;
   color: var(--gs-espresso);
+  font-variant-numeric: tabular-nums;
 }
 
 .gs-score-label {
@@ -159,6 +202,14 @@ body {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+/* Larger variant — used by the home-page AI search bar so the input feels
+   like a primary action, not a secondary control. */
+.gs-input.gs-input-lg {
+  padding: 0.95rem 1rem 0.95rem 2.85rem;
+  font-size: 1rem;
+  border-radius: 12px;
+}
+
 .gs-input::placeholder { color: var(--gs-kraft); }
 
 .gs-input:focus {
@@ -166,6 +217,42 @@ body {
   border-color: var(--gs-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--gs-accent) 15%, transparent);
 }
+
+/* Submit button on the right of the AI search bar — accent-colored, gives
+   tactile "your query was received" feedback via three icon states. */
+.gs-search-submit {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--gs-accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--gs-accent);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.gs-search-submit:disabled {
+  background: var(--gs-kraft);
+  border-color: var(--gs-kraft);
+  cursor: progress;
+}
+.gs-search-submit:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.96);
+}
+@media (hover: hover) {
+  .gs-search-submit:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--gs-accent) 88%, black);
+  }
+}
+
+@keyframes gs-spin { to { transform: rotate(360deg); } }
+.gs-spin { animation: gs-spin 0.9s linear infinite; transform-origin: center; }
 
 /* ── Staggered reveal animation ─────────────────────────────── */
 @keyframes gs-rise {
@@ -192,7 +279,9 @@ body {
   transition: background 0.15s ease, transform 0.1s ease;
 }
 
-.gs-btn-primary:hover  { background: color-mix(in srgb, var(--gs-accent) 85%, black); }
+@media (hover: hover) {
+  .gs-btn-primary:hover { background: color-mix(in srgb, var(--gs-accent) 85%, black); }
+}
 .gs-btn-primary:active { transform: scale(0.97); }
 
 /* ── View toggle ────────────────────────────────────────────── */
@@ -213,9 +302,11 @@ body {
   cursor: pointer;
 }
 
-.gs-view-btn:hover          { background: var(--gs-paper); color: var(--gs-ink); }
+@media (hover: hover) {
+  .gs-view-btn:hover        { background: var(--gs-paper); color: var(--gs-ink); }
+  .gs-view-btn-active:hover { background: var(--gs-espresso); color: var(--gs-cream); }
+}
 .gs-view-btn-active         { background: var(--gs-espresso); color: var(--gs-cream); }
-.gs-view-btn-active:hover   { background: var(--gs-espresso); color: var(--gs-cream); }
 
 /* ── Score badge ────────────────────────────────────────────── */
 .gs-score-denom {
@@ -252,19 +343,23 @@ body {
   box-shadow: 0 1px 0 rgba(42, 29, 20, 0.06);
 }
 
-.gs-card-cta:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(42, 29, 20, 0.12);
+@media (hover: hover) {
+  .gs-card-cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(42, 29, 20, 0.12);
+  }
+  .gs-card-cta-accent:hover {
+    background: color-mix(in srgb, var(--gs-accent) 92%, black);
+  }
+  .gs-card-cta:hover .gs-cta-arrow {
+    transform: translateX(4px);
+  }
 }
 
 .gs-card-cta-accent {
   background: var(--gs-accent);
   color: #fff;
   border-color: var(--gs-accent);
-}
-
-.gs-card-cta-accent:hover {
-  background: color-mix(in srgb, var(--gs-accent) 92%, black);
 }
 
 .gs-cta-eyebrow {
@@ -318,9 +413,6 @@ body {
   color: #fff;
 }
 
-.gs-card-cta:hover .gs-cta-arrow {
-  transform: translateX(4px);
-}
 
 /* ── Treasure swipe deck ────────────────────────────────────── */
 .gs-treasure-card {
@@ -387,22 +479,52 @@ body {
   box-shadow: 0 2px 8px rgba(42, 29, 20, 0.1);
 }
 
-.gs-treasure-btn:hover  { transform: scale(1.06); }
 .gs-treasure-btn:active { transform: scale(0.94); }
+@media (hover: hover) {
+  .gs-treasure-btn:hover     { transform: scale(1.06); }
+  .gs-treasure-btn-yes:hover { background: var(--gs-good-bg); }
+  .gs-treasure-btn-no:hover  { background: var(--gs-bad-bg); }
+}
 
 .gs-treasure-btn-yes {
   color: var(--gs-good);
   border-color: var(--gs-good);
 }
-.gs-treasure-btn-yes:hover { background: var(--gs-good-bg); }
 
 .gs-treasure-btn-no {
   color: var(--gs-bad);
   border-color: var(--gs-bad);
 }
-.gs-treasure-btn-no:hover { background: var(--gs-bad-bg); }
+
+/* ── Popover (filter chip dropdown, AI badge tooltip) ───────── */
+.gs-popover {
+  background: #fff;
+  border: 1px solid var(--gs-rule);
+  border-radius: 12px;
+  box-shadow:
+    0 1px 2px rgba(42, 29, 20, 0.08),
+    0 8px 24px rgba(42, 29, 20, 0.12);
+  transform-origin: var(--gs-popover-origin, top left);
+  animation: gs-popover-in 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes gs-popover-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-2px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Compact tooltip — used by the AI badge to explain itself on tap. */
+.gs-tooltip {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--gs-ink);
+  padding: 0.5rem 0.7rem;
+  max-width: 240px;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .gs-rise { animation: none; }
+  .gs-rise, .gs-popover, .gs-spin { animation: none; }
   .gs-card, .gs-chip, .gs-btn-primary, .gs-card-cta, .gs-treasure-card, .gs-treasure-btn { transition: none; }
+  /* Reduced-motion users still need to know the search is busy — fall back to opacity pulse. */
+  .gs-spin { opacity: 0.6; }
 }

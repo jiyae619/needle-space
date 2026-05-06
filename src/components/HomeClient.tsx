@@ -1,19 +1,13 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { ArrowLeft, ArrowRight, Coffee, WarningCircle } from "@phosphor-icons/react";
 import FilterChips from "@/components/FilterChips";
 import CafeCard from "@/components/CafeCard";
 import MapView from "@/components/MapView";
-import { Cafe, Filters, FilterKey } from "@/lib/types";
-
-const EMPTY_FILTERS: Filters = {
-  open_now: false,
-  laptop_friendly: false,
-  quiet: false,
-  has_outlets: false,
-  fast_wifi: false,
-  top_picks: false,
-};
+import SearchBar from "@/components/SearchBar";
+import { Cafe, Filters, FilterKey, EMPTY_FILTERS } from "@/lib/types";
+import { searchCafes } from "@/lib/cafes";
 
 const PAGE_SIZE = 6;
 
@@ -25,13 +19,21 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
   const [selectedCafeId, setSelectedCafeId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [results, setResults] = useState<Cafe[]>(initialCafes);
+  const [isSearching, setIsSearching] = useState(false);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
-  const handleToggle = useCallback((key: FilterKey) => {
-    setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
-  }, []);
+  const handleChipChange = useCallback(
+    <K extends FilterKey>(key: K, value: Filters[K]) => {
+      setFilters(prev => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
 
   const handleClear = useCallback(() => {
     setFilters(EMPTY_FILTERS);
+    setSearchQuery("");
   }, []);
 
   /** Map marker: tap again to deselect; also use the Undo control beside the map. */
@@ -39,39 +41,45 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
     setSelectedCafeId((prev) => (prev === id ? null : id));
   }, []);
 
-  const filteredCafes = useMemo(() => {
-    let result: Cafe[] = initialCafes;
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          (c.neighborhood?.toLowerCase() || "").includes(q) ||
-          c.address.toLowerCase().includes(q)
-      );
+  // Hit /api/search whenever the query or filters change. The debounce inside
+  // SearchBar caps how often the user can trigger this from typing.
+  useEffect(() => {
+    const filtersAreEmpty = (Object.keys(filters) as FilterKey[]).every(
+      k => filters[k] === EMPTY_FILTERS[k],
+    );
+    // No query AND no filter constraints → keep the SSR-rendered list. Avoids
+    // a needless API hit on first paint.
+    if (!searchQuery.trim() && filtersAreEmpty) {
+      setResults(initialCafes);
+      setLatencyMs(null);
+      setSearchError(null);
+      return;
     }
 
-    if (filters.laptop_friendly)
-      result = result.filter((c) => c.laptop_policy === "welcome");
-    if (filters.quiet)
-      result = result.filter((c) => c.noise_level === "quiet");
-    if (filters.has_outlets)
-      result = result.filter((c) => c.outlet_availability === "every_table" || c.outlet_availability === "most");
-    if (filters.fast_wifi)
-      result = result.filter((c) => c.wifi_quality === "fast");
-    if (filters.top_picks)
-      result = result.filter((c) => c.verified === true);
-    // open_now: not yet wired to hours_json — same as before
+    let cancelled = false;
+    setIsSearching(true);
+    searchCafes(searchQuery, filters).then(({ cafes, latency_ms, error }) => {
+      if (cancelled) return;
+      if (error) {
+        console.error("[search] fallback to in-memory:", error);
+        setResults(initialCafes);
+        setSearchError("AI search unavailable — showing all cafes");
+      } else {
+        setResults(cafes);
+        setSearchError(null);
+        if (latency_ms !== undefined) setLatencyMs(latency_ms);
+      }
+      setIsSearching(false);
+    });
+    return () => { cancelled = true; };
+  }, [searchQuery, filters, initialCafes]);
 
-    result.sort((a, b) => (b.productivity_score ?? 0) - (a.productivity_score ?? 0));
-    return result;
-  }, [filters, searchQuery, initialCafes]);
-
-  // Reset to page 1 whenever filters or search change
+  // Reset pagination when results change.
   useEffect(() => {
     setCurrentPage(1);
-  }, [filteredCafes]);
+  }, [results]);
+
+  const filteredCafes = results;
 
   const totalPages = Math.ceil(filteredCafes.length / PAGE_SIZE);
   const pagedCafes = filteredCafes.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -79,33 +87,45 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Search bar */}
-      <div className="px-4 pt-4">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search by cafe name or neighborhood…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="gs-input"
-          />
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm" style={{ color: "var(--gs-kraft)" }}>
-            ⌕
-          </span>
-        </div>
-      </div>
+      {/* NL search bar with AI badge */}
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        isSearching={isSearching}
+      />
 
-      {/* Filter chips */}
+      {/* Filter chips — multi-value pickers */}
       <FilterChips
         filters={filters}
-        onToggle={handleToggle}
+        onChange={handleChipChange}
         onClear={handleClear}
       />
 
+      {/* Search error notice — explicit so users know why filters seem ignored. */}
+      {searchError && (
+        <div
+          role="status"
+          className="mx-4 mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs"
+          style={{
+            borderColor: "var(--gs-accent-soft)",
+            background: "color-mix(in srgb, var(--gs-accent-soft) 35%, transparent)",
+            color: "var(--gs-ink)",
+          }}
+        >
+          <WarningCircle size={14} weight="fill" style={{ color: "var(--gs-accent)" }} aria-hidden />
+          <span>{searchError}</span>
+        </div>
+      )}
+
       {/* Results count + view toggle */}
       <div className="px-4 pb-3 flex items-center justify-between">
-        <p className="text-xs tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
+        <p className="text-xs tracking-widest uppercase gs-num" style={{ color: "var(--gs-kraft)" }}>
           {filteredCafes.length} cafe{filteredCafes.length !== 1 ? "s" : ""}
+          {latencyMs !== null && searchQuery.trim() && !searchError && (
+            <span className="ml-2 normal-case tracking-normal" style={{ opacity: 0.7 }}>
+              · {latencyMs}ms
+            </span>
+          )}
         </p>
         <div className="gs-view-toggle">
           <button
@@ -127,10 +147,10 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
       {viewMode === "list" ? (
         <div className="px-4 pb-20">
           {filteredCafes.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-3xl mb-3">☕</p>
-              <p className="font-display font-bold text-lg" style={{ color: "var(--gs-espresso)" }}>No cafes match your filters</p>
-              <p className="text-sm mt-1" style={{ color: "var(--gs-kraft)" }}>Try adjusting your criteria</p>
+            <div className="gs-card text-center py-12 px-6 flex flex-col items-center">
+              <Coffee size={32} weight="regular" style={{ color: "var(--gs-kraft)" }} aria-hidden />
+              <p className="font-display font-bold text-lg mt-3" style={{ color: "var(--gs-espresso)" }}>No cafes match your filters</p>
+              <p className="text-sm mt-1" style={{ color: "var(--gs-kraft)" }}>Try widening the picker values, or clear all and start over.</p>
             </div>
           ) : (
             <>
@@ -147,9 +167,10 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
                     disabled={currentPage === 1}
                     className="gs-chip disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    ← Prev
+                    <ArrowLeft size={14} weight="bold" className="mr-1.5" aria-hidden />
+                    Prev
                   </button>
-                  <span className="text-xs tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
+                  <span className="text-xs tracking-widest uppercase gs-num" style={{ color: "var(--gs-kraft)" }}>
                     {currentPage} / {totalPages}
                   </span>
                   <button
@@ -157,7 +178,8 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
                     disabled={currentPage === totalPages}
                     className="gs-chip disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    Next →
+                    Next
+                    <ArrowRight size={14} weight="bold" className="ml-1.5" aria-hidden />
                   </button>
                 </div>
               )}
