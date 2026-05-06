@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, DM_Sans } from "next/font/google";
+import AlgorithmExplainer from "@/components/AlgorithmExplainer";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -37,11 +38,12 @@ export default function RootLayout({
                 alt=""
                 className="h-[34px] w-auto shrink-0"
               />
-              <span className="font-display font-light text-[1.15rem] tracking-[-0.01em] text-[var(--gs-espresso)]">
+              <span className="font-display font-bold text-[1.25rem] tracking-[-0.015em] text-[var(--gs-espresso)]">
                 Needle Space
               </span>
             </a>
             <nav className="flex items-center gap-1 sm:gap-3">
+              <AlgorithmExplainer />
               <a
                 href="/explore"
                 className="gs-nav-link text-xs tracking-widest uppercase px-2.5 py-1.5 rounded-sm"

@@ -25,26 +25,120 @@ export interface Cafe {
   verified: boolean;
   last_synced_at: string;
   created_at: string;
+
+  // LLM-tagged attributes (parallel to the regex-tagged ones above; preserved
+  // as ground truth for evaluation). Populated by scripts/analyze-reviews-llm.mjs.
+  wifi_quality_llm?: Cafe["wifi_quality"] | null;
+  outlet_availability_llm?: Cafe["outlet_availability"] | null;
+  noise_level_llm?: Cafe["noise_level"] | null;
+  laptop_policy_llm?: Cafe["laptop_policy"] | null;
+  seating_availability_llm?: Cafe["seating_availability"] | null;
+  tagging_confidence?: TaggingConfidence | null;
+  llm_tagged_at?: string | null;
+  // The 1024-dim embedding stays server-side; we don't normally ship it to the browser.
+  cafe_embedding?: number[] | null;
 }
 
-// Simplified binary filters — each chip answers one clear question.
-// Replaces the old multi-tier spectrum filters that were overwhelming users.
+export interface AttributeConfidence {
+  confidence: number; // 0..1
+  evidence: string[]; // 1-2 short quotes from reviews
+}
+
+export interface TaggingConfidence {
+  wifi_quality?: AttributeConfidence;
+  outlet_availability?: AttributeConfidence;
+  noise_level?: AttributeConfidence;
+  laptop_policy?: AttributeConfidence;
+  seating_availability?: AttributeConfidence;
+}
+
+// Multi-value preference filters — each chip is a small picker, not a toggle.
+// "any" = no constraint applied. The default state for every key is "any",
+// which matches the old "no chips active" UX.
 export interface Filters {
-  open_now: boolean;
-  laptop_friendly: boolean;
-  quiet: boolean;
-  has_outlets: boolean;
-  fast_wifi: boolean;
-  top_picks: boolean;
+  wifi:      "fast" | "moderate_or_better" | "any";
+  noise:     "quiet" | "quiet_or_moderate" | "any";
+  outlets:   "every_table" | "any_outlets" | "any";
+  laptop:    "welcome" | "welcome_or_limited" | "any";
+  top_picks: "verified_only" | "any";
+  open_now:  "open_now" | "any";
 }
 
 export type FilterKey = keyof Filters;
 
-export const FILTER_CHIPS: { key: FilterKey; label: string }[] = [
-  { key: "open_now",        label: "Open now" },
-  { key: "laptop_friendly", label: "Laptop friendly" },
-  { key: "quiet",           label: "Quiet" },
-  { key: "has_outlets",     label: "Has outlets" },
-  { key: "fast_wifi",       label: "Fast WiFi" },
-  { key: "top_picks",       label: "Top picks" },
-];
+export const EMPTY_FILTERS: Filters = {
+  wifi:      "any",
+  noise:     "any",
+  outlets:   "any",
+  laptop:    "any",
+  top_picks: "any",
+  open_now:  "any",
+};
+
+// Each chip renders a popover with these options. First option = "tightest",
+// last option = "any" (no constraint).
+export interface FilterOption<K extends FilterKey> {
+  value: Filters[K];
+  label: string;
+}
+
+export interface FilterDef<K extends FilterKey = FilterKey> {
+  key: K;
+  label: string;       // chip header
+  options: FilterOption<K>[];
+}
+
+export const FILTER_DEFS: FilterDef[] = [
+  {
+    key: "wifi",
+    label: "WiFi",
+    options: [
+      { value: "fast",                label: "Fast" },
+      { value: "moderate_or_better",  label: "Moderate or better" },
+      { value: "any",                 label: "Any" },
+    ],
+  },
+  {
+    key: "noise",
+    label: "Noise",
+    options: [
+      { value: "quiet",               label: "Quiet" },
+      { value: "quiet_or_moderate",   label: "Quiet or moderate" },
+      { value: "any",                 label: "Any" },
+    ],
+  },
+  {
+    key: "outlets",
+    label: "Outlets",
+    options: [
+      { value: "every_table",         label: "Every table" },
+      { value: "any_outlets",         label: "Some or more" },
+      { value: "any",                 label: "Any" },
+    ],
+  },
+  {
+    key: "laptop",
+    label: "Laptop policy",
+    options: [
+      { value: "welcome",             label: "Welcome" },
+      { value: "welcome_or_limited",  label: "Welcome or limited" },
+      { value: "any",                 label: "Any" },
+    ],
+  },
+  {
+    key: "top_picks",
+    label: "Top picks",
+    options: [
+      { value: "verified_only",       label: "Verified only" },
+      { value: "any",                 label: "Any" },
+    ],
+  },
+  {
+    key: "open_now",
+    label: "Open now",
+    options: [
+      { value: "open_now",            label: "Open now" },
+      { value: "any",                 label: "Any" },
+    ],
+  },
+] as FilterDef[];

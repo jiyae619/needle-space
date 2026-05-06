@@ -83,6 +83,29 @@ const STOP_WORDS = new Set([
   "more", "than", "too", "much", "some", "any", "all", "its", "about",
   "into", "over", "after", "then", "get", "got", "can", "what", "how",
   "always", "every", "never", "often", "usually", "sometimes",
+  // helper verbs / be-forms
+  "were", "wasn", "aren", "weren", "being", "done", "went", "going", "goes", "gone",
+  "came", "come", "coming", "made", "makes", "make", "said", "says", "say", "told", "tell",
+  "let", "keep", "kept", "put", "ran", "run", "took", "take", "gave", "give", "given",
+  "left", "felt", "feel", "saw", "see", "seen", "knew", "know", "known", "thought", "think",
+  "want", "wanted", "need", "needed", "like", "liked", "tried", "try",
+  // pronouns / determiners
+  "him", "hers", "who", "whom", "whose", "which", "these", "those", "such", "own",
+  "each", "other", "another", "both", "few", "many", "most", "several", "no", "yes",
+  // connectors / adverbs / prepositions
+  "because", "since", "while", "during", "before", "until", "although", "though", "however",
+  "therefore", "between", "through", "within", "without", "against", "along", "around",
+  "across", "behind", "below", "above", "near", "toward", "towards", "where", "again",
+  "already", "still", "yet", "even", "quite", "rather", "maybe", "perhaps", "sure",
+  "enough", "almost", "pretty",
+  // weak unigrams
+  "one", "two", "three", "day", "time", "way", "lot", "lots", "thing", "things", "people",
+  "person", "bit", "kind", "new", "old", "big", "small", "little", "long", "well", "back",
+  "first", "last", "next", "only", "free", "full", "whole", "less", "least", "definitely",
+  "absolutely", "actually", "basically", "probably", "honestly", "totally",
+  // review meta-language
+  "review", "star", "stars", "rating", "google", "yelp", "recommend", "recommended",
+  "visit", "visited", "visiting", "experience", "experiences", "customer", "customers",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -95,6 +118,29 @@ const DULL_PHRASES = new Set([
   "love this", "love it", "loved it",
   "must try", "must visit",
   "check out", "try the",
+  "one of the best", "go to place", "go-to place", "give it a try",
+  "worth the wait", "can't go wrong", "won't be disappointed",
+  "do yourself a favor", "stop by", "worth a visit",
+]);
+
+// ---------------------------------------------------------------------------
+// Unigram quality gate + denylist for auto-approval
+// ---------------------------------------------------------------------------
+const UNIGRAM_ALLOWLIST = new Set([
+  "cozy", "spacious", "bright", "airy", "rustic", "modern", "vintage", "minimalist",
+  "eclectic", "charming", "warm", "welcoming", "nice", "kind", "friendly", "relaxing", 
+  "trendy", "hipster", "artsy", "local", "elegant", "quaint", "industrial", "homey", 
+  "sunny", "colorful", "rooftop", "patio", "bar", "events", "pleasant", "lovely", 
+  "fireplace", "garden", "courtyard", "mural", "art", "books", "plants", "bakery",
+  "pastries", "croissant", "matcha", "chai", "kombucha", "tea", "sandwich", "brunch",
+  "vegan", "organic", "parking", "inviting", "chill", "vibrant", "atmosphere", "delicious"
+]);
+
+const JUNK_WORDS = new Set([
+  "were", "was", "are", "is", "be", "being", "been", "have", "has", "had",
+  "which", "because", "while", "that", "this", "those", "these", "there", "here",
+  "one", "thing", "things", "time", "day", "people", "person", "well", "like",
+  "review", "reviews", "rating", "star", "stars",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -156,6 +202,32 @@ function isDull(phrase) {
   return DULL_PHRASES.has(phrase);
 }
 
+function isAllowedUnigram(word) {
+  return UNIGRAM_ALLOWLIST.has(word);
+}
+
+function isJunkCandidate(phrase) {
+  const words = phrase.split(" ");
+  if (words.some(w => JUNK_WORDS.has(w))) return true;
+  if (words.length === 1) return !isAllowedUnigram(words[0]);
+  return false;
+}
+
+function autoApproveCandidates(phrases) {
+  const seen = new Set();
+  const approved = [];
+
+  for (const phrase of phrases) {
+    if (isDull(phrase)) continue;
+    if (isJunkCandidate(phrase)) continue;
+    if (seen.has(phrase)) continue;
+    seen.add(phrase);
+    approved.push(phrase);
+  }
+
+  return approved;
+}
+
 // ---------------------------------------------------------------------------
 // Extract vibe candidates for a single cafe
 // ---------------------------------------------------------------------------
@@ -169,8 +241,8 @@ function extractCandidates(allTexts, topN) {
       for (const gram of ngrams(tokens, n)) {
         if (isWorkPhrase(gram)) continue;
         if (isDull(gram)) continue;
-        // Unigrams: must be at least moderately interesting (not a stop word)
-        if (n === 1 && STOP_WORDS.has(gram)) continue;
+        // Unigrams: must pass stop-word filter and curated allowlist.
+        if (n === 1 && (STOP_WORDS.has(gram) || !isAllowedUnigram(gram))) continue;
         freq.set(gram, (freq.get(gram) || 0) + 1);
       }
     }
@@ -179,7 +251,11 @@ function extractCandidates(allTexts, topN) {
   // Prefer multi-word phrases over unigrams — they're more specific
   // Score = frequency × n-gram length bonus (bigrams ×1.5, trigrams ×2)
   const scored = [...freq.entries()]
-    .filter(([, count]) => count >= 2) // must appear at least twice
+    .filter(([phrase, count]) => {
+      const wordCount = phrase.split(" ").length;
+      const minCount = wordCount === 1 ? 3 : 2;
+      return count >= minCount;
+    })
     .map(([phrase, count]) => {
       const wordCount = phrase.split(" ").length;
       const bonus = wordCount === 1 ? 1 : wordCount === 2 ? 1.5 : 2;
@@ -226,14 +302,20 @@ async function main() {
     }
 
     const candidates = extractCandidates(texts, TOP_N);
-    const phrases = candidates.map(c => c.phrase);
-    process.stdout.write(`→ ${phrases.join(", ") || "(none found)"}\n`);
+    const beforeAutoApproval = candidates.map(c => c.phrase);
+    const autoApproved = autoApproveCandidates(beforeAutoApproval);
+    const autoRejected = beforeAutoApproval.filter(p => !autoApproved.includes(p));
+    process.stdout.write(`→ before auto-approval: ${beforeAutoApproval.join(", ") || "(none found)"}\n`);
+    process.stdout.write(`    auto-approved:       ${autoApproved.join(", ") || "(none)"}\n`);
+    process.stdout.write(`    auto-rejected:       ${autoRejected.join(", ") || "(none)"}\n`);
 
     results.push({
       id: cafe.id,
       name: cafe.name,
-      candidates: phrases,
-      approved: [], // ← edit this manually before running apply-vibe-keywords.mjs
+      candidates: beforeAutoApproval,
+      auto_approved: autoApproved,
+      auto_rejected: autoRejected,
+      approved: autoApproved, // Human in the loop: review and adjust before applying.
     });
 
     await new Promise(r => setTimeout(r, 120));
@@ -249,9 +331,9 @@ async function main() {
   console.log(`\n✅ Written to data/vibe-candidates.json`);
   console.log(`\nNext steps:`);
   console.log(`  1. Open data/vibe-candidates.json`);
-  console.log(`  2. For each cafe, copy the best phrases from "candidates" into "approved"`);
+  console.log(`  2. Review auto-approved keywords and adjust as needed (human in the loop)`);
+  console.log(`     — remove anything inaccurate, add strong phrases from "candidates"`);
   console.log(`     — aim for 3–5 phrases that feel specific and evocative`);
-  console.log(`     — examples: "beautiful light", "dog friendly", "great pastries"`);
   console.log(`  3. Run: node scripts/apply-vibe-keywords.mjs`);
   console.log(`  4. Run: node scripts/apply-vibe-keywords.mjs --dry-run  (to preview first)\n`);
 }

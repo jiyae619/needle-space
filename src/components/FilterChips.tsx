@@ -1,33 +1,33 @@
 "use client";
 
-import { Filters, FilterKey, FILTER_CHIPS } from "@/lib/types";
+import { Filters, FilterKey, FILTER_DEFS, EMPTY_FILTERS } from "@/lib/types";
+import FilterChip from "./FilterChip";
 
 interface FilterChipsProps {
   filters: Filters;
-  onToggle: (key: FilterKey) => void;
+  onChange: (key: FilterKey, value: Filters[FilterKey]) => void;
   onClear: () => void;
 }
 
-export default function FilterChips({ filters, onToggle, onClear }: FilterChipsProps) {
-  const hasActiveFilters = Object.values(filters).some(Boolean);
+export default function FilterChips({ filters, onChange, onClear }: FilterChipsProps) {
+  const hasActive = (Object.keys(filters) as FilterKey[]).some(
+    k => filters[k] !== EMPTY_FILTERS[k],
+  );
 
   return (
-    <div className="flex flex-wrap gap-2 px-4 py-3 overflow-x-auto">
-      {FILTER_CHIPS.map(({ key, label }) => {
-        const isActive = filters[key];
-        return (
-          <button
-            key={key}
-            onClick={() => onToggle(key)}
-            className={`gs-chip ${isActive ? "gs-chip-active" : ""}`}
-          >
-            {label}
-          </button>
-        );
-      })}
+    <div className="gs-chip-strip">
+      {FILTER_DEFS.map(def => (
+        <FilterChip
+          key={def.key}
+          def={def}
+          value={filters[def.key]}
+          onChange={(v) => onChange(def.key, v)}
+        />
+      ))}
 
-      {hasActiveFilters && (
+      {hasActive && (
         <button
+          type="button"
           onClick={onClear}
           className="gs-chip"
           style={{ color: "var(--gs-accent)", borderColor: "var(--gs-accent-soft)" }}

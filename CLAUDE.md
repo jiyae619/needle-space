@@ -22,26 +22,35 @@ A mobile-first web app that helps remote workers, students, and digital nomads f
 ## MVP Scope (2 weeks)
 ### In Scope
 - Browse cafes on map + list view
-- Filter chips: WiFi quality, outlets, noise level, laptop policy, open now
+- Filter chips: WiFi quality, outlets, noise level, laptop policy, open now (now multi-value pickers, not on/off toggles)
 - Cafe detail pages with workspace info + Google Maps directions
 - Mobile-responsive design
 - Pre-loaded cafe database (~300-400 cafes from Google Places API)
 - Top 80-100 manually verified with work-specific data
+- **AI v1 (shipped 2026-04-30, see `docs/AI-PLAN-v1.md`):**
+  - Natural-language search bar over a Voyage-3 + pgvector index
+  - LangGraph.js pipeline (Gemini 2.5 Flash) re-tags every cafe with confidence + evidence quotes; regex tagger preserved as eval baseline
+  - Multi-value filter chips compose with NL search via SQL intersection
 
-### Out of Scope (Phase 2+)
+### Out of Scope (still — defer to v2+)
 - User accounts / authentication
 - User reviews, check-ins, ratings
 - Personalized recommendations
 - Cafe owner dashboard
 - Notifications / gamification
-- LLM-powered search (use filter chips instead)
-- AI features of any kind in MVP
+- Chat UI / per-result LLM explanations / LLM re-ranking
+- MCP server (planned for v2)
+- Knowledge graph
 
 ## Data Strategy
 - Pull cafe data from Google Places API in monthly batch jobs
 - Store everything in Supabase — never call Google API on user requests
-- Work-specific attributes (wifi, outlets, noise, laptop policy) are our value-add
-- Auto-tag cafes using review keyword scanning, manually verify top picks
+- Work-specific attributes (wifi, outlets, noise, laptop policy, seating) are our value-add
+- Tagging pipeline:
+  - Regex tagger (`scripts/analyze-reviews.mjs`) — kept as eval baseline; populates the original `wifi_quality` etc. columns
+  - LLM tagger (`scripts/analyze-reviews-llm.mjs`) — populates `*_llm` columns + `tagging_confidence` JSONB + 1024-dim `cafe_embedding`. App reads `*_llm` when present, falls back to regex columns
+  - Eval (`scripts/evaluate-tagging.mjs`) — regex vs LLM agreement + Cohen's kappa + confusion matrices
+- Manually verify top picks (workflow not yet built — only 1 cafe is `verified=true` as of 2026-04-30)
 - Google Place IDs are the foreign key linking our data to Google's
 
 ## Code Conventions

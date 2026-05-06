@@ -1,10 +1,13 @@
 /**
- * Needle Space — Review Analysis Script (Google Places only)
+ * Needle Space — Review Analysis Script
  *
  * Data sources used:
- *   - Google reviews (up to 5 per cafe)
- *   - Google editorial summary (AI paragraph synthesizing ALL reviews — the key signal)
- *   - Google structured booleans (liveMusic, goodForGroups → noise/crowd signals)
+ *   - Google reviews via Places API v1 (up to 5 "most relevant" per cafe)
+ *   - Google reviews via legacy Place Details API (up to 5 "newest" per cafe)
+ *   - Google reviewSummary (Gemini-generated paragraph synthesizing ALL reviews)
+ *   - Google editorialSummary (curated description for notable places)
+ *   - Google structured booleans (liveMusic → noise signal)
+ *   - Stored review corpus in Supabase cafe_reviews table (accumulates over runs)
  *
  * Usage:
  *   node scripts/analyze-reviews.mjs                        ← run all, write to Supabase
@@ -14,7 +17,7 @@
  *
  * Review loop workflow:
  *   1. node scripts/analyze-reviews.mjs --dry-run --cafe "Cafe Name"
- *      → shows raw reviews + editorial summary + every keyword that matched and why
+ *      → shows raw reviews + editorial/review summaries + every keyword that matched
  *   2. Edit SIGNALS below to tune keywords
  *   3. Repeat step 1 until results look right
  *   4. node scripts/analyze-reviews.mjs --dry-run   (test all cafes, no writes)
@@ -327,45 +330,97 @@ function pickBest(scores, fallback = "unknown") {
 }
 
 // ---------------------------------------------------------------------------
-// Source 1: Google Places API
-// Returns: up to 5 reviews + editorial summary + structured attributes
-// Cost: free within your $200/month credit
+// Source 1: Google Places API v1 (most relevant reviews)
+// Returns: up to 5 reviews + reviewSummary + editorial summary + attributes
+// reviewSummary = Gemini-generated synthesis of ALL reviews (not just 5)
 // ---------------------------------------------------------------------------
 async function fetchGoogleData(placeId) {
   const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
     headers: {
       "X-Goog-Api-Key": GOOGLE_KEY,
-      // Request reviews + editorial summary + useful attribute booleans
-      // Field mask = only pay for what you request
       "X-Goog-FieldMask": [
         "reviews",
         "rating",
-        "editorialSummary",       // AI-generated paragraph about the venue
-        "liveMusic",              // mild noise signal when true
-        "outdoorSeating",         // useful context
-        "servesCoffee",           // sanity check it's actually a cafe
+        "reviewSummary",            // Gemini summary of ALL reviews — highest-value signal
+        "editorialSummary",         // curated description for notable places
+        "liveMusic",                // mild noise signal when true
+        "outdoorSeating",           // useful context
+        "servesCoffee",             // sanity check it's actually a cafe
       ].join(","),
     },
   });
   if (!res.ok) return null;
   const data = await res.json();
 
-  // Build review text: combine actual reviews + editorial summary
   const reviewTexts = (data.reviews || []).map(r => r.text?.text || "").filter(Boolean);
-  const summary = data.editorialSummary?.text || "";
+  const editorialSummary = data.editorialSummary?.text || "";
+  const reviewSummary = data.reviewSummary?.text?.text || "";
 
-  // Inject structured boolean signals as synthetic text
-  // Only inject when a boolean is positively true — absence of a feature proves nothing
   const structuredSignals = [];
   if (data.liveMusic === true) structuredSignals.push("live music");
-  // goodForGroups removed: groups can be quiet (book clubs, study groups, etc.)
-  // liveMusic=false removed: no live music ≠ quiet
+
+  // Raw review objects for storing in cafe_reviews
+  const rawReviews = (data.reviews || []).map(r => ({
+    author_name: r.authorAttribution?.displayName || null,
+    publish_time: r.publishTime || null,
+    rating: r.rating || null,
+    text: r.text?.text || "",
+  })).filter(r => r.text);
 
   return {
-    source: "Google",
-    reviews: [...reviewTexts, summary, ...structuredSignals].filter(Boolean),
+    source: "Google v1 (relevant)",
+    rawReviews,
+    summaryTexts: [reviewSummary, editorialSummary].filter(Boolean),
+    structuredSignals,
     rating: data.rating,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Source 2: Legacy Place Details API (newest reviews)
+// The v1 API has no sort parameter; the legacy API supports reviews_sort=newest
+// ---------------------------------------------------------------------------
+async function fetchNewestReviews(placeId) {
+  const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
+  url.searchParams.set("place_id", placeId);
+  url.searchParams.set("fields", "reviews");
+  url.searchParams.set("reviews_sort", "newest");
+  url.searchParams.set("key", GOOGLE_KEY);
+
+  const res = await fetch(url.toString());
+  if (!res.ok) return [];
+  const data = await res.json();
+
+  return (data.result?.reviews || []).map(r => ({
+    author_name: r.author_name || null,
+    publish_time: r.time ? new Date(r.time * 1000).toISOString() : null,
+    rating: r.rating || null,
+    text: r.text || "",
+  })).filter(r => r.text);
+}
+
+// ---------------------------------------------------------------------------
+// Review storage: upsert into cafe_reviews and return full stored corpus
+// ---------------------------------------------------------------------------
+async function storeAndLoadReviews(googlePlaceId, relevantReviews, newestReviews) {
+  const toUpsert = [
+    ...relevantReviews.map(r => ({ ...r, google_place_id: googlePlaceId, source_sort: "relevant" })),
+    ...newestReviews.map(r => ({ ...r, google_place_id: googlePlaceId, source_sort: "newest" })),
+  ].filter(r => r.text && r.author_name && r.publish_time);
+
+  if (toUpsert.length > 0 && !DRY_RUN) {
+    await supabase
+      .from("cafe_reviews")
+      .upsert(toUpsert, { onConflict: "google_place_id,author_name,publish_time" });
+  }
+
+  // Load the full stored corpus
+  const { data: stored } = await supabase
+    .from("cafe_reviews")
+    .select("text, source_sort")
+    .eq("google_place_id", googlePlaceId);
+
+  return stored || [];
 }
 
 
@@ -401,7 +456,7 @@ async function main() {
   console.log(`🔍 Needle Space — Review Analysis`);
   console.log(`   Mode: ${modeLabel}`);
   if (FILTER_CAFE) console.log(`   Filter: "${FILTER_CAFE}"`);
-  console.log(`   Source: Google Places API (reviews + editorial summary + structured attributes)`);
+  console.log(`   Sources: Places API v1 (relevant) + Legacy API (newest) + stored corpus`);
   console.log();
 
   let query = supabase
@@ -424,25 +479,52 @@ async function main() {
   for (const cafe of cafes) {
     console.log(`━━━ ${cafe.name} (${cafe.address?.split(",")[0]})`);
 
-    // Fetch from Google Places (reviews + editorial summary + structured booleans)
-    const googleResult = await fetchGoogleData(cafe.google_place_id);
+    // Fetch from both APIs in parallel
+    const [googleResult, newestReviews] = await Promise.all([
+      fetchGoogleData(cafe.google_place_id),
+      fetchNewestReviews(cafe.google_place_id),
+    ]);
 
-    if (!googleResult || googleResult.reviews.length === 0) {
+    const relevantReviews = googleResult?.rawReviews || [];
+    const summaryTexts = googleResult?.summaryTexts || [];
+    const structuredSignals = googleResult?.structuredSignals || [];
+
+    // Store new reviews and load the full corpus from Supabase
+    const storedReviews = await storeAndLoadReviews(
+      cafe.google_place_id, relevantReviews, newestReviews,
+    );
+
+    // Count review sources for dry-run transparency
+    const freshRelevantCount = relevantReviews.length;
+    const freshNewestCount = newestReviews.length;
+    const storedCount = storedReviews.length;
+
+    // Build the text corpus: stored reviews + summaries + structured signals
+    const reviewTexts = storedReviews.length > 0
+      ? storedReviews.map(r => r.text)
+      : [...relevantReviews, ...newestReviews].map(r => r.text);
+
+    const hasAnyText = reviewTexts.length > 0 || summaryTexts.length > 0;
+    if (!hasAnyText) {
       console.log("    → no reviews found\n");
       noSignals++;
       continue;
     }
 
-    // Show raw reviews in dry-run mode
     if (DRY_RUN) {
-      console.log(`\n  📝 Google data (${googleResult.reviews.length} text sources):`);
-      googleResult.reviews.forEach((r, i) => {
-        console.log(`     [${i + 1}] "${r.slice(0, 130)}${r.length > 130 ? "..." : ""}"`);
-      });
+      console.log(`\n  📝 Data sources:`);
+      console.log(`     API v1 (relevant): ${freshRelevantCount} reviews`);
+      console.log(`     Legacy (newest):   ${freshNewestCount} reviews`);
+      console.log(`     Stored corpus:     ${storedCount} unique reviews`);
+      if (summaryTexts.length > 0) {
+        console.log(`     Summaries:         ${summaryTexts.length} (reviewSummary / editorialSummary)`);
+        summaryTexts.forEach((s, i) => {
+          console.log(`       [S${i + 1}] "${s.slice(0, 130)}${s.length > 130 ? "..." : ""}"`);
+        });
+      }
     }
 
-    // All review text: user reviews + editorial summary + synthetic boolean signals
-    const allReviewText = googleResult.reviews.join(" ");
+    const allReviewText = [...reviewTexts, ...summaryTexts, ...structuredSignals].join(" ");
     const { wifiScore, outletScore, noiseScore, laptopScore, seatingScore, matched } = analyzeText(allReviewText);
 
     const wifi    = pickBest(wifiScore);
@@ -451,7 +533,6 @@ async function main() {
     const laptop  = pickBest(laptopScore);
     const seating = pickBest(seatingScore);
 
-    // Show matched keywords in dry-run mode
     if (DRY_RUN) {
       console.log("\n  🔎 Keyword matches:");
       const allMatched = [
@@ -472,7 +553,7 @@ async function main() {
                        noise !== "unknown" || laptop !== "unknown" ||
                        seating !== "unknown";
 
-    const googleRating = googleResult.rating ?? cafe.google_rating;
+    const googleRating = googleResult?.rating ?? cafe.google_rating;
     const score = computeProductivityScore(wifi, outlets, noise, laptop, seating, googleRating);
 
     console.log(`\n  ✅ Result:`);
@@ -491,7 +572,7 @@ async function main() {
 
     if (DRY_RUN) {
       console.log("     ✏️  (dry-run: not written)\n");
-      updated++; // count as "would update"
+      updated++;
     } else {
       const { error: updateError } = await supabase
         .from("cafes")
@@ -502,7 +583,7 @@ async function main() {
           laptop_policy: laptop,
           seating_availability: seating,
           productivity_score: score,
-          verified: false, // human sets this to true after review
+          verified: false,
         })
         .eq("id", cafe.id);
 
@@ -515,8 +596,8 @@ async function main() {
       }
     }
 
-    // Rate limit: 120ms between cafes (~8 req/sec, well under Google's 10 QPS)
-    await new Promise(r => setTimeout(r, 120));
+    // Rate limit: 200ms between cafes (2 API calls per cafe now)
+    await new Promise(r => setTimeout(r, 200));
   }
 
   const action = DRY_RUN ? "Would update" : "Updated";
