@@ -56,6 +56,7 @@ export interface TaggingConfidence {
 // "any" = no constraint applied. The default state for every key is "any",
 // which matches the old "no chips active" UX.
 export interface Filters {
+  location:  string;  // "any" or a neighborhood name (e.g. "Ballard")
   wifi:      "fast" | "moderate_or_better" | "any";
   noise:     "quiet" | "quiet_or_moderate" | "any";
   outlets:   "every_table" | "any_outlets" | "any";
@@ -67,6 +68,7 @@ export interface Filters {
 export type FilterKey = keyof Filters;
 
 export const EMPTY_FILTERS: Filters = {
+  location:  "any",
   wifi:      "any",
   noise:     "any",
   outlets:   "any",
@@ -74,6 +76,25 @@ export const EMPTY_FILTERS: Filters = {
   top_picks: "any",
   open_now:  "any",
 };
+
+// Seattle-metro neighborhoods present in the cafe catalog. Add new entries
+// here if `fetch-cafes.mjs` starts pulling from new areas.
+export const NEIGHBORHOODS = [
+  "Ballard",
+  "Bellevue",
+  "Capitol Hill",
+  "Central District",
+  "Columbia City",
+  "Downtown Seattle",
+  "Fremont",
+  "Greenwood",
+  "Kirkland",
+  "Pioneer Square",
+  "Queen Anne",
+  "Redmond",
+  "University District",
+  "West Seattle",
+] as const;
 
 // Each chip renders a popover with these options. First option = "tightest",
 // last option = "any" (no constraint).
@@ -90,10 +111,18 @@ export interface FilterDef<K extends FilterKey = FilterKey> {
 
 export const FILTER_DEFS: FilterDef[] = [
   {
+    key: "location",
+    label: "Location",
+    options: [
+      { value: "any", label: "All neighborhoods" },
+      ...NEIGHBORHOODS.map(n => ({ value: n, label: n })),
+    ],
+  },
+  {
     key: "wifi",
     label: "WiFi",
     options: [
-      { value: "fast",                label: "Fast" },
+      { value: "fast",                label: "Fast only" },
       { value: "moderate_or_better",  label: "Moderate or better" },
       { value: "any",                 label: "Any" },
     ],
@@ -102,7 +131,7 @@ export const FILTER_DEFS: FilterDef[] = [
     key: "noise",
     label: "Noise",
     options: [
-      { value: "quiet",               label: "Quiet" },
+      { value: "quiet",               label: "Quiet only" },
       { value: "quiet_or_moderate",   label: "Quiet or moderate" },
       { value: "any",                 label: "Any" },
     ],
@@ -111,17 +140,17 @@ export const FILTER_DEFS: FilterDef[] = [
     key: "outlets",
     label: "Outlets",
     options: [
-      { value: "every_table",         label: "Every table" },
+      { value: "every_table",         label: "At every table" },
       { value: "any_outlets",         label: "Some or more" },
       { value: "any",                 label: "Any" },
     ],
   },
   {
     key: "laptop",
-    label: "Laptop policy",
+    label: "Laptops",
     options: [
-      { value: "welcome",             label: "Welcome" },
-      { value: "welcome_or_limited",  label: "Welcome or limited" },
+      { value: "welcome",             label: "Fully welcome" },
+      { value: "welcome_or_limited",  label: "Welcome or with limits" },
       { value: "any",                 label: "Any" },
     ],
   },
@@ -135,9 +164,9 @@ export const FILTER_DEFS: FilterDef[] = [
   },
   {
     key: "open_now",
-    label: "Open now",
+    label: "Hours",
     options: [
-      { value: "open_now",            label: "Open now" },
+      { value: "open_now",            label: "Open right now" },
       { value: "any",                 label: "Any" },
     ],
   },

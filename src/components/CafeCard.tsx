@@ -65,41 +65,45 @@ const LAPTOP_LABELS: Record<string, string | null> = {
 };
 
 // Strategy C smart merge: prefer the LLM tag when it committed (non-"unknown");
-// fall back to the regex tag when the LLM punted; mark as "uncertain" when both
-// committed but disagreed (the user sees a dotted underline + tooltip).
+// fall back to the regex tag when the LLM punted.
 type AttrKey = "wifi_quality" | "outlet_availability" | "noise_level" | "laptop_policy" | "seating_availability";
 
-function mergeAttribute(cafe: Cafe, key: AttrKey): { value: string; uncertain: boolean } {
+function mergeAttribute(cafe: Cafe, key: AttrKey): { value: string } {
   const llmKey = `${key}_llm` as keyof Cafe;
   const llm = cafe[llmKey] as string | null | undefined;
   const regex = (cafe[key] ?? "unknown") as string;
-
-  if (llm && llm !== "unknown") {
-    const uncertain = regex !== "unknown" && regex !== llm;
-    return { value: llm, uncertain };
-  }
-  return { value: regex, uncertain: false };
+  return { value: (llm && llm !== "unknown") ? llm : regex };
 }
 
 function ScoreBadge({ score }: { score: number | null }) {
   if (!score) return null;
   return (
-    <div className="text-right shrink-0">
+    <div
+      className="text-right shrink-0 gs-score-badge"
+      tabIndex={0}
+      aria-label={`Productivity score ${score.toFixed(1)} out of 5. Calculated from WiFi, outlets, noise, laptop policy, and seating, blended with the Google rating.`}
+      onClick={(e) => e.preventDefault()}
+    >
       <div className="gs-score">
         {score.toFixed(1)}
         <span className="gs-score-denom"> / 5</span>
       </div>
       <div className="gs-score-label">productivity</div>
+      <span className="gs-score-tip" role="tooltip">
+        <strong>How this is calculated</strong>
+        <span className="gs-score-tip-row">WiFi · 25%</span>
+        <span className="gs-score-tip-row">Outlets · 20%</span>
+        <span className="gs-score-tip-row">Noise · 20%</span>
+        <span className="gs-score-tip-row">Seating · 20%</span>
+        <span className="gs-score-tip-row">Laptop policy · 15%</span>
+        <span className="gs-score-tip-foot">Blended 75/25 with the cafe&rsquo;s Google rating.</span>
+      </span>
     </div>
   );
 }
 
-function Tag({ label, type, uncertain }: { label: string; type: "good" | "neutral" | "bad"; uncertain?: boolean }) {
-  return (
-    <span className={`gs-tag gs-tag-${type} ${uncertain ? "gs-tag-uncertain" : ""}`}>
-      {label}
-    </span>
-  );
+function Tag({ label, type }: { label: string; type: "good" | "neutral" | "bad" }) {
+  return <span className={`gs-tag gs-tag-${type}`}>{label}</span>;
 }
 
 export default function CafeCard({ cafe, index = 0 }: { cafe: Cafe; index?: number }) {
@@ -171,12 +175,6 @@ export default function CafeCard({ cafe, index = 0 }: { cafe: Cafe; index?: numb
               style={{ color: "var(--gs-ink)" }}
             >
               <span className="opacity-90">&ldquo;{glance.quote}&rdquo;</span>
-              <span
-                className="ml-2 text-[10px] uppercase tracking-widest not-italic"
-                style={{ color: "var(--gs-kraft)", fontFamily: "var(--font-body), system-ui, sans-serif" }}
-              >
-                — on {glance.attr}
-              </span>
             </blockquote>
           )}
 
@@ -195,28 +193,24 @@ export default function CafeCard({ cafe, index = 0 }: { cafe: Cafe; index?: numb
                 <Tag
                   label={WIFI_LABELS[wifi.value]!}
                   type={wifi.value === "fast" ? "good" : wifi.value === "slow" ? "bad" : "neutral"}
-                  uncertain={wifi.uncertain}
                 />
               )}
               {OUTLET_LABELS[outlets.value] && (
                 <Tag
                   label={OUTLET_LABELS[outlets.value]!}
                   type={outlets.value === "every_table" || outlets.value === "most" ? "good" : outlets.value === "none" ? "bad" : "neutral"}
-                  uncertain={outlets.uncertain}
                 />
               )}
               {NOISE_LABELS[noise.value] && (
                 <Tag
                   label={NOISE_LABELS[noise.value]!}
                   type={noise.value === "quiet" ? "good" : noise.value === "loud" ? "bad" : "neutral"}
-                  uncertain={noise.uncertain}
                 />
               )}
               {LAPTOP_LABELS[laptop.value] && (
                 <Tag
                   label={LAPTOP_LABELS[laptop.value]!}
                   type={laptop.value === "welcome" ? "good" : laptop.value === "not_allowed" ? "bad" : "neutral"}
-                  uncertain={laptop.uncertain}
                 />
               )}
             </div>

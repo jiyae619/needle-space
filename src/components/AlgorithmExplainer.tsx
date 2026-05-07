@@ -58,8 +58,8 @@ export default function AlgorithmExplainer() {
               when reviews are silent, vision looks at the cafe photo to fill in gaps.
             </li>
             <li>
-              <span className="font-semibold">Dotted underline →</span>{" "}
-              sources disagree on that tag. Read the reviewer quote on the card to decide.
+              <span className="font-semibold">Score →</span>{" "}
+              the productivity number weights wifi, outlets, noise, seating, and laptop policy, then blends with the cafe&rsquo;s Google rating. Hover the score for the breakdown.
             </li>
             <li>
               <span className="font-semibold">Search →</span>{" "}

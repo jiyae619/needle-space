@@ -129,6 +129,9 @@ export async function POST(req: Request) {
     if (rpcArgs.p_outlets_in) q = q.or(mergedFilter("outlet_availability",  rpcArgs.p_outlets_in));
     if (rpcArgs.p_laptop_in)  q = q.or(mergedFilter("laptop_policy",        rpcArgs.p_laptop_in));
     if (rpcArgs.p_verified_only) q = q.eq("verified", true);
+    if (filters.location && filters.location !== "any") {
+      q = q.eq("neighborhood", filters.location);
+    }
     const { data, error } = await q;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     candidateIds = (data ?? []).map((r: { id: string }) => r.id);
@@ -153,6 +156,11 @@ export async function POST(req: Request) {
   // Open-now filter applied post-fetch (small candidate set).
   if (filters.open_now === "open_now") {
     cafes = cafes.filter(c => isOpenNow(c.hours_json));
+  }
+  // Location filter is applied post-RPC for the semantic path so we don't have
+  // to plumb it through match_cafes' SQL signature.
+  if (semanticUsed && filters.location && filters.location !== "any") {
+    cafes = cafes.filter(c => c.neighborhood === filters.location);
   }
 
   const latency_ms = Date.now() - t0;

@@ -161,17 +161,65 @@ h1, h2, h3, .font-display {
 .gs-tag-neutral { background: var(--gs-paper);   color: var(--gs-kraft); border: 1px solid var(--gs-rule); }
 .gs-tag-bad     { background: var(--gs-bad-bg);  color: var(--gs-bad); }
 
-/* "Sources disagree" marker — dotted underline for tags where regex and LLM
-   committed to different values. Meaning is documented in the top-right
-   "How it works" popover so we don't need an awkward per-tag tooltip. */
-.gs-tag-uncertain {
-  text-decoration: underline dotted;
-  text-decoration-color: currentColor;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1px;
+/* ── Score badge ────────────────────────────────────────────── */
+.gs-score-badge {
+  position: relative;
+  cursor: help;
+  outline: none;
 }
 
-/* ── Score badge ────────────────────────────────────────────── */
+.gs-score-tip {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 200px;
+  padding: 0.65rem 0.8rem;
+  background: var(--gs-espresso);
+  color: var(--gs-paper);
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-align: left;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px -6px rgba(0,0,0,0.25);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gs-score-tip strong {
+  display: block;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+}
+.gs-score-tip-row { font-variant-numeric: tabular-nums; }
+.gs-score-tip-foot {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--gs-paper) 20%, transparent);
+  font-style: italic;
+  opacity: 0.85;
+}
+
+@media (hover: hover) {
+  .gs-score-badge:hover .gs-score-tip {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.gs-score-badge:focus-visible .gs-score-tip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .gs-score {
   font-family: var(--font-display), Georgia, serif;
   font-size: 1.5rem;
