@@ -193,10 +193,11 @@ h1, h2, h3, .font-display {
 .gs-postcard-stamp-anchor .gs-score-stamp {
   position: absolute;
   right: 0.85rem;
-  /* Override the base .gs-score-stamp `bottom` so we anchor by `top` only.
-     Otherwise both top + bottom resolve simultaneously and the stamp's
-     content gets compressed / escapes its rounded box. */
-  top: -1.85rem;
+  /* Anchor's top edge is at the photo's bottom. We want the stamp to sit
+     fully inside the photo's lower-right with a small margin, so we go
+     up by stamp_height + margin (~67px ≈ 4.2rem). `bottom: auto` clears
+     the base rule so positioning is by `top` alone. */
+  top: -4.2rem;
   bottom: auto;
   z-index: 5;
 }

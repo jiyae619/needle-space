@@ -238,10 +238,11 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
             ) : null;
           })()}
 
-          {/* Best/worst pills — same util as the /explore card so the chrome
-              matches. Falls back to a placeholder when nothing notable. */}
+          {/* Pills — same util as /explore but with neutral fallback so a
+              cafe with no extreme signals still carries info on this view
+              (treasure shows one card at a time; richer is better here). */}
           {(() => {
-            const pills = buildPills(current);
+            const pills = buildPills(current, true);
             return pills.length > 0 ? (
               <div className="flex flex-wrap gap-1.5 mt-1">
                 {pills.map((p, i) => (
