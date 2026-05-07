@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Cafe } from "@/lib/types";
@@ -27,6 +27,14 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
   const [drag, setDrag] = useState<{ startX: number; dx: number } | null>(null);
   const [exiting, setExiting] = useState<"left" | "right" | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Randomize the deck on mount. SSR renders the deterministic first-5 so
+  // hydration matches; the client immediately swaps to a random pick.
+  useEffect(() => {
+    setDeck(pickFive(pool));
+    setIndex(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const current = deck[index];
   const isDone = index >= deck.length;
