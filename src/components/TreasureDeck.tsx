@@ -7,6 +7,7 @@ import { Cafe } from "@/lib/types";
 import CafeCard from "@/components/CafeCard";
 import ScoreStamp from "@/components/ScoreStamp";
 import { pickGlanceQuote } from "@/lib/cafe-glance";
+import { buildPills } from "@/lib/cafe-pills";
 
 interface Props {
   pool: Cafe[];
@@ -237,31 +238,21 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
             ) : null;
           })()}
 
-          {/* Best/worst pills — only green/red for the standout signals. */}
+          {/* Best/worst pills — same util as the /explore card so the chrome
+              matches. Falls back to a placeholder when nothing notable. */}
           {(() => {
-            const llm = (k: keyof Cafe, fallback: string) =>
-              ((current[`${k}_llm` as keyof Cafe] as string | null | undefined) ?? null) ||
-              ((current[k] as string | null | undefined) ?? fallback);
-            const wifi    = llm("wifi_quality", "unknown");
-            const outlets = llm("outlet_availability", "unknown");
-            const noise   = llm("noise_level", "unknown");
-            const laptop  = llm("laptop_policy", "unknown");
-
-            const pills: { label: string; type: "good" | "bad" }[] = [];
-            if (wifi === "fast")                              pills.push({ label: "Fast wifi", type: "good" });
-            else if (wifi === "slow" || wifi === "none")      pills.push({ label: wifi === "none" ? "No wifi" : "Slow wifi", type: "bad" });
-            if (outlets === "every_table" || outlets === "most") pills.push({ label: outlets === "every_table" ? "Outlets everywhere" : "Outlets at most tables", type: "good" });
-            else if (outlets === "none")                      pills.push({ label: "No outlets", type: "bad" });
-            if (noise === "quiet")                            pills.push({ label: "Quiet", type: "good" });
-            else if (noise === "loud")                        pills.push({ label: "Lively", type: "bad" });
-            if (laptop === "welcome")                         pills.push({ label: "Laptops welcome", type: "good" });
-            else if (laptop === "not_allowed")                pills.push({ label: "No laptops", type: "bad" });
-
+            const pills = buildPills(current);
             return pills.length > 0 ? (
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {pills.map((p, i) => <span key={i} className={`gs-tag gs-tag-${p.type}`}>{p.label}</span>)}
+                {pills.map((p, i) => (
+                  <span key={i} className={`gs-tag gs-tag-${p.type}`}>{p.label}</span>
+                ))}
               </div>
-            ) : null;
+            ) : (
+              <p className="gs-postcard-meta-pending">
+                Workspace details still being gathered.
+              </p>
+            );
           })()}
         </div>
       </div>

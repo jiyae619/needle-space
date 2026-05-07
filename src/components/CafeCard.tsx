@@ -5,60 +5,8 @@ import Image from "next/image";
 import { Star } from "@phosphor-icons/react";
 import { Cafe } from "@/lib/types";
 import { pickGlanceQuote } from "@/lib/cafe-glance";
+import { buildPills } from "@/lib/cafe-pills";
 import ScoreStamp from "@/components/ScoreStamp";
-
-const WIFI_LABELS: Record<string, string | null> = {
-  fast: "Fast wifi", moderate: "OK wifi", slow: "Slow wifi", none: "No wifi", unknown: null,
-};
-const OUTLET_LABELS: Record<string, string | null> = {
-  every_table: "Outlets everywhere",
-  most: "Outlets at most tables",
-  limited: "Some outlets",
-  none: "No outlets",
-  unknown: null,
-};
-const NOISE_LABELS: Record<string, string | null> = {
-  quiet: "Quiet", moderate: "Mild buzz", loud: "Lively", unknown: null,
-};
-const LAPTOP_LABELS: Record<string, string | null> = {
-  welcome: "Laptops welcome", limited: "Time limit", not_allowed: "No laptops", unknown: null,
-};
-
-type AttrKey = "wifi_quality" | "outlet_availability" | "noise_level" | "laptop_policy" | "seating_availability";
-
-function mergeAttribute(cafe: Cafe, key: AttrKey): { value: string } {
-  const llmKey = `${key}_llm` as keyof Cafe;
-  const llm = cafe[llmKey] as string | null | undefined;
-  const regex = (cafe[key] ?? "unknown") as string;
-  return { value: (llm && llm !== "unknown") ? llm : regex };
-}
-
-// Build the list of best/worst signal pills. Only "good" (green) and "bad"
-// (red) cross the bar — neutral mid-range values are omitted so the card
-// reads at a glance: "what's great or terrible about this cafe."
-type Pill = { label: string; type: "good" | "bad" };
-
-function buildPills(cafe: Cafe): Pill[] {
-  const wifi    = mergeAttribute(cafe, "wifi_quality").value;
-  const outlets = mergeAttribute(cafe, "outlet_availability").value;
-  const noise   = mergeAttribute(cafe, "noise_level").value;
-  const laptop  = mergeAttribute(cafe, "laptop_policy").value;
-
-  const pills: Pill[] = [];
-  if (wifi === "fast")                        pills.push({ label: WIFI_LABELS.fast!, type: "good" });
-  else if (wifi === "slow" || wifi === "none") pills.push({ label: WIFI_LABELS[wifi]!, type: "bad" });
-
-  if (outlets === "every_table" || outlets === "most") pills.push({ label: OUTLET_LABELS[outlets]!, type: "good" });
-  else if (outlets === "none")                          pills.push({ label: OUTLET_LABELS.none!, type: "bad" });
-
-  if (noise === "quiet")     pills.push({ label: NOISE_LABELS.quiet!, type: "good" });
-  else if (noise === "loud") pills.push({ label: NOISE_LABELS.loud!, type: "bad" });
-
-  if (laptop === "welcome")           pills.push({ label: LAPTOP_LABELS.welcome!, type: "good" });
-  else if (laptop === "not_allowed")  pills.push({ label: LAPTOP_LABELS.not_allowed!, type: "bad" });
-
-  return pills;
-}
 
 export default function CafeCard({ cafe, index = 0 }: { cafe: Cafe; index?: number }) {
   const glance = pickGlanceQuote(cafe);

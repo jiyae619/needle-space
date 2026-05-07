@@ -184,7 +184,8 @@ h1, h2, h3, .font-display {
 }
 
 /* Sibling to .gs-postcard-photo so its descendants escape the photo's
-   overflow:hidden. translateY floats the stamp onto the photo edge. */
+   overflow:hidden. The 0-height anchor lets the stamp float onto the
+   photo's bottom edge via negative `top` without consuming layout space. */
 .gs-postcard-stamp-anchor {
   position: relative;
   height: 0;
@@ -192,7 +193,11 @@ h1, h2, h3, .font-display {
 .gs-postcard-stamp-anchor .gs-score-stamp {
   position: absolute;
   right: 0.85rem;
+  /* Override the base .gs-score-stamp `bottom` so we anchor by `top` only.
+     Otherwise both top + bottom resolve simultaneously and the stamp's
+     content gets compressed / escapes its rounded box. */
   top: -1.85rem;
+  bottom: auto;
   z-index: 5;
 }
 
