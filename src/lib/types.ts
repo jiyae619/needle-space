@@ -56,25 +56,21 @@ export interface TaggingConfidence {
 // "any" = no constraint applied. The default state for every key is "any",
 // which matches the old "no chips active" UX.
 export interface Filters {
-  location:  string;  // "any" or a neighborhood name (e.g. "Ballard")
-  wifi:      "fast" | "moderate_or_better" | "any";
-  noise:     "quiet" | "quiet_or_moderate" | "any";
-  outlets:   "every_table" | "any_outlets" | "any";
-  laptop:    "welcome" | "welcome_or_limited" | "any";
-  top_picks: "verified_only" | "any";
-  open_now:  "open_now" | "any";
+  location:     string;  // "any" or a neighborhood name (e.g. "Ballard")
+  noise:        "quiet" | "quiet_or_moderate" | "any";
+  outlets:      "every_table" | "any_outlets" | "any";
+  laptop:       "welcome" | "welcome_or_limited" | "any";
+  productivity: "above_4" | "under_4" | "any";
 }
 
 export type FilterKey = keyof Filters;
 
 export const EMPTY_FILTERS: Filters = {
-  location:  "any",
-  wifi:      "any",
-  noise:     "any",
-  outlets:   "any",
-  laptop:    "any",
-  top_picks: "any",
-  open_now:  "any",
+  location:     "any",
+  noise:        "any",
+  outlets:      "any",
+  laptop:       "any",
+  productivity: "any",
 };
 
 // Seattle-metro neighborhoods present in the cafe catalog. Add new entries
@@ -119,15 +115,6 @@ export const FILTER_DEFS: FilterDef[] = [
     ],
   },
   {
-    key: "wifi",
-    label: "WiFi",
-    options: [
-      { value: "fast",                label: "Fast only" },
-      { value: "moderate_or_better",  label: "Moderate or better" },
-      { value: "any",                 label: "Any" },
-    ],
-  },
-  {
     key: "noise",
     label: "Noise",
     options: [
@@ -155,18 +142,11 @@ export const FILTER_DEFS: FilterDef[] = [
     ],
   },
   {
-    key: "top_picks",
-    label: "Top picks",
+    key: "productivity",
+    label: "Productivity",
     options: [
-      { value: "verified_only",       label: "Verified only" },
-      { value: "any",                 label: "Any" },
-    ],
-  },
-  {
-    key: "open_now",
-    label: "Hours",
-    options: [
-      { value: "open_now",            label: "Open right now" },
+      { value: "above_4",             label: "4 or above" },
+      { value: "under_4",             label: "Under 4" },
       { value: "any",                 label: "Any" },
     ],
   },

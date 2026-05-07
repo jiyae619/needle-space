@@ -111,19 +111,24 @@ export default async function CafeDetailPage({
         </div>
       </div>
 
-      {/* Hours */}
+      {/* Hours — explicit Mon→Sun order so the calendar reads naturally. */}
       {cafe.hours_json && (
         <div className="gs-card p-5 mb-6">
           <h2 className="text-xs tracking-widest uppercase mb-3 font-semibold" style={{ color: "var(--gs-kraft)" }}>
             Hours
           </h2>
           <div className="space-y-1.5 text-sm">
-            {Object.entries(cafe.hours_json).map(([day, hours]) => (
-              <div key={day} className="flex justify-between">
-                <span className="capitalize" style={{ color: "var(--gs-kraft)" }}>{day}</span>
-                <span style={{ color: "var(--gs-espresso)" }}>{hours as string}</span>
-              </div>
-            ))}
+            {(["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] as const)
+              .map(day => {
+                const value = cafe.hours_json?.[day];
+                if (!value) return null;
+                return (
+                  <div key={day} className="flex justify-between">
+                    <span className="capitalize" style={{ color: "var(--gs-kraft)" }}>{day}</span>
+                    <span style={{ color: "var(--gs-espresso)" }}>{value}</span>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

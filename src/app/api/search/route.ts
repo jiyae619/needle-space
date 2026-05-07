@@ -26,14 +26,13 @@ const CAFE_COLUMNS = [
 ].join(", ");
 
 // Translate the multi-value Filters into the match_cafes RPC arg shape.
-// `null` for an arg = "no constraint applied".
+// `null` for an arg = "no constraint applied". The match_cafes signature
+// still expects p_wifi_in / p_seating_in / p_verified_only — we pass null
+// or false since those chips were retired from the UI.
 function buildRpcArgs(filters: Partial<Filters> | undefined) {
   const f = filters ?? {};
   return {
-    p_wifi_in:
-      f.wifi === "fast" ? ["fast"]
-      : f.wifi === "moderate_or_better" ? ["fast", "moderate"]
-      : null,
+    p_wifi_in: null as string[] | null,
     p_noise_in:
       f.noise === "quiet" ? ["quiet"]
       : f.noise === "quiet_or_moderate" ? ["quiet", "moderate"]
@@ -46,33 +45,9 @@ function buildRpcArgs(filters: Partial<Filters> | undefined) {
       f.laptop === "welcome" ? ["welcome"]
       : f.laptop === "welcome_or_limited" ? ["welcome", "limited"]
       : null,
-    p_seating_in: null as string[] | null,  // not yet wired to a chip
-    p_verified_only: f.top_picks === "verified_only",
+    p_seating_in: null as string[] | null,
+    p_verified_only: false,
   };
-}
-
-// Light client-side parse of hours_json for the open_now chip. Returns true
-// if the cafe is currently open. Hours format is set by scripts/fetch-cafes.mjs.
-function isOpenNow(hours: Cafe["hours_json"]): boolean {
-  if (!hours) return false;
-  const days = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
-  const now = new Date();
-  const today = days[now.getDay()];
-  const value = hours[today];
-  if (!value || /closed/i.test(value)) return false;
-  // Format examples: "7:00 AM – 5:00 PM", "6:30 AM – 9:00 PM"
-  const match = value.match(/(\d{1,2}):(\d{2})\s*(AM|PM).*?(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-  if (!match) return true;  // open all day or unparseable; assume open
-  const to24 = (h: string, m: string, ampm: string) => {
-    let H = parseInt(h, 10);
-    if (ampm.toUpperCase() === "PM" && H !== 12) H += 12;
-    if (ampm.toUpperCase() === "AM" && H === 12) H = 0;
-    return H * 60 + parseInt(m, 10);
-  };
-  const open  = to24(match[1], match[2], match[3]);
-  const close = to24(match[4], match[5], match[6]);
-  const cur   = now.getHours() * 60 + now.getMinutes();
-  return close > open ? cur >= open && cur < close : cur >= open || cur < close;
 }
 
 export async function POST(req: Request) {
@@ -124,14 +99,14 @@ export async function POST(req: Request) {
       return `${col}_llm.in.(${inList}),and(${col}_llm.is.null,${col}.in.(${inList})),and(${col}_llm.eq.unknown,${col}.in.(${inList}))`;
     };
 
-    if (rpcArgs.p_wifi_in)    q = q.or(mergedFilter("wifi_quality",         rpcArgs.p_wifi_in));
     if (rpcArgs.p_noise_in)   q = q.or(mergedFilter("noise_level",          rpcArgs.p_noise_in));
     if (rpcArgs.p_outlets_in) q = q.or(mergedFilter("outlet_availability",  rpcArgs.p_outlets_in));
     if (rpcArgs.p_laptop_in)  q = q.or(mergedFilter("laptop_policy",        rpcArgs.p_laptop_in));
-    if (rpcArgs.p_verified_only) q = q.eq("verified", true);
     if (filters.location && filters.location !== "any") {
       q = q.eq("neighborhood", filters.location);
     }
+    if (filters.productivity === "above_4")  q = q.gte("productivity_score", 4);
+    if (filters.productivity === "under_4")  q = q.lt("productivity_score", 4);
     const { data, error } = await q;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     candidateIds = (data ?? []).map((r: { id: string }) => r.id);
@@ -153,14 +128,17 @@ export async function POST(req: Request) {
     (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
   );
 
-  // Open-now filter applied post-fetch (small candidate set).
-  if (filters.open_now === "open_now") {
-    cafes = cafes.filter(c => isOpenNow(c.hours_json));
-  }
-  // Location filter is applied post-RPC for the semantic path so we don't have
-  // to plumb it through match_cafes' SQL signature.
-  if (semanticUsed && filters.location && filters.location !== "any") {
-    cafes = cafes.filter(c => c.neighborhood === filters.location);
+  // Location and productivity filters are applied post-RPC for the semantic
+  // path so we don't have to plumb them through match_cafes' SQL signature.
+  if (semanticUsed) {
+    if (filters.location && filters.location !== "any") {
+      cafes = cafes.filter(c => c.neighborhood === filters.location);
+    }
+    if (filters.productivity === "above_4") {
+      cafes = cafes.filter(c => (c.productivity_score ?? 0) >= 4);
+    } else if (filters.productivity === "under_4") {
+      cafes = cafes.filter(c => (c.productivity_score ?? 5) < 4);
+    }
   }
 
   const latency_ms = Date.now() - t0;
