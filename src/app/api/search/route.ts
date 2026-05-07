@@ -12,6 +12,10 @@ const supabase = createClient(
 );
 
 const TOP_K = 30;
+// When `open_now` is active, raise the candidate pool so post-fetch filtering
+// doesn't artificially undercount. Filter-only path drops the SQL .limit() in
+// this mode; semantic path bumps match_count to this number.
+const OPEN_NOW_POOL = 100;
 
 const CAFE_COLUMNS = [
   "id", "google_place_id", "name", "address", "lat", "lng", "neighborhood",
@@ -50,6 +54,31 @@ function buildRpcArgs(filters: Partial<Filters> | undefined) {
   };
 }
 
+// Returns true if the cafe is currently open in Seattle local time. Hours
+// strings come from Google Places via scripts/fetch-cafes.mjs and use a
+// U+2013 EN DASH separator; JS \s matches the hair spaces around it.
+function isOpenNow(hours: Cafe["hours_json"]): boolean {
+  if (!hours) return false;
+  // Force Pacific time — Netlify functions run in UTC.
+  const now  = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+  const days = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+  const today = days[now.getDay()];
+  const value = hours[today];
+  if (!value || /closed/i.test(value)) return false;
+  const match = value.match(/(\d{1,2}):(\d{2})\s*(AM|PM).*?(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!match) return true;  // open all day or unparseable; assume open
+  const to24 = (h: string, m: string, ampm: string) => {
+    let H = parseInt(h, 10);
+    if (ampm.toUpperCase() === "PM" && H !== 12) H += 12;
+    if (ampm.toUpperCase() === "AM" && H === 12) H = 0;
+    return H * 60 + parseInt(m, 10);
+  };
+  const open  = to24(match[1], match[2], match[3]);
+  const close = to24(match[4], match[5], match[6]);
+  const cur   = now.getHours() * 60 + now.getMinutes();
+  return close > open ? cur >= open && cur < close : cur >= open || cur < close;
+}
+
 export async function POST(req: Request) {
   const t0 = Date.now();
   let body: { query?: string; filters?: Partial<Filters> };
@@ -63,12 +92,15 @@ export async function POST(req: Request) {
   let semanticUsed = false;
   let semanticFallbackReason: string | undefined;
 
+  const openNowActive = filters.open_now === "open_now";
+
   if (query) {
     try {
       const vector = await embedQuery(query);
       const { data, error } = await supabase.rpc("match_cafes", {
         query_embedding: vector,
-        match_count: TOP_K,
+        // Pull a larger candidate pool when open_now will throw rows away.
+        match_count: openNowActive ? OPEN_NOW_POOL : TOP_K,
         ...rpcArgs,
       });
       if (error) throw new Error(error.message);
@@ -89,9 +121,11 @@ export async function POST(req: Request) {
     // Strategy C merge: a cafe matches the chip if the LLM tag matches OR the
     // LLM punted ("unknown" / null) and the regex tag matches. Expressed via
     // PostgREST .or() per attribute so the filter happens server-side.
+    // When open_now is active, drop the SQL .limit() — we need the full set
+    // to filter by hours_json post-fetch and still return TOP_K results.
     let q = supabase.from("cafes").select("id")
-      .order("productivity_score", { ascending: false, nullsFirst: false })
-      .limit(TOP_K);
+      .order("productivity_score", { ascending: false, nullsFirst: false });
+    if (!openNowActive) q = q.limit(TOP_K);
 
     const mergedFilter = (col: string, vals: string[]) => {
       const inList = vals.map(v => `"${v}"`).join(",");
@@ -139,6 +173,12 @@ export async function POST(req: Request) {
     } else if (filters.productivity === "under_4") {
       cafes = cafes.filter(c => (c.productivity_score ?? 5) < 4);
     }
+  }
+  // Open-now filter — applied to both paths. The candidate pool was sized
+  // larger above so this can shrink the set without dropping below TOP_K.
+  if (openNowActive) {
+    cafes = cafes.filter(c => isOpenNow(c.hours_json));
+    cafes = cafes.slice(0, TOP_K);
   }
 
   const latency_ms = Date.now() - t0;

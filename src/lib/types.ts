@@ -61,6 +61,7 @@ export interface Filters {
   outlets:      "every_table" | "any_outlets" | "any";
   laptop:       "welcome" | "welcome_or_limited" | "any";
   productivity: "above_4" | "under_4" | "any";
+  open_now:     "open_now" | "any";
 }
 
 export type FilterKey = keyof Filters;
@@ -71,6 +72,7 @@ export const EMPTY_FILTERS: Filters = {
   outlets:      "any",
   laptop:       "any",
   productivity: "any",
+  open_now:     "any",
 };
 
 // Seattle-metro neighborhoods present in the cafe catalog. Add new entries
@@ -147,6 +149,14 @@ export const FILTER_DEFS: FilterDef[] = [
     options: [
       { value: "above_4",             label: "4 or above" },
       { value: "under_4",             label: "Under 4" },
+      { value: "any",                 label: "Any" },
+    ],
+  },
+  {
+    key: "open_now",
+    label: "Hours",
+    options: [
+      { value: "open_now",            label: "Open right now" },
       { value: "any",                 label: "Any" },
     ],
   },

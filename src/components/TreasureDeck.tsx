@@ -5,7 +5,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { Cafe } from "@/lib/types";
 import CafeCard from "@/components/CafeCard";
-import { SCORE_TOOLTIP } from "@/lib/score";
+import ScoreStamp from "@/components/ScoreStamp";
+import { pickGlanceQuote } from "@/lib/cafe-glance";
 
 interface Props {
   pool: Cafe[];
@@ -186,7 +187,7 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
         }}
       >
         {current.photo_url ? (
-          <div className="relative w-full h-64 overflow-hidden">
+          <div className="gs-postcard-photo">
             <Image
               src={current.photo_url}
               alt={`Inside ${current.name}`}
@@ -196,13 +197,17 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
               unoptimized
               priority
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
           </div>
         ) : (
-          <div className="w-full h-64 flex items-center justify-center" style={{ backgroundColor: "var(--gs-paper)" }}>
+          <div className="gs-postcard-photo flex items-center justify-center" style={{ backgroundColor: "var(--gs-paper)" }}>
             <span className="text-5xl">☕</span>
           </div>
         )}
+
+        {/* Stamp — sibling to photo so the tooltip escapes overflow:hidden. */}
+        <div className="gs-postcard-stamp-anchor">
+          <ScoreStamp score={current.productivity_score} />
+        </div>
 
         {/* Full-card overlay — color tints the whole card during drag */}
         {(yesHint || noHint) && (
@@ -220,48 +225,41 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
         {yesHint && <div className="gs-treasure-stamp gs-treasure-yes">KEEP</div>}
         {noHint  && <div className="gs-treasure-stamp gs-treasure-no">SKIP</div>}
 
-        <div className="p-5">
-          <p className="text-xs tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
-            {current.neighborhood}
-          </p>
-          <div className="flex items-baseline justify-between gap-3 mt-1">
-            <h3 className="font-display font-bold text-2xl leading-tight" style={{ color: "var(--gs-espresso)" }}>
-              {current.name}
-            </h3>
-            {current.productivity_score && (
-              <div className="text-right shrink-0" title={SCORE_TOOLTIP}>
-                <div className="gs-score">
-                  {current.productivity_score.toFixed(1)}
-                  <span className="gs-score-denom"> / 5</span>
-                </div>
-                <div className="gs-score-label">productivity</div>
-              </div>
-            )}
-          </div>
+        <div className="gs-postcard-body flex flex-col">
+          <p className="gs-postcard-eyebrow">{current.neighborhood}</p>
+          <h3 className="gs-postcard-title">{current.name}</h3>
 
-          {/* Vibe tags — the heart of treasure mode */}
-          {current.vibe_keywords && current.vibe_keywords.length > 0 && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3">
-              {current.vibe_keywords.slice(0, 3).map((kw) => (
-                <span key={kw} className="gs-vibe-tag">{kw}</span>
-              ))}
-            </div>
-          )}
-
-          {/* Two key work attributes — only shown when known */}
+          {/* Hero glance quote — same treatment as /explore cards. */}
           {(() => {
-            const wifiLabel: Record<string, string | null> = {
-              fast: "Fast WiFi", moderate: "OK WiFi", slow: "Slow WiFi", unknown: null,
-            };
-            const laptopLabel: Record<string, string | null> = {
-              welcome: "Laptops welcome", limited: "Time limit", not_allowed: "No laptops", unknown: null,
-            };
-            const wifi   = wifiLabel[current.wifi_quality];
-            const laptop = laptopLabel[current.laptop_policy];
-            return (wifi || laptop) ? (
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {wifi   && <span className="gs-tag gs-tag-neutral">{wifi}</span>}
-                {laptop && <span className="gs-tag gs-tag-neutral">{laptop}</span>}
+            const glance = pickGlanceQuote(current);
+            return glance ? (
+              <blockquote className="gs-postcard-quote">{glance.quote}</blockquote>
+            ) : null;
+          })()}
+
+          {/* Best/worst pills — only green/red for the standout signals. */}
+          {(() => {
+            const llm = (k: keyof Cafe, fallback: string) =>
+              ((current[`${k}_llm` as keyof Cafe] as string | null | undefined) ?? null) ||
+              ((current[k] as string | null | undefined) ?? fallback);
+            const wifi    = llm("wifi_quality", "unknown");
+            const outlets = llm("outlet_availability", "unknown");
+            const noise   = llm("noise_level", "unknown");
+            const laptop  = llm("laptop_policy", "unknown");
+
+            const pills: { label: string; type: "good" | "bad" }[] = [];
+            if (wifi === "fast")                              pills.push({ label: "Fast wifi", type: "good" });
+            else if (wifi === "slow" || wifi === "none")      pills.push({ label: wifi === "none" ? "No wifi" : "Slow wifi", type: "bad" });
+            if (outlets === "every_table" || outlets === "most") pills.push({ label: outlets === "every_table" ? "Outlets everywhere" : "Outlets at most tables", type: "good" });
+            else if (outlets === "none")                      pills.push({ label: "No outlets", type: "bad" });
+            if (noise === "quiet")                            pills.push({ label: "Quiet", type: "good" });
+            else if (noise === "loud")                        pills.push({ label: "Lively", type: "bad" });
+            if (laptop === "welcome")                         pills.push({ label: "Laptops welcome", type: "good" });
+            else if (laptop === "not_allowed")                pills.push({ label: "No laptops", type: "bad" });
+
+            return pills.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {pills.map((p, i) => <span key={i} className={`gs-tag gs-tag-${p.type}`}>{p.label}</span>)}
               </div>
             ) : null;
           })()}

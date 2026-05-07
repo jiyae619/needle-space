@@ -165,9 +165,12 @@ h1, h2, h3, .font-display {
    Editorial: photo on top, hero quote in body, monochrome metadata
    line, stamp-style score badge anchored to the photo's lower-right. */
 .gs-card-postcard {
+  position: relative;
   background: var(--gs-paper);
   border: 1px solid var(--gs-rule);
   border-radius: 14px;
+  /* No overflow:hidden here — the score-stamp tooltip must be free to
+     extend below its parent. The photo container does its own clipping. */
 }
 
 .gs-postcard-photo {
@@ -176,6 +179,21 @@ h1, h2, h3, .font-display {
   aspect-ratio: 5 / 3;
   overflow: hidden;
   border-bottom: 1px solid var(--gs-rule);
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+}
+
+/* Sibling to .gs-postcard-photo so its descendants escape the photo's
+   overflow:hidden. translateY floats the stamp onto the photo edge. */
+.gs-postcard-stamp-anchor {
+  position: relative;
+  height: 0;
+}
+.gs-postcard-stamp-anchor .gs-score-stamp {
+  position: absolute;
+  right: 0.85rem;
+  top: -1.85rem;
+  z-index: 5;
 }
 
 .gs-postcard-body {
@@ -214,8 +232,9 @@ h1, h2, h3, .font-display {
   font-size: 0.98rem;
   line-height: 1.45;
   color: var(--gs-ink);
-  padding-left: 0.95rem;
-  margin: 0.15rem 0 0.1rem;
+  padding-left: 0.85rem;
+  border-left: 3px solid var(--gs-accent);
+  margin: 0.15rem 0 0.4rem;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -223,34 +242,12 @@ h1, h2, h3, .font-display {
   text-wrap: pretty;
 }
 
-.gs-postcard-quote-mark {
-  position: absolute;
-  left: -0.05rem;
-  top: -0.35rem;
-  font-size: 1.7rem;
-  font-weight: 700;
-  color: var(--gs-accent);
-  opacity: 0.85;
-  font-style: normal;
-  line-height: 1;
-}
-
-.gs-postcard-meta {
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--gs-kraft);
-  font-weight: 600;
-  line-height: 1.5;
-  text-wrap: balance;
-}
-
+/* Italic placeholder shown when neither LLM nor regex produced a known
+   value for any work attribute. */
 .gs-postcard-meta-pending {
   font-style: italic;
-  text-transform: none;
-  letter-spacing: 0;
-  font-weight: 400;
   font-size: 0.78rem;
+  color: var(--gs-kraft);
   opacity: 0.85;
 }
 
