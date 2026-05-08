@@ -30,10 +30,14 @@ export async function getCafes(): Promise<Cafe[]> {
 export async function getVerifiedCafes(): Promise<Cafe[]> {
   if (USE_SAMPLE_DATA) return SAMPLE_CAFES.filter((c) => c.verified);
 
+  // Stable order — without an ORDER BY, Postgres returns rows in arbitrary
+  // sequence and consumers like /treasure see different `pool[0]` across
+  // requests, which breaks SSR↔client hydration consistency.
   const { data, error } = await supabase
     .from("cafes")
     .select("*")
-    .eq("verified", true);
+    .eq("verified", true)
+    .order("id", { ascending: true });
   if (error) {
     console.error("Supabase error:", error.message);
     return [];

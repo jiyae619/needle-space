@@ -26,13 +26,17 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
   const [liked, setLiked] = useState<Cafe[]>([]);
   const [drag, setDrag] = useState<{ startX: number; dx: number } | null>(null);
   const [exiting, setExiting] = useState<"left" | "right" | null>(null);
+  const [mounted, setMounted] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Randomize the deck on mount. SSR renders the deterministic first-5 so
-  // hydration matches; the client immediately swaps to a random pick.
+  // Defer the deck render until after mount: the swipe card depends on
+  // random ordering and on data that can vary between SSR invocations,
+  // so we render a neutral placeholder during SSR + the first client
+  // render, then swap to the real (randomized) deck.
   useEffect(() => {
     setDeck(pickFive(pool));
     setIndex(0);
+    setMounted(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -133,6 +137,24 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
           <button onClick={reroll} className="gs-chip">Show me 5 more</button>
           <Link href="/explore" className="gs-btn-primary">Browse all cafes</Link>
         </div>
+      </div>
+    );
+  }
+
+  // SSR + first client render — show a calm skeleton so hydration is a no-op.
+  // After mount, useEffect populates the randomized deck and `mounted` flips.
+  if (!mounted) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-6 pb-12">
+        <div className="flex items-center justify-between mb-4">
+          <Link href="/" className="text-xs tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
+            ← Home
+          </Link>
+          <p className="text-xs tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
+            shuffling…
+          </p>
+        </div>
+        <div className="gs-treasure-card" style={{ height: 480, opacity: 0.6 }} aria-hidden />
       </div>
     );
   }
