@@ -15,15 +15,26 @@ interface Props {
 }
 
 const SWIPE_THRESHOLD = 90;
+const DECK_SIZE = 5;
 
-function pickFive(pool: Cafe[]): Cafe[] {
-  return [...pool].sort(() => Math.random() - 0.5).slice(0, 5);
+// Pull a fresh deck excluding cafes the user has already seen this session.
+// When fewer than DECK_SIZE unseen remain, reset (treat the next round as
+// a fresh pass over the full pool). Returns the new deck plus the updated
+// "seen" set so reroll() can stay pure.
+function pickNext(pool: Cafe[], seen: Set<string>): { deck: Cafe[]; seen: Set<string> } {
+  const unseen = pool.filter(c => !seen.has(c.id));
+  const exhausted = unseen.length < DECK_SIZE;
+  const source = exhausted ? pool : unseen;
+  const deck = [...source].sort(() => Math.random() - 0.5).slice(0, DECK_SIZE);
+  const nextSeen = new Set(exhausted ? deck.map(c => c.id) : [...seen, ...deck.map(c => c.id)]);
+  return { deck, seen: nextSeen };
 }
 
 export default function TreasureDeck({ pool, initialDeck }: Props) {
   const [deck, setDeck] = useState<Cafe[]>(initialDeck);
   const [index, setIndex] = useState(0);
   const [liked, setLiked] = useState<Cafe[]>([]);
+  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ startX: number; dx: number } | null>(null);
   const [exiting, setExiting] = useState<"left" | "right" | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -34,7 +45,9 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
   // so we render a neutral placeholder during SSR + the first client
   // render, then swap to the real (randomized) deck.
   useEffect(() => {
-    setDeck(pickFive(pool));
+    const { deck: nextDeck, seen } = pickNext(pool, new Set());
+    setDeck(nextDeck);
+    setSeenIds(seen);
     setIndex(0);
     setMounted(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -65,7 +78,9 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
   }
 
   function reroll() {
-    setDeck(pickFive(pool));
+    const { deck: nextDeck, seen } = pickNext(pool, seenIds);
+    setDeck(nextDeck);
+    setSeenIds(seen);
     setIndex(0);
     setLiked([]);
     setDrag(null);
@@ -133,7 +148,7 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-wrap gap-3">
+        <div className="mt-10 flex flex-wrap gap-3 justify-center">
           <button onClick={reroll} className="gs-chip">Show me 5 more</button>
           <Link href="/explore" className="gs-btn-primary">Browse all cafes</Link>
         </div>
