@@ -1,15 +1,17 @@
 import TreasureDeck from "@/components/TreasureDeck";
-import { getVerifiedCafes } from "@/lib/cafes";
+import { getCafesAboveScore } from "@/lib/cafes";
 
 export const dynamic = "force-dynamic";
 
-// Five random verified cafes — swipe yes/no, end with a shortlist.
-// Note: randomization happens on the CLIENT (in TreasureDeck's mount effect).
-// Doing it here would call Math.random in a server component, which can
-// produce different output for the SSR HTML vs the RSC payload and trigger
-// a hydration mismatch.
+// Pool: every cafe scoring above 4.0 — quality bar, not a tiny "verified"
+// list. Swipe yes/no on five random ones; the client reshuffles on every
+// mount and on every "Show me 5 more". Randomization happens client-side
+// (TreasureDeck's mount effect) — running Math.random in this server
+// component would risk hydration drift between SSR and RSC payloads.
+const MIN_PRODUCTIVITY_SCORE = 4.0;
+
 export default async function Treasure() {
-  const pool = await getVerifiedCafes();
-  const initialDeck = pool.slice(0, 5);  // deterministic; client reshuffles on mount
+  const pool = await getCafesAboveScore(MIN_PRODUCTIVITY_SCORE);
+  const initialDeck = pool.slice(0, 5);  // top 5 by score; client reshuffles on mount
   return <TreasureDeck pool={pool} initialDeck={initialDeck} />;
 }

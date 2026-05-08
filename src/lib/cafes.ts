@@ -27,6 +27,29 @@ export async function getCafes(): Promise<Cafe[]> {
   return (data as Cafe[]) || [];
 }
 
+// Used by /treasure (Surprise me). Returns all cafes scoring above the
+// threshold, ordered by productivity descending. The trailing .order("id")
+// gives a deterministic tie-break so SSR↔client hydration is consistent.
+export async function getCafesAboveScore(minScore: number): Promise<Cafe[]> {
+  if (USE_SAMPLE_DATA) {
+    return SAMPLE_CAFES
+      .filter(c => (c.productivity_score ?? 0) > minScore)
+      .sort((a, b) => (b.productivity_score ?? 0) - (a.productivity_score ?? 0));
+  }
+
+  const { data, error } = await supabase
+    .from("cafes")
+    .select("*")
+    .gt("productivity_score", minScore)
+    .order("productivity_score", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: true });
+  if (error) {
+    console.error("[getCafesAboveScore] Supabase error:", error.message);
+    return [];
+  }
+  return (data as Cafe[]) || [];
+}
+
 export async function getVerifiedCafes(): Promise<Cafe[]> {
   if (USE_SAMPLE_DATA) return SAMPLE_CAFES.filter((c) => c.verified);
 
