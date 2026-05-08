@@ -8,6 +8,7 @@ import CafeCard from "@/components/CafeCard";
 import ScoreStamp from "@/components/ScoreStamp";
 import { pickGlanceQuote } from "@/lib/cafe-glance";
 import { buildPills } from "@/lib/cafe-pills";
+import { computeMergedScore } from "@/lib/score";
 
 interface Props {
   pool: Cafe[];
@@ -232,27 +233,33 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
           transition: drag && !exiting ? "none" : "transform 0.22s ease-out, opacity 0.22s ease-out",
         }}
       >
-        {current.photo_url ? (
-          <div className="gs-postcard-photo">
-            <Image
-              src={current.photo_url}
-              alt={`Inside ${current.name}`}
-              fill
-              sizes="500px"
-              className="object-cover pointer-events-none select-none"
-              unoptimized
-              priority
-            />
-          </div>
-        ) : (
-          <div className="gs-postcard-photo flex items-center justify-center" style={{ backgroundColor: "var(--gs-paper)" }}>
-            <span className="text-5xl">☕</span>
-          </div>
-        )}
+        {(() => {
+          // Treat direct Google Places URLs as broken (leaked-API-key risk).
+          const photo = current.photo_url && !current.photo_url.includes("places.googleapis.com")
+            ? current.photo_url
+            : null;
+          return photo ? (
+            <div className="gs-postcard-photo">
+              <Image
+                src={photo}
+                alt={`Inside ${current.name}`}
+                fill
+                sizes="500px"
+                className="object-cover pointer-events-none select-none"
+                unoptimized
+                priority
+              />
+            </div>
+          ) : (
+            <div className="gs-postcard-photo flex items-center justify-center" style={{ backgroundColor: "var(--gs-paper)" }}>
+              <span className="text-5xl">☕</span>
+            </div>
+          );
+        })()}
 
         {/* Stamp — sibling to photo so the tooltip escapes overflow:hidden. */}
         <div className="gs-postcard-stamp-anchor">
-          <ScoreStamp score={current.productivity_score} />
+          <ScoreStamp score={computeMergedScore(current)} />
         </div>
 
         {/* Full-card overlay — color tints the whole card during drag */}

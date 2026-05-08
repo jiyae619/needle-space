@@ -1,10 +1,18 @@
 import { getCafeById } from "@/lib/cafes";
-import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import ScoreBreakdown from "@/components/ScoreBreakdown";
+import BackLink from "@/components/BackLink";
 
 export const dynamic = "force-dynamic";
+
+// Direct Google Places URLs leak the API key; treat them as broken so we
+// fall through to no hero image instead of a broken-image icon.
+function safePhotoUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.includes("places.googleapis.com")) return null;
+  return url;
+}
 
 export default async function CafeDetailPage({
   params,
@@ -18,22 +26,17 @@ export default async function CafeDetailPage({
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     cafe.name + " " + cafe.address
   )}&query_place_id=${cafe.google_place_id}`;
+  const photo = safePhotoUrl(cafe.photo_url);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-12">
-      <Link
-        href="/explore"
-        className="inline-flex items-center gap-1 text-xs tracking-widest uppercase mb-4"
-        style={{ color: "var(--gs-kraft)" }}
-      >
-        ← Back to cafes
-      </Link>
+      <BackLink />
 
       {/* Hero image */}
-      {cafe.photo_url && (
+      {photo && (
         <div className="relative w-full h-56 md:h-72 rounded-xl overflow-hidden border border-[var(--gs-rule)] mb-6">
           <Image
-            src={cafe.photo_url}
+            src={photo}
             alt={`Inside ${cafe.name}`}
             fill
             sizes="(max-width: 768px) 100vw, 700px"

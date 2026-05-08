@@ -163,7 +163,10 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-6">
                   <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    onClick={() => {
+                      setCurrentPage((p) => Math.max(1, p - 1));
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
                     disabled={currentPage === 1}
                     className="gs-chip disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -174,7 +177,10 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
                     {currentPage} / {totalPages}
                   </span>
                   <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => {
+                      setCurrentPage((p) => Math.min(totalPages, p + 1));
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
                     disabled={currentPage === totalPages}
                     className="gs-chip disabled:opacity-40 disabled:cursor-not-allowed"
                   >

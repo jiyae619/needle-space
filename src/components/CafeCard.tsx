@@ -6,12 +6,24 @@ import { Star } from "@phosphor-icons/react";
 import { Cafe } from "@/lib/types";
 import { pickGlanceQuote } from "@/lib/cafe-glance";
 import { buildPills } from "@/lib/cafe-pills";
+import { computeMergedScore } from "@/lib/score";
 import ScoreStamp from "@/components/ScoreStamp";
+
+// Treat known-broken photo URLs (direct Google Places API URLs that leak the
+// API key — and would 401/403 once the key rotates) as "no photo" so the
+// card cleanly degrades instead of rendering a broken image icon.
+function safePhotoUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.includes("places.googleapis.com")) return null;
+  return url;
+}
 
 export default function CafeCard({ cafe, index = 0 }: { cafe: Cafe; index?: number }) {
   const glance = pickGlanceQuote(cafe);
   const pills  = buildPills(cafe);
   const street = cafe.address.split(",")[0];
+  const score  = computeMergedScore(cafe);
+  const photo  = safePhotoUrl(cafe.photo_url);
 
   return (
     <Link href={`/cafe/${cafe.id}`} className="block h-full group">
@@ -21,10 +33,10 @@ export default function CafeCard({ cafe, index = 0 }: { cafe: Cafe; index?: numb
       >
         {/* Photo — its own clipping container so its rounded top corners
             aren't broken by overflow:visible on the article. */}
-        {cafe.photo_url && (
+        {photo && (
           <div className="gs-postcard-photo">
             <Image
-              src={cafe.photo_url}
+              src={photo}
               alt={`Inside ${cafe.name}`}
               fill
               sizes="(max-width: 768px) 100vw, 600px"
@@ -37,7 +49,7 @@ export default function CafeCard({ cafe, index = 0 }: { cafe: Cafe; index?: numb
         {/* Stamp anchor — sibling to photo so the tooltip escapes the photo's
             overflow:hidden. translateY floats the stamp onto the photo edge. */}
         <div className="gs-postcard-stamp-anchor">
-          <ScoreStamp score={cafe.productivity_score} />
+          <ScoreStamp score={score} />
         </div>
 
         <div className="gs-postcard-body flex-1 flex flex-col">
