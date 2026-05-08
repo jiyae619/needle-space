@@ -22,7 +22,7 @@ export default function FilterChip<K extends FilterKey>({
   useEffect(() => { setMounted(true); }, []);
 
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; origin: string } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -30,7 +30,10 @@ export default function FilterChip<K extends FilterKey>({
     if (!open || !triggerRef.current) return;
     const r = triggerRef.current.getBoundingClientRect();
     const left = Math.min(r.left, window.innerWidth - 200); // keep on-screen
-    setPos({ left: Math.max(8, left), top: r.bottom + 6 });
+    // Origin-aware: if the trigger sits in the right third of the viewport,
+    // scale-in from the popover's top-right (closer to where the chip is).
+    const origin = r.left > window.innerWidth * 0.66 ? "top right" : "top left";
+    setPos({ left: Math.max(8, left), top: r.bottom + 6, origin });
   }, [open]);
 
   useEffect(() => {
@@ -79,7 +82,11 @@ export default function FilterChip<K extends FilterKey>({
           role="listbox"
           aria-label={def.label}
           className="gs-popover fixed z-50 min-w-[180px] p-1"
-          style={{ left: pos.left, top: pos.top }}
+          style={{
+            left: pos.left,
+            top: pos.top,
+            ["--gs-popover-origin" as string]: pos.origin,
+          }}
         >
           {def.options.map(opt => {
             const selected = opt.value === value;

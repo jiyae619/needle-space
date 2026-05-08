@@ -6,7 +6,10 @@
   --gs-paper:       #EDE3CF;
   --gs-espresso:    #2A1D14;
   --gs-ink:         #4A3728;
-  --gs-kraft:       #9C7E62;
+  /* Darkened from #9C7E62 to meet WCAG AA on cream/paper backgrounds.
+     Used on every eyebrow, footnote, and small-caps label, so its
+     contrast ratio cascades across the whole UI. */
+  --gs-kraft:       #6E5238;
   --gs-rule:        #D9CAAF;
   --gs-accent:      #E8521C;
   --gs-accent-soft: #F5C4AE;
@@ -16,6 +19,9 @@
   --gs-warn-bg:     #FBF2DC;
   --gs-bad:         #B03020;
   --gs-bad-bg:      #FAE8E6;
+  /* Custom easing curve — replaces the generic `ease` browser default
+     for a deliberate, slightly snappier feel. */
+  --gs-ease:        cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* ── Base ───────────────────────────────────────────────────── */
@@ -59,13 +65,13 @@ h1, h2, h3, .font-display {
 
 .gs-nav-link {
   color: var(--gs-ink);
-  transition: color 150ms ease;
+  transition: color 150ms var(--gs-ease);
 }
 
 .gs-nav-pill {
   background-color: var(--gs-espresso);
   color: var(--gs-cream);
-  transition: background-color 150ms ease;
+  transition: background-color 150ms var(--gs-ease);
 }
 
 @media (hover: hover) {
@@ -75,11 +81,14 @@ h1, h2, h3, .font-display {
 
 /* ── Cards ──────────────────────────────────────────────────── */
 .gs-card {
-  background-color: var(--gs-paper);
+  /* Subtle vertical gradient adds depth so cards aren't a flat fill. */
+  background:
+    linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--gs-rule) 8%, transparent) 100%),
+    var(--gs-paper);
   border: 1px solid var(--gs-rule);
   border-radius: 12px;
   box-shadow: 0 1px 0 rgba(42, 29, 20, 0.06);
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition: box-shadow 0.15s var(--gs-ease), transform 0.15s var(--gs-ease);
 }
 
 @media (hover: hover) {
@@ -102,7 +111,7 @@ h1, h2, h3, .font-display {
   font-size: 0.8125rem;
   font-weight: 500;
   letter-spacing: 0.01em;
-  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
+  transition: background 0.12s var(--gs-ease), color 0.12s var(--gs-ease), border-color 0.12s var(--gs-ease), transform 0.1s var(--gs-ease);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -129,7 +138,10 @@ h1, h2, h3, .font-display {
   border-color: var(--gs-espresso);
 }
 
-/* Single-row, snap-scrollable chip strip used by FilterChips. */
+/* Single-row, snap-scrollable chip strip used by FilterChips.
+   Mask-image fade is applied conditionally — only on the side(s) where
+   there's actually scrollable content beyond the visible edge. The
+   modifier classes are toggled by FilterChips' scroll/ResizeObserver. */
 .gs-chip-strip {
   display: flex;
   gap: 0.5rem;
@@ -139,7 +151,17 @@ h1, h2, h3, .font-display {
   scroll-snap-type: x proximity;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
-  /* Soft fade hint at the right edge so users see there's more. */
+  transition: -webkit-mask-image 200ms var(--gs-ease), mask-image 200ms var(--gs-ease);
+}
+.gs-chip-strip-fade-l.gs-chip-strip-fade-r {
+  -webkit-mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+          mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+}
+.gs-chip-strip-fade-l:not(.gs-chip-strip-fade-r) {
+  -webkit-mask-image: linear-gradient(to right, transparent, black 24px);
+          mask-image: linear-gradient(to right, transparent, black 24px);
+}
+.gs-chip-strip-fade-r:not(.gs-chip-strip-fade-l) {
   -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
           mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
 }
@@ -166,7 +188,10 @@ h1, h2, h3, .font-display {
    line, stamp-style score badge anchored to the photo's lower-right. */
 .gs-card-postcard {
   position: relative;
-  background: var(--gs-paper);
+  /* Layered background — subtle gradient prevents the flat-fill feel. */
+  background:
+    linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--gs-rule) 8%, transparent) 100%),
+    var(--gs-paper);
   border: 1px solid var(--gs-rule);
   border-radius: 14px;
   /* No overflow:hidden here — the score-stamp tooltip must be free to
@@ -292,11 +317,15 @@ h1, h2, h3, .font-display {
   gap: 0.18rem;
   box-shadow: 0 4px 14px -4px rgba(42, 29, 20, 0.18);
   cursor: help;
-  outline: none;
   font-family: var(--font-display), Georgia, serif;
   /* Make the label sit underneath via a flex-wrap technique. */
   flex-wrap: wrap;
   max-width: 6.5rem;
+}
+
+.gs-score-stamp:focus-visible {
+  outline: 2px solid var(--gs-accent);
+  outline-offset: 2px;
 }
 
 .gs-score-stamp-num {
@@ -346,9 +375,11 @@ h1, h2, h3, .font-display {
   line-height: 1.4;
   box-shadow: 0 8px 24px -6px rgba(0,0,0,0.25);
   opacity: 0;
-  transform: translateY(-4px);
+  /* Slide DOWN into final position — matches the tooltip's placement
+     below the stamp (origin-aware: animate from where it's anchored). */
+  transform: translateY(4px);
   pointer-events: none;
-  transition: opacity 140ms ease, transform 140ms ease;
+  transition: opacity 140ms var(--gs-ease), transform 140ms var(--gs-ease);
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -408,7 +439,7 @@ h1, h2, h3, .font-display {
   font-size: 0.9rem;
   color: var(--gs-espresso);
   font-family: var(--font-body), system-ui, sans-serif;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s var(--gs-ease), box-shadow 0.15s var(--gs-ease);
 }
 
 /* Larger variant — used by the home-page AI search bar so the input feels
@@ -435,7 +466,9 @@ h1, h2, h3, .font-display {
   top: 50%;
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  /* Concentric: outer (input) radius is 12px, submit is inset 6px from
+     the right edge → inner radius = 12 − 6 = 6px. */
+  border-radius: 6px;
   background: var(--gs-accent);
   color: #fff;
   display: inline-flex;
@@ -444,7 +477,7 @@ h1, h2, h3, .font-display {
   border: 1px solid var(--gs-accent);
   cursor: pointer;
   transform: translateY(-50%);
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition: background 0.15s var(--gs-ease), transform 0.1s var(--gs-ease);
 }
 .gs-search-submit:disabled {
   background: var(--gs-kraft);
@@ -485,7 +518,7 @@ h1, h2, h3, .font-display {
   font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: 0.01em;
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition: background 0.15s var(--gs-ease), transform 0.1s var(--gs-ease);
 }
 
 @media (hover: hover) {
@@ -507,7 +540,7 @@ h1, h2, h3, .font-display {
   font-weight: 500;
   color: var(--gs-kraft);
   background: var(--gs-cream);
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s var(--gs-ease), color 0.12s var(--gs-ease);
   cursor: pointer;
 }
 
@@ -533,8 +566,6 @@ h1, h2, h3, .font-display {
   font-size: 0.82rem;
   line-height: 1.3;
   color: var(--gs-ink);
-  border-bottom: 1px dotted var(--gs-kraft);
-  padding-bottom: 1px;
 }
 
 /* ── Onboarding fork CTA cards ──────────────────────────────── */
@@ -547,7 +578,7 @@ h1, h2, h3, .font-display {
   border-radius: 14px;
   position: relative;
   min-height: 200px;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  transition: transform 0.18s var(--gs-ease), box-shadow 0.18s var(--gs-ease), background 0.18s var(--gs-ease);
   text-decoration: none;
   box-shadow: 0 1px 0 rgba(42, 29, 20, 0.06);
 }
@@ -615,7 +646,7 @@ h1, h2, h3, .font-display {
   align-self: flex-end;
   margin-top: 0.5rem;
   color: var(--gs-espresso);
-  transition: transform 0.18s ease;
+  transition: transform 0.18s var(--gs-ease);
 }
 
 .gs-card-cta-accent .gs-cta-arrow {
@@ -684,11 +715,11 @@ h1, h2, h3, .font-display {
   justify-content: center;
   background: var(--gs-cream);
   cursor: pointer;
-  transition: transform 0.12s ease, background 0.12s ease;
+  transition: transform 0.12s var(--gs-ease), background 0.12s var(--gs-ease);
   box-shadow: 0 2px 8px rgba(42, 29, 20, 0.1);
 }
 
-.gs-treasure-btn:active { transform: scale(0.94); }
+.gs-treasure-btn:active { transform: scale(0.96); }
 @media (hover: hover) {
   .gs-treasure-btn:hover     { transform: scale(1.06); }
   .gs-treasure-btn-yes:hover { background: var(--gs-good-bg); }

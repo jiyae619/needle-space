@@ -34,7 +34,7 @@ export default function AlgorithmExplainer() {
         onClick={() => setOpen(s => !s)}
         aria-label="How Needle Space works"
         aria-expanded={open}
-        className="gs-nav-link inline-flex items-center justify-center rounded-sm p-1.5"
+        className="gs-nav-link inline-flex items-center justify-center rounded-sm min-w-[40px] min-h-[40px]"
       >
         <Info size={18} weight="regular" aria-hidden />
       </button>

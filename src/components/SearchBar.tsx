@@ -97,7 +97,10 @@ export default function SearchBar({
           onClick={() => setShowInfo(s => !s)}
           aria-label="About AI search"
           aria-expanded={showInfo}
-          className="inline-flex items-center justify-center"
+          /* p-2 -m-2 extends the hit area to ~28×28 without affecting layout
+             — the eyebrow is too small to deserve a full 40×40, but a 12×12
+             hit target was effectively unhittable on touch. */
+          className="inline-flex items-center justify-center p-2 -m-2 rounded-sm"
           style={{ color: "var(--gs-kraft)" }}
         >
           <Info size={12} weight="regular" />

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Coffee } from "@phosphor-icons/react/dist/ssr";
 
 // Onboarding fork — the entry point for every visit.
 // Two doors: deliberate browsing or a five-card serendipity deck.
@@ -48,9 +49,13 @@ export default function Welcome() {
         </Link>
       </div>
 
-      <p className="mt-12 text-xs tracking-widest uppercase text-center" style={{ color: "var(--gs-kraft)" }}>
-        ☕ · ☕ · ☕
-      </p>
+      <div className="mt-12 flex items-center justify-center gap-3" style={{ color: "var(--gs-kraft)" }}>
+        <Coffee size={14} weight="regular" aria-hidden />
+        <span className="text-[8px] tracking-[0.4em]">·</span>
+        <Coffee size={14} weight="regular" aria-hidden />
+        <span className="text-[8px] tracking-[0.4em]">·</span>
+        <Coffee size={14} weight="regular" aria-hidden />
+      </div>
     </div>
   );
 }
