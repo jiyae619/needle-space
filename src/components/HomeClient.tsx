@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ArrowLeft, ArrowRight, Coffee, WarningCircle } from "@phosphor-icons/react";
 import FilterChips from "@/components/FilterChips";
 import CafeCard from "@/components/CafeCard";
@@ -14,15 +15,42 @@ const PAGE_SIZE = 6;
 type ViewMode = "list" | "map";
 
 export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Read current page from URL so back-button from /cafe/[id] returns the
+  // user to the same page they came from.
+  const urlPage = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedCafeId, setSelectedCafeId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(urlPage);
   const [results, setResults] = useState<Cafe[]>(initialCafes);
   const [isSearching, setIsSearching] = useState(false);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Sync URL whenever currentPage changes — uses replaceState so back-button
+  // history isn't bloated with one entry per page change.
+  useEffect(() => {
+    const sp = new URLSearchParams(Array.from(searchParams.entries()));
+    if (currentPage > 1) sp.set("page", String(currentPage));
+    else sp.delete("page");
+    const next = sp.toString();
+    const target = next ? `${pathname}?${next}` : pathname;
+    if (typeof window !== "undefined" && window.location.pathname + window.location.search !== target) {
+      router.replace(target, { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
+
+  // Sync state from URL too — covers browser back/forward and direct page links.
+  useEffect(() => {
+    if (urlPage !== currentPage) setCurrentPage(urlPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlPage]);
 
   const handleChipChange = useCallback(
     <K extends FilterKey>(key: K, value: Filters[K]) => {
@@ -74,10 +102,14 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
     return () => { cancelled = true; };
   }, [searchQuery, filters, initialCafes]);
 
-  // Reset pagination when results change.
+  // Reset pagination when the user changes search/filters (NOT on first mount
+  // or on browser-back, where we want to honor the URL's page param).
+  const [didMount, setDidMount] = useState(false);
   useEffect(() => {
+    if (!didMount) { setDidMount(true); return; }
     setCurrentPage(1);
-  }, [results]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, filters]);
 
   const filteredCafes = results;
 
@@ -163,7 +195,10 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-6">
                   <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    onClick={() => {
+                      setCurrentPage((p) => Math.max(1, p - 1));
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
                     disabled={currentPage === 1}
                     className="gs-chip disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -174,7 +209,10 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
                     {currentPage} / {totalPages}
                   </span>
                   <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => {
+                      setCurrentPage((p) => Math.min(totalPages, p + 1));
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
                     disabled={currentPage === totalPages}
                     className="gs-chip disabled:opacity-40 disabled:cursor-not-allowed"
                   >

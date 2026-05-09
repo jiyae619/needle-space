@@ -1,10 +1,19 @@
 import { getCafeById } from "@/lib/cafes";
-import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { MapPin, Phone, Globe, Star, NavigationArrow } from "@phosphor-icons/react/dist/ssr";
 import ScoreBreakdown from "@/components/ScoreBreakdown";
+import BackLink from "@/components/BackLink";
 
 export const dynamic = "force-dynamic";
+
+// Direct Google Places URLs leak the API key; treat them as broken so we
+// fall through to no hero image instead of a broken-image icon.
+function safePhotoUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.includes("places.googleapis.com")) return null;
+  return url;
+}
 
 export default async function CafeDetailPage({
   params,
@@ -18,22 +27,17 @@ export default async function CafeDetailPage({
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     cafe.name + " " + cafe.address
   )}&query_place_id=${cafe.google_place_id}`;
+  const photo = safePhotoUrl(cafe.photo_url);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-12">
-      <Link
-        href="/explore"
-        className="inline-flex items-center gap-1 text-xs tracking-widest uppercase mb-4"
-        style={{ color: "var(--gs-kraft)" }}
-      >
-        ← Back to cafes
-      </Link>
+      <BackLink />
 
       {/* Hero image */}
-      {cafe.photo_url && (
+      {photo && (
         <div className="relative w-full h-56 md:h-72 rounded-xl overflow-hidden border border-[var(--gs-rule)] mb-6">
           <Image
-            src={cafe.photo_url}
+            src={photo}
             alt={`Inside ${cafe.name}`}
             fill
             sizes="(max-width: 768px) 100vw, 700px"
@@ -67,7 +71,7 @@ export default async function CafeDetailPage({
 
         {cafe.google_rating && (
           <div className="flex items-center gap-1.5 mt-3 text-sm" style={{ color: "var(--gs-ink)" }}>
-            <span style={{ color: "var(--gs-warn)" }}>★</span>
+            <Star size={14} weight="fill" style={{ color: "var(--gs-warn)" }} aria-hidden />
             {cafe.google_rating} on Google ({cafe.google_review_count} reviews)
           </div>
         )}
@@ -85,18 +89,18 @@ export default async function CafeDetailPage({
         </h2>
         <div className="space-y-2.5 text-sm" style={{ color: "var(--gs-ink)" }}>
           <div className="flex items-start gap-3">
-            <span className="shrink-0">📍</span>
+            <MapPin size={16} weight="regular" className="shrink-0 mt-0.5" style={{ color: "var(--gs-kraft)" }} aria-hidden />
             <span>{cafe.address}</span>
           </div>
           {cafe.phone && (
             <div className="flex items-start gap-3">
-              <span className="shrink-0">📞</span>
+              <Phone size={16} weight="regular" className="shrink-0 mt-0.5" style={{ color: "var(--gs-kraft)" }} aria-hidden />
               <a href={`tel:${cafe.phone}`} className="hover:underline">{cafe.phone}</a>
             </div>
           )}
           {cafe.website && (
             <div className="flex items-start gap-3">
-              <span className="shrink-0">🌐</span>
+              <Globe size={16} weight="regular" className="shrink-0 mt-0.5" style={{ color: "var(--gs-kraft)" }} aria-hidden />
               <a
                 href={cafe.website}
                 target="_blank"
@@ -111,19 +115,24 @@ export default async function CafeDetailPage({
         </div>
       </div>
 
-      {/* Hours */}
+      {/* Hours — explicit Mon→Sun order so the calendar reads naturally. */}
       {cafe.hours_json && (
         <div className="gs-card p-5 mb-6">
           <h2 className="text-xs tracking-widest uppercase mb-3 font-semibold" style={{ color: "var(--gs-kraft)" }}>
             Hours
           </h2>
           <div className="space-y-1.5 text-sm">
-            {Object.entries(cafe.hours_json).map(([day, hours]) => (
-              <div key={day} className="flex justify-between">
-                <span className="capitalize" style={{ color: "var(--gs-kraft)" }}>{day}</span>
-                <span style={{ color: "var(--gs-espresso)" }}>{hours as string}</span>
-              </div>
-            ))}
+            {(["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] as const)
+              .map(day => {
+                const value = cafe.hours_json?.[day];
+                if (!value) return null;
+                return (
+                  <div key={day} className="flex justify-between">
+                    <span className="capitalize" style={{ color: "var(--gs-kraft)" }}>{day}</span>
+                    <span style={{ color: "var(--gs-espresso)" }}>{value}</span>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
@@ -136,7 +145,8 @@ export default async function CafeDetailPage({
           rel="noopener noreferrer"
           className="gs-btn-primary flex-1 justify-center py-3"
         >
-          📍 Get Directions
+          <NavigationArrow size={16} weight="fill" aria-hidden />
+          Get Directions
         </a>
         {cafe.website && (
           <a
@@ -146,7 +156,8 @@ export default async function CafeDetailPage({
             className="flex-1 flex items-center justify-center gap-2 rounded-lg border py-3 text-sm font-medium hover:bg-[var(--gs-paper)] transition-colors"
             style={{ borderColor: "var(--gs-rule)", color: "var(--gs-ink)" }}
           >
-            🌐 Visit Website
+            <Globe size={16} weight="regular" aria-hidden />
+            Visit Website
           </a>
         )}
       </div>

@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Cafe } from "@/lib/types";
 import CafeCard from "@/components/CafeCard";
-import { SCORE_TOOLTIP } from "@/lib/score";
+import ScoreStamp from "@/components/ScoreStamp";
+import { pickGlanceQuote } from "@/lib/cafe-glance";
+import { buildPills } from "@/lib/cafe-pills";
+import { computeMergedScore } from "@/lib/score";
 
 interface Props {
   pool: Cafe[];
@@ -13,18 +16,43 @@ interface Props {
 }
 
 const SWIPE_THRESHOLD = 90;
+const DECK_SIZE = 5;
 
-function pickFive(pool: Cafe[]): Cafe[] {
-  return [...pool].sort(() => Math.random() - 0.5).slice(0, 5);
+// Pull a fresh deck excluding cafes the user has already seen this session.
+// When fewer than DECK_SIZE unseen remain, reset (treat the next round as
+// a fresh pass over the full pool). Returns the new deck plus the updated
+// "seen" set so reroll() can stay pure.
+function pickNext(pool: Cafe[], seen: Set<string>): { deck: Cafe[]; seen: Set<string> } {
+  const unseen = pool.filter(c => !seen.has(c.id));
+  const exhausted = unseen.length < DECK_SIZE;
+  const source = exhausted ? pool : unseen;
+  const deck = [...source].sort(() => Math.random() - 0.5).slice(0, DECK_SIZE);
+  const nextSeen = new Set(exhausted ? deck.map(c => c.id) : [...seen, ...deck.map(c => c.id)]);
+  return { deck, seen: nextSeen };
 }
 
 export default function TreasureDeck({ pool, initialDeck }: Props) {
   const [deck, setDeck] = useState<Cafe[]>(initialDeck);
   const [index, setIndex] = useState(0);
   const [liked, setLiked] = useState<Cafe[]>([]);
+  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ startX: number; dx: number } | null>(null);
   const [exiting, setExiting] = useState<"left" | "right" | null>(null);
+  const [mounted, setMounted] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Defer the deck render until after mount: the swipe card depends on
+  // random ordering and on data that can vary between SSR invocations,
+  // so we render a neutral placeholder during SSR + the first client
+  // render, then swap to the real (randomized) deck.
+  useEffect(() => {
+    const { deck: nextDeck, seen } = pickNext(pool, new Set());
+    setDeck(nextDeck);
+    setSeenIds(seen);
+    setIndex(0);
+    setMounted(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const current = deck[index];
   const isDone = index >= deck.length;
@@ -51,7 +79,9 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
   }
 
   function reroll() {
-    setDeck(pickFive(pool));
+    const { deck: nextDeck, seen } = pickNext(pool, seenIds);
+    setDeck(nextDeck);
+    setSeenIds(seen);
     setIndex(0);
     setLiked([]);
     setDrag(null);
@@ -119,10 +149,28 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-wrap gap-3">
+        <div className="mt-10 flex flex-wrap gap-3 justify-center">
           <button onClick={reroll} className="gs-chip">Show me 5 more</button>
           <Link href="/explore" className="gs-btn-primary">Browse all cafes</Link>
         </div>
+      </div>
+    );
+  }
+
+  // SSR + first client render — show a calm skeleton so hydration is a no-op.
+  // After mount, useEffect populates the randomized deck and `mounted` flips.
+  if (!mounted) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-6 pb-12">
+        <div className="flex items-center justify-between mb-4">
+          <Link href="/" className="text-xs tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
+            ← Home
+          </Link>
+          <p className="text-xs tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
+            shuffling…
+          </p>
+        </div>
+        <div className="gs-treasure-card" style={{ height: 480, opacity: 0.6 }} aria-hidden />
       </div>
     );
   }
@@ -185,24 +233,34 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
           transition: drag && !exiting ? "none" : "transform 0.22s ease-out, opacity 0.22s ease-out",
         }}
       >
-        {current.photo_url ? (
-          <div className="relative w-full h-64 overflow-hidden">
-            <Image
-              src={current.photo_url}
-              alt={`Inside ${current.name}`}
-              fill
-              sizes="500px"
-              className="object-cover pointer-events-none select-none"
-              unoptimized
-              priority
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-          </div>
-        ) : (
-          <div className="w-full h-64 flex items-center justify-center" style={{ backgroundColor: "var(--gs-paper)" }}>
-            <span className="text-5xl">☕</span>
-          </div>
-        )}
+        {(() => {
+          // Treat direct Google Places URLs as broken (leaked-API-key risk).
+          const photo = current.photo_url && !current.photo_url.includes("places.googleapis.com")
+            ? current.photo_url
+            : null;
+          return photo ? (
+            <div className="gs-postcard-photo">
+              <Image
+                src={photo}
+                alt={`Inside ${current.name}`}
+                fill
+                sizes="500px"
+                className="object-cover pointer-events-none select-none"
+                unoptimized
+                priority
+              />
+            </div>
+          ) : (
+            <div className="gs-postcard-photo flex items-center justify-center" style={{ backgroundColor: "var(--gs-paper)" }}>
+              <span className="text-5xl">☕</span>
+            </div>
+          );
+        })()}
+
+        {/* Stamp — sibling to photo so the tooltip escapes overflow:hidden. */}
+        <div className="gs-postcard-stamp-anchor">
+          <ScoreStamp score={computeMergedScore(current)} />
+        </div>
 
         {/* Full-card overlay — color tints the whole card during drag */}
         {(yesHint || noHint) && (
@@ -220,50 +278,34 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
         {yesHint && <div className="gs-treasure-stamp gs-treasure-yes">KEEP</div>}
         {noHint  && <div className="gs-treasure-stamp gs-treasure-no">SKIP</div>}
 
-        <div className="p-5">
-          <p className="text-xs tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
-            {current.neighborhood}
-          </p>
-          <div className="flex items-baseline justify-between gap-3 mt-1">
-            <h3 className="font-display font-bold text-2xl leading-tight" style={{ color: "var(--gs-espresso)" }}>
-              {current.name}
-            </h3>
-            {current.productivity_score && (
-              <div className="text-right shrink-0" title={SCORE_TOOLTIP}>
-                <div className="gs-score">
-                  {current.productivity_score.toFixed(1)}
-                  <span className="gs-score-denom"> / 5</span>
-                </div>
-                <div className="gs-score-label">productivity</div>
-              </div>
-            )}
-          </div>
+        <div className="gs-postcard-body flex flex-col">
+          <p className="gs-postcard-eyebrow">{current.neighborhood}</p>
+          <h3 className="gs-postcard-title">{current.name}</h3>
 
-          {/* Vibe tags — the heart of treasure mode */}
-          {current.vibe_keywords && current.vibe_keywords.length > 0 && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3">
-              {current.vibe_keywords.slice(0, 3).map((kw) => (
-                <span key={kw} className="gs-vibe-tag">{kw}</span>
-              ))}
-            </div>
-          )}
-
-          {/* Two key work attributes — only shown when known */}
+          {/* Hero glance quote — same treatment as /explore cards. */}
           {(() => {
-            const wifiLabel: Record<string, string | null> = {
-              fast: "Fast WiFi", moderate: "OK WiFi", slow: "Slow WiFi", unknown: null,
-            };
-            const laptopLabel: Record<string, string | null> = {
-              welcome: "Laptops welcome", limited: "Time limit", not_allowed: "No laptops", unknown: null,
-            };
-            const wifi   = wifiLabel[current.wifi_quality];
-            const laptop = laptopLabel[current.laptop_policy];
-            return (wifi || laptop) ? (
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {wifi   && <span className="gs-tag gs-tag-neutral">{wifi}</span>}
-                {laptop && <span className="gs-tag gs-tag-neutral">{laptop}</span>}
-              </div>
+            const glance = pickGlanceQuote(current);
+            return glance ? (
+              <blockquote className="gs-postcard-quote">{glance.quote}</blockquote>
             ) : null;
+          })()}
+
+          {/* Pills — same util as /explore but with neutral fallback so a
+              cafe with no extreme signals still carries info on this view
+              (treasure shows one card at a time; richer is better here). */}
+          {(() => {
+            const pills = buildPills(current, true);
+            return pills.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {pills.map((p, i) => (
+                  <span key={i} className={`gs-tag gs-tag-${p.type}`}>{p.label}</span>
+                ))}
+              </div>
+            ) : (
+              <p className="gs-postcard-meta-pending">
+                Workspace details still being gathered.
+              </p>
+            );
           })()}
         </div>
       </div>
