@@ -370,6 +370,8 @@ async function fetchGoogleData(placeId) {
   return {
     source: "Google v1 (relevant)",
     rawReviews,
+    reviewSummary,
+    editorialSummary,
     summaryTexts: [reviewSummary, editorialSummary].filter(Boolean),
     structuredSignals,
     rating: data.rating,
@@ -574,17 +576,27 @@ async function main() {
       console.log("     ✏️  (dry-run: not written)\n");
       updated++;
     } else {
+      // Only write the summary columns when we actually fetched them this run —
+      // don't blank out previously-stored values when the API call failed.
+      const updatePayload = {
+        wifi_quality: wifi,
+        outlet_availability: outlets,
+        noise_level: noise,
+        laptop_policy: laptop,
+        seating_availability: seating,
+        productivity_score: score,
+        verified: false,
+      };
+      if (googleResult?.reviewSummary) {
+        updatePayload.google_review_summary = googleResult.reviewSummary;
+      }
+      if (googleResult?.editorialSummary) {
+        updatePayload.google_editorial_summary = googleResult.editorialSummary;
+      }
+
       const { error: updateError } = await supabase
         .from("cafes")
-        .update({
-          wifi_quality: wifi,
-          outlet_availability: outlets,
-          noise_level: noise,
-          laptop_policy: laptop,
-          seating_availability: seating,
-          productivity_score: score,
-          verified: false,
-        })
+        .update(updatePayload)
         .eq("id", cafe.id);
 
       if (updateError) {
