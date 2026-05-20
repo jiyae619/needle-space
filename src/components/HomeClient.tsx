@@ -7,10 +7,10 @@ import FilterChips from "@/components/FilterChips";
 import CafeCard from "@/components/CafeCard";
 import MapView from "@/components/MapView";
 import SearchBar from "@/components/SearchBar";
-import { Cafe, Filters, FilterKey, EMPTY_FILTERS } from "@/lib/types";
+import { Cafe, Filters, FilterKey, EMPTY_FILTERS, isFilterEmpty } from "@/lib/types";
 import { searchCafes } from "@/lib/cafes";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 16;
 
 type ViewMode = "list" | "map";
 
@@ -31,6 +31,10 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
   const [isSearching, setIsSearching] = useState(false);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+  // semantic_fallback_reason fires when Voyage rate-limits or the embedding
+  // call fails and the API falls back to keyword/filter-only. Surface it so
+  // results that *feel* worse have a visible cause.
+  const [semanticFallback, setSemanticFallback] = useState<string | null>(null);
 
   // Sync URL whenever currentPage changes — uses replaceState so back-button
   // history isn't bloated with one entry per page change.
@@ -73,7 +77,7 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
   // SearchBar caps how often the user can trigger this from typing.
   useEffect(() => {
     const filtersAreEmpty = (Object.keys(filters) as FilterKey[]).every(
-      k => filters[k] === EMPTY_FILTERS[k],
+      k => isFilterEmpty(k, filters[k]),
     );
     // No query AND no filter constraints → keep the SSR-rendered list. Avoids
     // a needless API hit on first paint.
@@ -86,16 +90,24 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
 
     let cancelled = false;
     setIsSearching(true);
-    searchCafes(searchQuery, filters).then(({ cafes, latency_ms, error }) => {
+    searchCafes(searchQuery, filters).then(({ cafes, latency_ms, error, semantic_fallback_reason, semantic_used }) => {
       if (cancelled) return;
       if (error) {
         console.error("[search] fallback to in-memory:", error);
         setResults(initialCafes);
         setSearchError("AI search unavailable — showing all cafes");
+        setSemanticFallback(null);
       } else {
         setResults(cafes);
         setSearchError(null);
         if (latency_ms !== undefined) setLatencyMs(latency_ms);
+        // Only flag the fallback when the user actually typed a query — a
+        // filter-only request legitimately doesn't need semantic search.
+        if (searchQuery.trim() && !semantic_used && semantic_fallback_reason) {
+          setSemanticFallback(semantic_fallback_reason);
+        } else {
+          setSemanticFallback(null);
+        }
       }
       setIsSearching(false);
     });
@@ -149,14 +161,32 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
         </div>
       )}
 
+      {/* Semantic fallback notice — when user typed a query but Voyage was
+          rate-limited or otherwise unavailable, results are filter-only. */}
+      {semanticFallback && (
+        <div
+          role="status"
+          className="mx-4 mb-2 text-[11px] tracking-wide"
+          style={{ color: "var(--gs-kraft)" }}
+        >
+          Showing keyword-only results — semantic search temporarily limited.
+        </div>
+      )}
+
       {/* Results count + view toggle */}
       <div className="px-4 pb-3 flex items-center justify-between">
         <p className="text-xs tracking-widest uppercase gs-num" style={{ color: "var(--gs-kraft)" }}>
-          {filteredCafes.length} cafe{filteredCafes.length !== 1 ? "s" : ""}
-          {latencyMs !== null && searchQuery.trim() && !searchError && (
-            <span className="ml-2 normal-case tracking-normal" style={{ opacity: 0.7 }}>
-              · {latencyMs}ms
-            </span>
+          {isSearching ? (
+            <span>Searching…</span>
+          ) : (
+            <>
+              {filteredCafes.length} cafe{filteredCafes.length !== 1 ? "s" : ""}
+              {latencyMs !== null && searchQuery.trim() && !searchError && (
+                <span className="ml-2 normal-case tracking-normal" style={{ opacity: 0.7 }}>
+                  · {latencyMs}ms
+                </span>
+              )}
+            </>
           )}
         </p>
         <div className="gs-view-toggle">
@@ -186,7 +216,10 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div
+                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 transition-opacity duration-200"
+                style={{ opacity: isSearching ? 0.45 : 1 }}
+              >
                 {pagedCafes.map((cafe, i) => (
                   <CafeCard key={cafe.id} cafe={cafe} index={i} />
                 ))}

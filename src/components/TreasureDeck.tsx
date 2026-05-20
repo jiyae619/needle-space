@@ -15,8 +15,12 @@ interface Props {
   initialDeck: Cafe[];
 }
 
-const SWIPE_THRESHOLD = 90;
+const SWIPE_THRESHOLD = 72;
 const DECK_SIZE = 5;
+// Custom easing — `ease-out` feels generic for gestures; this is a quart curve
+// that snaps fast then settles, matching the iOS-style swipe deck feel.
+const SWIPE_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+const SETTLE_MS = 180;
 
 // Pull a fresh deck excluding cafes the user has already seen this session.
 // When fewer than DECK_SIZE unseen remain, reset (treat the next round as
@@ -65,7 +69,7 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
       setIndex((i) => i + 1);
       setDrag(null);
       setExiting(null);
-    }, 220);
+    }, SETTLE_MS);
   }
 
   function handleNo() {
@@ -75,7 +79,7 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
       setIndex((i) => i + 1);
       setDrag(null);
       setExiting(null);
-    }, 220);
+    }, SETTLE_MS);
   }
 
   function reroll() {
@@ -230,7 +234,10 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
         style={{
           transform: `translateX(${totalDx}px) rotate(${rotation}deg)`,
           opacity,
-          transition: drag && !exiting ? "none" : "transform 0.22s ease-out, opacity 0.22s ease-out",
+          transition: drag && !exiting
+            ? "none"
+            : `transform ${SETTLE_MS}ms ${SWIPE_EASE}, opacity ${SETTLE_MS}ms ${SWIPE_EASE}`,
+          willChange: drag || exiting ? "transform, opacity" : undefined,
         }}
       >
         {(() => {

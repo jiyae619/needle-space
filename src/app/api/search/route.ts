@@ -136,8 +136,8 @@ export async function POST(req: Request) {
     if (rpcArgs.p_noise_in)   q = q.or(mergedFilter("noise_level",          rpcArgs.p_noise_in));
     if (rpcArgs.p_outlets_in) q = q.or(mergedFilter("outlet_availability",  rpcArgs.p_outlets_in));
     if (rpcArgs.p_laptop_in)  q = q.or(mergedFilter("laptop_policy",        rpcArgs.p_laptop_in));
-    if (filters.location && filters.location !== "any") {
-      q = q.eq("neighborhood", filters.location);
+    if (Array.isArray(filters.location) && filters.location.length > 0) {
+      q = q.in("neighborhood", filters.location);
     }
     if (filters.productivity === "above_4")  q = q.gte("productivity_score", 4);
     if (filters.productivity === "under_4")  q = q.lt("productivity_score", 4);
@@ -165,8 +165,9 @@ export async function POST(req: Request) {
   // Location and productivity filters are applied post-RPC for the semantic
   // path so we don't have to plumb them through match_cafes' SQL signature.
   if (semanticUsed) {
-    if (filters.location && filters.location !== "any") {
-      cafes = cafes.filter(c => c.neighborhood === filters.location);
+    if (Array.isArray(filters.location) && filters.location.length > 0) {
+      const allowed = new Set(filters.location);
+      cafes = cafes.filter(c => allowed.has(c.neighborhood));
     }
     if (filters.productivity === "above_4") {
       cafes = cafes.filter(c => (c.productivity_score ?? 0) >= 4);

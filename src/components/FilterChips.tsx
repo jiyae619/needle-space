@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Filters, FilterKey, FILTER_DEFS, EMPTY_FILTERS } from "@/lib/types";
+import { Filters, FilterKey, FILTER_DEFS, isFilterEmpty } from "@/lib/types";
 import FilterChip from "./FilterChip";
+import LocationFilterChip from "./LocationFilterChip";
 
 interface FilterChipsProps {
   filters: Filters;
@@ -12,7 +13,7 @@ interface FilterChipsProps {
 
 export default function FilterChips({ filters, onChange, onClear }: FilterChipsProps) {
   const hasActive = (Object.keys(filters) as FilterKey[]).some(
-    k => filters[k] !== EMPTY_FILTERS[k],
+    k => !isFilterEmpty(k, filters[k]),
   );
 
   // Track which edges of the chip strip have content scrolled past so the
@@ -42,6 +43,11 @@ export default function FilterChips({ filters, onChange, onClear }: FilterChipsP
 
   return (
     <div ref={stripRef} className={maskClass}>
+      {/* Location is multi-select and rendered first as the default chip. */}
+      <LocationFilterChip
+        value={filters.location}
+        onChange={(v) => onChange("location", v)}
+      />
       {FILTER_DEFS.map(def => (
         <FilterChip
           key={def.key}

@@ -53,10 +53,11 @@ export interface TaggingConfidence {
 }
 
 // Multi-value preference filters — each chip is a small picker, not a toggle.
-// "any" = no constraint applied. The default state for every key is "any",
-// which matches the old "no chips active" UX.
+// "any" = no constraint applied. Location is special: it's an array of
+// neighborhood names, [] means no location constraint. All other keys are
+// strings whose default is "any".
 export interface Filters {
-  location:     string;  // "any" or a neighborhood name (e.g. "Ballard")
+  location:     string[]; // [] = any. Multi-select neighborhoods.
   noise:        "quiet" | "quiet_or_moderate" | "any";
   outlets:      "every_table" | "any_outlets" | "any";
   laptop:       "welcome" | "welcome_or_limited" | "any";
@@ -67,13 +68,19 @@ export interface Filters {
 export type FilterKey = keyof Filters;
 
 export const EMPTY_FILTERS: Filters = {
-  location:     "any",
+  location:     [],
   noise:        "any",
   outlets:      "any",
   laptop:       "any",
   productivity: "any",
   open_now:     "any",
 };
+
+// Helper — compare a filter value to "empty" (handles location's array case).
+export function isFilterEmpty<K extends FilterKey>(key: K, value: Filters[K]): boolean {
+  if (key === "location") return Array.isArray(value) && value.length === 0;
+  return value === EMPTY_FILTERS[key];
+}
 
 // Seattle-metro neighborhoods present in the cafe catalog. Add new entries
 // here if `fetch-cafes.mjs` starts pulling from new areas.
@@ -107,15 +114,9 @@ export interface FilterDef<K extends FilterKey = FilterKey> {
   options: FilterOption<K>[];
 }
 
+// Location is handled by a separate multi-select chip (LocationFilterChip).
+// FILTER_DEFS only covers the single-select chips.
 export const FILTER_DEFS: FilterDef[] = [
-  {
-    key: "location",
-    label: "Location",
-    options: [
-      { value: "any", label: "All neighborhoods" },
-      ...NEIGHBORHOODS.map(n => ({ value: n, label: n })),
-    ],
-  },
   {
     key: "noise",
     label: "Noise",
