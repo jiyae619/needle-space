@@ -39,7 +39,12 @@ const env = Object.fromEntries(
     .map(l => { const [k, ...v] = l.split("="); return [k.trim(), v.join("=").trim()]; })
 );
 
-const GOOGLE_KEY = env.GOOGLE_PLACES_API_KEY;
+// Prefer GOOGLE_PLACES_SERVER_KEY for server-side runs — the browser-side
+// key has HTTP referrer restrictions that block Node.js (no Referer header)
+// with 403 API_KEY_HTTP_REFERRER_BLOCKED. Falls back to the browser key when
+// the server key isn't set so this still works in dev environments that
+// haven't split keys yet.
+const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY;
 const supabase   = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
 // ---------------------------------------------------------------------------
@@ -349,7 +354,11 @@ async function fetchGoogleData(placeId) {
       ].join(","),
     },
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`     ⚠️  Places v1 API ${res.status}: ${body.slice(0, 300)}`);
+    return null;
+  }
   const data = await res.json();
 
   const reviewTexts = (data.reviews || []).map(r => r.text?.text || "").filter(Boolean);
