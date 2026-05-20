@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { ArrowLeft, ArrowRight, Coffee, WarningCircle } from "@phosphor-icons/react";
+import { Coffee, ArrowUp } from "@phosphor-icons/react";
 import FilterChips from "@/components/FilterChips";
 import CafeCard from "@/components/CafeCard";
 import MapView from "@/components/MapView";
@@ -14,13 +14,19 @@ const PAGE_SIZE = 16;
 
 type ViewMode = "list" | "map";
 
-export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
+interface HomeClientProps {
+  initialCafes: Cafe[];
+  featuredCafeId?: string | null;
+}
+
+export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  // Read current page from URL so back-button from /cafe/[id] returns the
-  // user to the same page they came from.
-  const urlPage = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+  // Read current visible-count from URL so back-button from /cafe/[id] returns
+  // the user to roughly the same scroll context. Next.js handles actual scroll
+  // restoration on browser back.
+  const urlShow = Math.max(PAGE_SIZE, parseInt(searchParams.get("show") || String(PAGE_SIZE), 10) || PAGE_SIZE);
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -29,35 +35,41 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
   // hovered on either the map or the list. null = no hover.
   const [hoveredCafeId, setHoveredCafeId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(urlPage);
+  const [visibleCount, setVisibleCount] = useState(urlShow);
   const [results, setResults] = useState<Cafe[]>(initialCafes);
   const [isSearching, setIsSearching] = useState(false);
-  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   // semantic_fallback_reason fires when Voyage rate-limits or the embedding
   // call fails and the API falls back to keyword/filter-only. Surface it so
   // results that *feel* worse have a visible cause.
   const [semanticFallback, setSemanticFallback] = useState<string | null>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
-  // Sync URL whenever currentPage changes — uses replaceState so back-button
-  // history isn't bloated with one entry per page change.
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Sync URL whenever visibleCount changes — replaceState so the browser-back
+  // history isn't bloated with one entry per scroll batch.
   useEffect(() => {
     const sp = new URLSearchParams(Array.from(searchParams.entries()));
-    if (currentPage > 1) sp.set("page", String(currentPage));
-    else sp.delete("page");
+    if (visibleCount > PAGE_SIZE) sp.set("show", String(visibleCount));
+    else sp.delete("show");
     const next = sp.toString();
     const target = next ? `${pathname}?${next}` : pathname;
     if (typeof window !== "undefined" && window.location.pathname + window.location.search !== target) {
       router.replace(target, { scroll: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage]);
+  }, [visibleCount]);
 
-  // Sync state from URL too — covers browser back/forward and direct page links.
+  // Back-to-top visibility — appears after a meaningful scroll.
   useEffect(() => {
-    if (urlPage !== currentPage) setCurrentPage(urlPage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlPage]);
+    function onScroll() {
+      setShowBackToTop(window.scrollY > 600);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const handleChipChange = useCallback(
     <K extends FilterKey>(key: K, value: Filters[K]) => {
@@ -76,9 +88,7 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
     setSelectedCafeId((prev) => (prev === id ? null : id));
   }, []);
 
-  // Stable callbacks for the card↔map hover sync. Without these, the inline
-  // arrow handed to CafeCard creates a fresh function each render and forces
-  // unnecessary downstream re-attachments.
+  // Stable callbacks for the card↔map hover sync.
   const handleHoverEnter = useCallback((id: string) => setHoveredCafeId(id), []);
   const handleHoverLeave = useCallback(() => setHoveredCafeId(null), []);
 
@@ -100,14 +110,13 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
     // a needless API hit on first paint.
     if (!searchQuery.trim() && filtersAreEmpty) {
       setResults(initialCafes);
-      setLatencyMs(null);
       setSearchError(null);
       return;
     }
 
     let cancelled = false;
     setIsSearching(true);
-    searchCafes(searchQuery, filters).then(({ cafes, latency_ms, error, semantic_fallback_reason, semantic_used }) => {
+    searchCafes(searchQuery, filters).then(({ cafes, error, semantic_fallback_reason, semantic_used }) => {
       if (cancelled) return;
       if (error) {
         console.error("[search] fallback to in-memory:", error);
@@ -117,7 +126,6 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
       } else {
         setResults(cafes);
         setSearchError(null);
-        if (latency_ms !== undefined) setLatencyMs(latency_ms);
         // Only flag the fallback when the user actually typed a query — a
         // filter-only request legitimately doesn't need semantic search.
         if (searchQuery.trim() && !semantic_used && semantic_fallback_reason) {
@@ -131,20 +139,73 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
     return () => { cancelled = true; };
   }, [searchQuery, filters, initialCafes]);
 
-  // Reset pagination when the user changes search/filters (NOT on first mount
-  // or on browser-back, where we want to honor the URL's page param).
+  // Reset visible-count when filters/search change (not on first mount, where
+  // we want to honor the URL's `show` param).
   const [didMount, setDidMount] = useState(false);
   useEffect(() => {
     if (!didMount) { setDidMount(true); return; }
-    setCurrentPage(1);
+    setVisibleCount(PAGE_SIZE);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, filters]);
 
-  const filteredCafes = results;
+  // Determine if we're in "curated" mode — no user intent expressed, so the
+  // featured cafe takes the hero slot. Once they type or filter, ranking
+  // takes over and the hero is plain "NO. 01" by productivity.
+  const noUserIntent =
+    !searchQuery.trim() &&
+    (Object.keys(filters) as FilterKey[]).every(k => isFilterEmpty(k, filters[k]));
 
-  const totalPages = Math.ceil(filteredCafes.length / PAGE_SIZE);
-  const pagedCafes = filteredCafes.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // Reorder so the featured cafe leads — but only when no intent. We splice
+  // it to the front rather than mutating the upstream list.
+  const filteredCafes = (() => {
+    if (!noUserIntent || !featuredCafeId) return results;
+    const idx = results.findIndex(c => c.id === featuredCafeId);
+    if (idx <= 0) return results;
+    const next = results.slice();
+    const [feat] = next.splice(idx, 1);
+    next.unshift(feat);
+    return next;
+  })();
+
+  const showTodaysPickHero = noUserIntent && !!featuredCafeId && filteredCafes[0]?.id === featuredCafeId;
+
+  // Infinite-scroll sentinel — when it enters the viewport, reveal the next
+  // PAGE_SIZE cafes.
+  useEffect(() => {
+    if (viewMode !== "list") return;
+    const node = sentinelRef.current;
+    if (!node) return;
+    if (visibleCount >= filteredCafes.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, filteredCafes.length));
+        }
+      },
+      { rootMargin: "300px 0px" },
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [viewMode, visibleCount, filteredCafes.length]);
+
+  const visibleCafes = filteredCafes.slice(0, visibleCount);
   const selectedCafe = filteredCafes.find((c) => c.id === selectedCafeId);
+
+  // Filter context label for the section mast — orients the user to what
+  // they're looking at. Search query wins precedence (most specific), then
+  // location filter, then nothing (the unfiltered top-picks index).
+  const filterContext: string | null = (() => {
+    const q = searchQuery.trim();
+    if (q) return `“${q}”`;
+    const locs = filters.location || [];
+    if (locs.length === 1) return locs[0];
+    if (locs.length >= 2) return `${locs.length} neighborhoods`;
+    return null;
+  })();
+
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -163,63 +224,49 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
         onClear={handleClear}
       />
 
-      {/* Search error notice — explicit so users know why filters seem ignored. */}
-      {searchError && (
-        <div
-          role="status"
-          className="mx-4 mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs"
-          style={{
-            borderColor: "var(--gs-accent-soft)",
-            background: "color-mix(in srgb, var(--gs-accent-soft) 35%, transparent)",
-            color: "var(--gs-ink)",
-          }}
-        >
-          <WarningCircle size={14} weight="fill" style={{ color: "var(--gs-accent)" }} aria-hidden />
-          <span>{searchError}</span>
-        </div>
-      )}
-
-      {/* Semantic fallback notice — when user typed a query but Voyage was
-          rate-limited or otherwise unavailable, results are filter-only. */}
-      {semanticFallback && (
-        <div
-          role="status"
-          className="mx-4 mb-2 text-[11px] tracking-wide"
+      {/* Status — one quiet line for either kind of degradation, never two banners. */}
+      {(searchError || semanticFallback) && (
+        <p
+          role={searchError ? "alert" : "status"}
+          className="px-4 mb-1 text-[11px] tracking-wide"
           style={{ color: "var(--gs-kraft)" }}
         >
-          Showing keyword-only results — semantic search temporarily limited.
-        </div>
+          {searchError ?? "Showing keyword-only results — semantic search temporarily limited."}
+        </p>
       )}
 
-      {/* Results count + view toggle */}
-      <div className="px-4 pb-3 flex items-center justify-between">
-        <p className="text-xs tracking-widest uppercase gs-num" style={{ color: "var(--gs-kraft)" }}>
-          {isSearching ? (
-            <span>Searching…</span>
-          ) : (
+      {/* Section mast — editorial pacing before the grid. Updates with the
+          user's filter context so "10-seconds-after-Cap-Hill" feels oriented. */}
+      <div className="gs-section-mast">
+        <p className="gs-section-eyebrow">
+          <strong>Top picks</strong>
+          {filterContext && (
             <>
-              {filteredCafes.length} cafe{filteredCafes.length !== 1 ? "s" : ""}
-              {latencyMs !== null && searchQuery.trim() && !searchError && (
-                <span className="ml-2 normal-case tracking-normal" style={{ opacity: 0.7 }}>
-                  · {latencyMs}ms
-                </span>
-              )}
+              <span aria-hidden style={{ opacity: 0.5 }}> · </span>
+              {filterContext}
             </>
           )}
         </p>
-        <div className="gs-view-toggle">
-          <button
-            onClick={() => setViewMode("list")}
-            className={`gs-view-btn ${viewMode === "list" ? "gs-view-btn-active" : ""}`}
-          >
-            List
-          </button>
-          <button
-            onClick={() => setViewMode("map")}
-            className={`gs-view-btn ${viewMode === "map" ? "gs-view-btn-active" : ""}`}
-          >
-            Map
-          </button>
+        <div className="flex items-baseline gap-4">
+          <p className="gs-section-count" aria-live="polite">
+            {isSearching ? "Searching…" : `${filteredCafes.length} cafe${filteredCafes.length !== 1 ? "s" : ""}`}
+          </p>
+          <div className="gs-view-toggle">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`gs-view-btn ${viewMode === "list" ? "gs-view-btn-active" : ""}`}
+              aria-pressed={viewMode === "list"}
+            >
+              List
+            </button>
+            <button
+              onClick={() => setViewMode("map")}
+              className={`gs-view-btn ${viewMode === "map" ? "gs-view-btn-active" : ""}`}
+              aria-pressed={viewMode === "map"}
+            >
+              Map
+            </button>
+          </div>
         </div>
       </div>
 
@@ -228,8 +275,6 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
         <div className="px-4 pb-20">
           {filteredCafes.length === 0 ? (
             (() => {
-              // Differentiated empty state — tell the user *why* nothing matched
-              // so they know which lever to adjust (search vs. filters).
               const filtersActive = (Object.keys(filters) as FilterKey[]).some(
                 k => !isFilterEmpty(k, filters[k]),
               );
@@ -252,43 +297,32 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
           ) : (
             <>
               <div
-                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 transition-opacity duration-200"
+                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-12 transition-opacity duration-200"
                 style={{ opacity: isSearching ? 0.45 : 1 }}
                 aria-busy={isSearching}
               >
-                {pagedCafes.map((cafe, i) => (
-                  <CafeCard key={cafe.id} cafe={cafe} index={i} />
+                {visibleCafes.map((cafe, i) => (
+                  <div key={cafe.id} className={i === 0 ? "col-span-2" : undefined}>
+                    <CafeCard
+                      cafe={cafe}
+                      index={i}
+                      hero={i === 0}
+                      featured={i === 0 && showTodaysPickHero}
+                    />
+                  </div>
                 ))}
               </div>
 
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6">
-                  <button
-                    onClick={() => {
-                      setCurrentPage((p) => Math.max(1, p - 1));
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    disabled={currentPage === 1}
-                    className="gs-chip disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <ArrowLeft size={14} weight="bold" className="mr-1.5" aria-hidden />
-                    Prev
-                  </button>
-                  <span className="text-xs tracking-widest uppercase gs-num" style={{ color: "var(--gs-kraft)" }}>
-                    {currentPage} / {totalPages}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setCurrentPage((p) => Math.min(totalPages, p + 1));
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    disabled={currentPage === totalPages}
-                    className="gs-chip disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Next
-                    <ArrowRight size={14} weight="bold" className="ml-1.5" aria-hidden />
-                  </button>
+              {/* Infinite-scroll sentinel + end-of-index status. */}
+              {visibleCount < filteredCafes.length && (
+                <div ref={sentinelRef} className="py-8 text-center text-[11px] tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
+                  Loading more…
                 </div>
+              )}
+              {visibleCount >= filteredCafes.length && filteredCafes.length > PAGE_SIZE && (
+                <p className="py-8 text-center text-[11px] tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
+                  End of index · {filteredCafes.length} cafes
+                </p>
               )}
             </>
           )}
@@ -349,6 +383,16 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
           )}
         </div>
       )}
+
+      {/* Back-to-top — visible after a meaningful scroll. */}
+      <button
+        type="button"
+        onClick={scrollToTop}
+        aria-label="Back to top"
+        className={`gs-back-to-top${showBackToTop ? " is-visible" : ""}`}
+      >
+        <ArrowUp size={18} weight="bold" aria-hidden />
+      </button>
     </div>
   );
 }

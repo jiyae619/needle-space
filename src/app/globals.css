@@ -242,6 +242,44 @@ h1, h2, h3, .font-display {
   font-weight: 600;
 }
 
+/* Editorial numerical index — sits inside the eyebrow line like a magazine
+   table-of-contents marker. Slightly darker to anchor the eye while staying
+   subordinate to the cafe name below. */
+.gs-postcard-index {
+  color: var(--gs-espresso);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+.gs-postcard-eyebrow-sep { opacity: 0.5; }
+
+/* "TODAY'S PICK" eyebrow — replaces the numerical index on the hero card
+   when no filter/search intent is active. Accent color + leading star give
+   it the editorial-curation feel without competing with the title below. */
+.gs-postcard-featured {
+  color: var(--gs-accent);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Hero card — the first result on /explore gets editorial-spread treatment.
+   Wider span comes from a Tailwind col-span-2 in the grid; this gives the
+   photo a cinematic aspect, scales the title up, and lets the glance quote
+   become the visual hook (the thing that earns the click). */
+.gs-card-postcard-hero .gs-postcard-photo { aspect-ratio: 4 / 3; }
+.gs-card-postcard-hero .gs-postcard-body  { padding: 1.1rem 0.1rem 0.35rem; gap: 0.45rem; }
+.gs-card-postcard-hero .gs-postcard-title {
+  font-size: clamp(1.55rem, 2.8vw, 2.15rem);
+  line-height: 1.06;
+  font-weight: 500;
+  letter-spacing: 0.003em;
+  -webkit-line-clamp: 2;
+  text-wrap: balance;
+}
+.gs-card-postcard-hero .gs-postcard-quote { font-size: 1.05rem; -webkit-line-clamp: 2; }
+/* Hero's stamp sits a touch higher relative to the wider photo. */
+.gs-card-postcard-hero .gs-postcard-stamp-anchor .gs-score-stamp { top: -4.5rem; right: 1.1rem; }
+
 .gs-postcard-title {
   font-family: var(--font-display), Georgia, serif;
   font-weight: 500;
@@ -604,6 +642,80 @@ h1, h2, h3, .font-display {
 /* Utility — drives ScoreBreakdown labels and any kraft-toned secondary text
    that used to inline `style={{ color: 'var(--gs-kraft)' }}`. */
 .gs-kraft { color: var(--gs-kraft); }
+
+/* Editorial section eyebrow — sits above the results grid, magazine
+   table-of-contents pacing. Pairs with the count line for a two-line
+   editorial mast that orients the reader before the grid starts. */
+.gs-section-mast {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.25rem 0 1.1rem;
+  padding: 0 1rem 0.7rem;
+  border-bottom: 1px solid var(--gs-rule);
+}
+.gs-section-eyebrow {
+  font-size: 0.65rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gs-kraft);
+  font-weight: 600;
+}
+.gs-section-eyebrow strong {
+  color: var(--gs-espresso);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+.gs-section-count {
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gs-kraft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Back-to-top — fixed floating button, appears past 600px scroll. Sized for
+   touch (40x40 min). Subtle until hovered. */
+.gs-back-to-top {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 40;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--gs-espresso);
+  color: var(--gs-cream);
+  border: 1px solid var(--gs-espresso);
+  box-shadow: 0 6px 16px rgba(42, 29, 20, 0.18);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transform: translateY(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms var(--gs-ease), transform 180ms var(--gs-ease);
+}
+.gs-back-to-top.is-visible {
+  opacity: 0.92;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.gs-back-to-top:focus-visible {
+  outline: 2px solid var(--gs-accent);
+  outline-offset: 3px;
+  opacity: 1;
+}
+@media (hover: hover) {
+  .gs-back-to-top:hover { opacity: 1; }
+}
+.gs-back-to-top:active { transform: scale(0.95); }
+@media (prefers-reduced-motion: reduce) {
+  .gs-back-to-top { transition: opacity 100ms linear; transform: none; }
+}
 
 /* ── Detail page sections ─────────────────────────────────────
    Borderless editorial layout — sections separated by a hairline
