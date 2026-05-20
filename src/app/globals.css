@@ -45,8 +45,20 @@ h1, h2, h3, .font-display {
 }
 
 /* ── Typography utilities ───────────────────────────────────── */
+/* Fraunces variable-font axes — opsz controls optical size (smaller numbers
+   give wider, more legible letterforms; bigger numbers cinch up for display
+   sizes). SOFT rounds the terminals for a warmer, more editorial feel.
+   We expose four scales via custom properties so every display element can
+   declare its axis preset instead of inlining font-variation-settings. */
+:root {
+  --fv-display: "opsz" 96, "SOFT" 50, "WONK" 0;   /* hero spreads, 36px+      */
+  --fv-hero:    "opsz" 48, "SOFT" 50, "WONK" 0;   /* hero card titles, 22-32  */
+  --fv-title:   "opsz" 28, "SOFT" 60, "WONK" 0;   /* postcard titles, 14-20   */
+  --fv-sub:     "opsz" 18, "SOFT" 70, "WONK" 0;   /* sub-headings, small UI   */
+}
 .font-display {
   font-family: var(--font-display), Georgia, serif;
+  font-variation-settings: var(--fv-title);
 }
 
 /* Tabular figures for any number that updates while the user reads it. */
@@ -272,6 +284,7 @@ h1, h2, h3, .font-display {
   font-size: clamp(1.55rem, 2.8vw, 2.15rem);
   line-height: 1.06;
   font-weight: 500;
+  font-variation-settings: var(--fv-hero);
   letter-spacing: 0.003em;
   -webkit-line-clamp: 2;
   text-wrap: balance;
@@ -283,10 +296,11 @@ h1, h2, h3, .font-display {
 .gs-postcard-title {
   font-family: var(--font-display), Georgia, serif;
   font-weight: 500;
+  font-variation-settings: var(--fv-title);
   font-size: 1.05rem;
   line-height: 1.2;
   color: var(--gs-espresso);
-  letter-spacing: -0.005em;
+  letter-spacing: 0.002em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -297,6 +311,7 @@ h1, h2, h3, .font-display {
   position: relative;
   font-family: var(--font-display), Georgia, serif;
   font-style: italic;
+  font-variation-settings: var(--fv-sub);
   font-size: 0.98rem;
   line-height: 1.45;
   color: var(--gs-ink);
@@ -406,6 +421,7 @@ h1, h2, h3, .font-display {
   line-height: 1;
   color: var(--gs-espresso);
   font-variant-numeric: tabular-nums;
+  font-variation-settings: var(--fv-hero);
 }
 
 .gs-score-stamp-denom {

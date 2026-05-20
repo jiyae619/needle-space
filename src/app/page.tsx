@@ -9,8 +9,12 @@ export default function Welcome() {
         Seattle · An Index of Working Cafes
       </p>
       <h1
-        className="font-display font-medium leading-[1.02] tracking-tight text-[var(--gs-espresso)]"
-        style={{ fontSize: "clamp(2.5rem, 8vw, 4.75rem)" }}
+        className="font-display font-medium leading-[1.02] text-[var(--gs-espresso)]"
+        style={{
+          fontSize: "clamp(2.5rem, 8vw, 4.75rem)",
+          letterSpacing: "-0.005em",
+          fontVariationSettings: '"opsz" 96, "SOFT" 50, "WONK" 0',
+        }}
       >
         Find a cafe<br />
         worth opening<br />
