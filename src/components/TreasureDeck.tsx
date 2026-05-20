@@ -212,11 +212,20 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
         </p>
       </div>
 
-      {/* Progress dots */}
-      <div className="flex gap-1.5 mb-5">
+      {/* Progress dots — wrapped in a progressbar so screen readers know where
+          the user is in the deck. */}
+      <div
+        className="flex gap-1.5 mb-5"
+        role="progressbar"
+        aria-valuenow={index + 1}
+        aria-valuemin={1}
+        aria-valuemax={deck.length}
+        aria-label={`Card ${index + 1} of ${deck.length}`}
+      >
         {deck.map((_, i) => (
           <span
             key={i}
+            aria-hidden
             className="h-1 flex-1 rounded-full"
             style={{ backgroundColor: i < index ? "var(--gs-espresso)" : "var(--gs-rule)" }}
           />
@@ -281,9 +290,10 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
           />
         )}
 
-        {/* KEEP / SKIP stamp — always above photo, on every card */}
-        {yesHint && <div className="gs-treasure-stamp gs-treasure-yes">KEEP</div>}
-        {noHint  && <div className="gs-treasure-stamp gs-treasure-no">SKIP</div>}
+        {/* KEEP / SKIP stamp — aria-live announces drag-direction feedback to
+            screen-reader users, who don't see the visual stamp. */}
+        {yesHint && <div className="gs-treasure-stamp gs-treasure-yes" aria-live="polite">KEEP</div>}
+        {noHint  && <div className="gs-treasure-stamp gs-treasure-no"  aria-live="polite">SKIP</div>}
 
         <div className="gs-postcard-body flex flex-col">
           <p className="gs-postcard-eyebrow">{current.neighborhood}</p>

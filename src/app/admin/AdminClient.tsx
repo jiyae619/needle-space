@@ -181,23 +181,24 @@ export default function AdminClient({ initialCafes }: { initialCafes: Cafe[] }) 
         {(Object.keys(ATTR_OPTIONS) as AttrKey[]).map(key => {
           const current = currentValue(key);
           return (
-            <div key={key}>
-              <p className="text-xs tracking-[0.22em] uppercase font-semibold mb-2" style={{ color: "var(--gs-kraft)" }}>
+            <fieldset key={key} className="border-0 p-0 m-0">
+              <legend className="text-xs tracking-[0.22em] uppercase font-semibold mb-2" style={{ color: "var(--gs-kraft)" }}>
                 {ATTR_LABEL[key]}
-              </p>
+              </legend>
               <div className="flex flex-wrap gap-2">
                 {ATTR_OPTIONS[key].map(opt => (
                   <button
                     key={opt}
                     onClick={() => setAttr(key, opt)}
                     disabled={saving}
+                    aria-pressed={current === opt}
                     className={`gs-chip ${current === opt ? "gs-chip-active" : ""}`}
                   >
                     {opt.replace(/_/g, " ")}
                   </button>
                 ))}
               </div>
-            </div>
+            </fieldset>
           );
         })}
       </div>

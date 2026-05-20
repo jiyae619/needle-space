@@ -76,6 +76,12 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
     setSelectedCafeId((prev) => (prev === id ? null : id));
   }, []);
 
+  // Stable callbacks for the card↔map hover sync. Without these, the inline
+  // arrow handed to CafeCard creates a fresh function each render and forces
+  // unnecessary downstream re-attachments.
+  const handleHoverEnter = useCallback((id: string) => setHoveredCafeId(id), []);
+  const handleHoverLeave = useCallback(() => setHoveredCafeId(null), []);
+
   // When the map hovers a marker, scroll the matching card into view so
   // the user can see the cafe info even if they pointed at the marker first.
   useEffect(() => {
@@ -147,6 +153,7 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
         value={searchQuery}
         onChange={setSearchQuery}
         isSearching={isSearching}
+        resultsCount={results.length}
       />
 
       {/* Filter chips — multi-value pickers */}
@@ -220,16 +227,34 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
       {viewMode === "list" ? (
         <div className="px-4 pb-20">
           {filteredCafes.length === 0 ? (
-            <div className="gs-card text-center py-12 px-6 flex flex-col items-center">
-              <Coffee size={32} weight="regular" style={{ color: "var(--gs-kraft)" }} aria-hidden />
-              <p className="font-display font-bold text-lg mt-3" style={{ color: "var(--gs-espresso)" }}>No cafes match your filters</p>
-              <p className="text-sm mt-1" style={{ color: "var(--gs-kraft)" }}>Try widening the picker values, or clear all and start over.</p>
-            </div>
+            (() => {
+              // Differentiated empty state — tell the user *why* nothing matched
+              // so they know which lever to adjust (search vs. filters).
+              const filtersActive = (Object.keys(filters) as FilterKey[]).some(
+                k => !isFilterEmpty(k, filters[k]),
+              );
+              const hasQuery = !!searchQuery.trim();
+              const [headline, hint] = hasQuery && !filtersActive
+                ? [`No match for "${searchQuery.trim()}"`, "Try a broader phrase, or browse without searching."]
+                : !hasQuery && filtersActive
+                  ? ["No cafes match these filters", "Try clearing one of the filters above."]
+                  : hasQuery && filtersActive
+                    ? ["No cafes match your search and filters", "Try clearing a filter or simplifying your search."]
+                    : ["No cafes here yet", "The cafe list refreshes monthly."];
+              return (
+                <div className="gs-card text-center py-12 px-6 flex flex-col items-center">
+                  <Coffee size={32} weight="regular" style={{ color: "var(--gs-kraft)" }} aria-hidden />
+                  <p className="font-display font-bold text-lg mt-3" style={{ color: "var(--gs-espresso)" }}>{headline}</p>
+                  <p className="text-sm mt-1" style={{ color: "var(--gs-kraft)" }}>{hint}</p>
+                </div>
+              );
+            })()
           ) : (
             <>
               <div
                 className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 transition-opacity duration-200"
                 style={{ opacity: isSearching ? 0.45 : 1 }}
+                aria-busy={isSearching}
               >
                 {pagedCafes.map((cafe, i) => (
                   <CafeCard key={cafe.id} cafe={cafe} index={i} />
@@ -308,8 +333,8 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
                     cafe={cafe}
                     index={i}
                     highlighted={cafe.id === hoveredCafeId || cafe.id === selectedCafeId}
-                    onHoverEnter={setHoveredCafeId}
-                    onHoverLeave={() => setHoveredCafeId(null)}
+                    onHoverEnter={handleHoverEnter}
+                    onHoverLeave={handleHoverLeave}
                   />
                 ))}
               </div>

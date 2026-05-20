@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Cafe } from "@/lib/types";
-import { estimateCrowdness, crowdnessLabel, type Crowdness } from "@/lib/crowdness";
+import { estimateCrowdness, crowdnessLabel } from "@/lib/crowdness";
 
 // Treat known-broken photo URLs (direct Google Places API URLs that leak the
 // API key — and would 401/403 once the key rotates) as "no photo" so the
@@ -26,10 +25,11 @@ interface CafeCardProps {
 export default function CafeCard({ cafe, index = 0, highlighted, onHoverEnter, onHoverLeave }: CafeCardProps) {
   const street = cafe.address.split(",")[0];
   const photo  = safePhotoUrl(cafe.photo_url);
-  // Crowdness depends on `new Date()` which would mismatch between SSR and
-  // client hydration. Compute it post-mount only.
-  const [crowd, setCrowd] = useState<Crowdness | null>(null);
-  useEffect(() => { setCrowd(estimateCrowdness(cafe.id)); }, [cafe.id]);
+  // Crowdness is heuristic (hour-of-day × cafeId offset). Compute it
+  // synchronously so the pill is present from first paint — no layout shift
+  // post-hydration. suppressHydrationWarning on the wrapper covers the rare
+  // case where server time and client time straddle an hour boundary.
+  const crowd = estimateCrowdness(cafe.id);
 
   return (
     <Link
@@ -41,7 +41,7 @@ export default function CafeCard({ cafe, index = 0, highlighted, onHoverEnter, o
     >
       <article
         className={`gs-card-postcard gs-rise h-full flex flex-col${highlighted ? " gs-card-postcard-highlighted" : ""}`}
-        style={{ animationDelay: `${Math.min(index * 40, 320)}ms` }}
+        style={{ animationDelay: `${Math.min(index * 60, 360)}ms` }}
       >
         <div className="gs-postcard-photo">
           {photo ? (
@@ -59,15 +59,14 @@ export default function CafeCard({ cafe, index = 0, highlighted, onHoverEnter, o
         <div className="gs-postcard-body flex-1 flex flex-col">
           <div className="flex items-center justify-between gap-2">
             <p className="gs-postcard-eyebrow truncate">{cafe.neighborhood}</p>
-            {crowd && (
-              <span
-                className={`gs-crowd gs-crowd-${crowd}`}
-                title={`${crowdnessLabel(crowd)} (estimate)`}
-              >
-                <span className="gs-crowd-dot" aria-hidden />
-                {crowdnessLabel(crowd)}
-              </span>
-            )}
+            <span
+              className={`gs-crowd gs-crowd-${crowd}`}
+              aria-label={`${crowdnessLabel(crowd)} — estimated from time of day, not live data`}
+              suppressHydrationWarning
+            >
+              <span className="gs-crowd-dot" aria-hidden />
+              {crowdnessLabel(crowd)}
+            </span>
           </div>
           <h3 className="gs-postcard-title">{cafe.name}</h3>
 

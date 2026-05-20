@@ -22,9 +22,20 @@ export default function FilterChip<K extends FilterKey>({
   useEffect(() => { setMounted(true); }, []);
 
   const [open, setOpen] = useState(false);
+  // Two-phase close so the popover plays its exit animation before unmounting.
+  const [closing, setClosing] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number; origin: string } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  function requestClose() {
+    if (!open) return;
+    setClosing(true);
+    window.setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+    }, 100);
+  }
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
@@ -41,10 +52,10 @@ export default function FilterChip<K extends FilterKey>({
     function onPointer(e: MouseEvent) {
       const t = e.target as Node;
       if (triggerRef.current?.contains(t) || popoverRef.current?.contains(t)) return;
-      setOpen(false);
+      requestClose();
     }
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
-    function onScrollOrResize() { setOpen(false); }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") requestClose(); }
+    function onScrollOrResize() { requestClose(); }
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("keydown", onKey);
     // Use capture so we catch scrolls in any ancestor (including the chip strip).
@@ -56,6 +67,7 @@ export default function FilterChip<K extends FilterKey>({
       window.removeEventListener("scroll", onScrollOrResize, true);
       window.removeEventListener("resize", onScrollOrResize);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const isActive = value !== "any";
@@ -66,7 +78,7 @@ export default function FilterChip<K extends FilterKey>({
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => (open ? requestClose() : setOpen(true))}
         className={`gs-chip ${isActive ? "gs-chip-active" : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -81,7 +93,7 @@ export default function FilterChip<K extends FilterKey>({
           ref={popoverRef}
           role="listbox"
           aria-label={def.label}
-          className="gs-popover fixed z-50 min-w-[180px] p-1"
+          className={`gs-popover fixed z-50 min-w-[180px] p-1${closing ? " is-closing" : ""}`}
           style={{
             left: pos.left,
             top: pos.top,
@@ -96,8 +108,8 @@ export default function FilterChip<K extends FilterKey>({
                 type="button"
                 role="option"
                 aria-selected={selected}
-                onClick={() => { onChange(opt.value); setOpen(false); }}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-stone-50"
+                onClick={() => { onChange(opt.value); requestClose(); }}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-stone-50 focus-visible:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--gs-accent)] focus-visible:outline-offset-[-2px]"
                 style={{ color: "var(--gs-ink)" }}
               >
                 <span

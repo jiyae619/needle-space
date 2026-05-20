@@ -595,6 +595,16 @@ h1, h2, h3, .font-display {
 .gs-btn-ink:active,
 .gs-btn-ghost:active { transform: scale(0.98); }
 
+.gs-btn-ink:disabled,
+.gs-btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Utility — drives ScoreBreakdown labels and any kraft-toned secondary text
+   that used to inline `style={{ color: 'var(--gs-kraft)' }}`. */
+.gs-kraft { color: var(--gs-kraft); }
+
 /* ── Detail page sections ─────────────────────────────────────
    Borderless editorial layout — sections separated by a hairline
    rule, no boxed cards. */
@@ -853,6 +863,17 @@ h1, h2, h3, .font-display {
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
+/* Exit — subtler than the enter, per design-lib motion rules. The component
+   sets `is-closing` for ~100ms before unmount so the popover melts away
+   instead of vanishing hard. */
+@keyframes gs-popover-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to   { opacity: 0; transform: scale(0.98) translateY(-1px); }
+}
+.gs-popover.is-closing {
+  animation: gs-popover-out 100ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
 /* Compact tooltip — used by the AI badge to explain itself on tap. */
 .gs-tooltip {
   font-size: 0.75rem;
@@ -863,7 +884,7 @@ h1, h2, h3, .font-display {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gs-rise, .gs-popover, .gs-spin { animation: none; }
+  .gs-rise, .gs-popover, .gs-popover.is-closing, .gs-spin { animation: none; }
   .gs-card, .gs-chip, .gs-btn-primary, .gs-card-cta, .gs-treasure-card, .gs-treasure-btn { transition: none; }
   /* Reduced-motion users still need to know the search is busy — fall back to opacity pulse. */
   .gs-spin { opacity: 0.6; }
