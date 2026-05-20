@@ -8,6 +8,8 @@ interface MapViewProps {
   cafes: Cafe[];
   selectedCafeId: string | null;
   onSelectCafe: (id: string) => void;
+  hoveredCafeId?: string | null;
+  onHoverCafe?: (id: string | null) => void;
 }
 
 // Track global load state outside the component so it persists across re-renders
@@ -90,7 +92,7 @@ function loadGoogleMaps(apiKey: string) {
   document.head.appendChild(script);
 }
 
-export default function MapView({ cafes, selectedCafeId, onSelectCafe }: MapViewProps) {
+export default function MapView({ cafes, selectedCafeId, onSelectCafe, hoveredCafeId, onHoverCafe }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -159,26 +161,40 @@ export default function MapView({ cafes, selectedCafeId, onSelectCafe }: MapView
 
     cafes.forEach((cafe) => {
       const isSelected = cafe.id === selectedCafeId;
+      const isHovered  = cafe.id === hoveredCafeId;
       const isWelcome  = cafe.laptop_policy === "welcome";
+
+      // Marker style precedence: selected > hovered > default.
+      // Selected stays orange (the "you clicked me" anchor), hover is
+      // a transient ink-darkened bump that mirrors list hover state.
+      const scale = isSelected ? 9 : isHovered ? 10 : 7;
+      const fillColor = isSelected ? "#E8521C" : "#292524";
+      const fillOpacity = isSelected || isHovered ? 1 : isWelcome ? 1 : 0.4;
+      const strokeWeight = isHovered ? 3.5 : 2.5;
 
       const marker = new google.maps.Marker({
         map: mapInstanceRef.current!,
         position: { lat: cafe.lat, lng: cafe.lng },
         title: cafe.name,
+        zIndex: isSelected ? 30 : isHovered ? 20 : 10,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
-          scale: isSelected ? 9 : 7,
-          fillColor: isSelected ? "#E8521C" : "#292524",
-          fillOpacity: isSelected ? 1 : isWelcome ? 1 : 0.4,
+          scale,
+          fillColor,
+          fillOpacity,
           strokeColor: "#ffffff",
-          strokeWeight: 2.5,
+          strokeWeight,
         },
       });
 
       marker.addListener("click", () => onSelectCafe(cafe.id));
+      if (onHoverCafe) {
+        marker.addListener("mouseover", () => onHoverCafe(cafe.id));
+        marker.addListener("mouseout",  () => onHoverCafe(null));
+      }
       markersRef.current.push(marker);
     });
-  }, [loadState, cafes, selectedCafeId, onSelectCafe]);
+  }, [loadState, cafes, selectedCafeId, hoveredCafeId, onSelectCafe, onHoverCafe]);
 
   if (loadState === "error") {
     return (

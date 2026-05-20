@@ -25,6 +25,9 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedCafeId, setSelectedCafeId] = useState<string | null>(null);
+  // Yelp-style hover sync: source of truth for which cafe is currently
+  // hovered on either the map or the list. null = no hover.
+  const [hoveredCafeId, setHoveredCafeId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(urlPage);
   const [results, setResults] = useState<Cafe[]>(initialCafes);
@@ -72,6 +75,14 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
   const handleMapSelectCafe = useCallback((id: string) => {
     setSelectedCafeId((prev) => (prev === id ? null : id));
   }, []);
+
+  // When the map hovers a marker, scroll the matching card into view so
+  // the user can see the cafe info even if they pointed at the marker first.
+  useEffect(() => {
+    if (!hoveredCafeId || viewMode !== "map") return;
+    const el = document.getElementById(`card-${hoveredCafeId}`);
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [hoveredCafeId, viewMode]);
 
   // Hit /api/search whenever the query or filters change. The debounce inside
   // SearchBar caps how often the user can trigger this from typing.
@@ -259,13 +270,12 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
         </div>
       ) : (
         <div className="px-4 pb-8">
-          <div className="flex flex-col md:flex-row gap-3 h-[60vh] min-h-[400px]">
+          <div className="flex flex-col md:flex-row gap-4 h-[78vh] min-h-[500px]">
             {/* Map */}
             <div className="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
               <div className="flex flex-wrap items-start justify-between gap-2 shrink-0">
                 <p className="text-xs leading-snug min-w-0 flex-1" style={{ color: "var(--gs-ink)" }}>
-                  Darker dots are cafés where laptops are welcome; lighter dots mean limited laptop use,
-                  no laptops, or unknown. Orange highlights your selection.
+                  Hover a card or marker to sync. Darker dots welcome laptops; lighter dots are limited or unknown.
                 </p>
                 {selectedCafeId && (
                   <button
@@ -273,7 +283,7 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
                     onClick={() => setSelectedCafeId(null)}
                     className="gs-chip text-xs tracking-widest uppercase shrink-0"
                   >
-                    Undo
+                    Undo selection
                   </button>
                 )}
               </div>
@@ -282,19 +292,31 @@ export default function HomeClient({ initialCafes }: { initialCafes: Cafe[] }) {
                   cafes={filteredCafes}
                   selectedCafeId={selectedCafeId}
                   onSelectCafe={handleMapSelectCafe}
+                  hoveredCafeId={hoveredCafeId}
+                  onHoverCafe={setHoveredCafeId}
                 />
               </div>
             </div>
 
-            {/* Right panel — tablet/desktop only */}
-            {selectedCafe && (
-              <div className="hidden md:flex md:flex-col md:w-80 lg:w-96 shrink-0 overflow-y-auto">
-                <CafeCard cafe={selectedCafe} />
+            {/* Scrollable list — Yelp-style. Each card syncs hover state
+                with its corresponding map marker. */}
+            <div className="hidden md:flex md:flex-col md:w-80 lg:w-96 shrink-0 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 gap-5">
+                {filteredCafes.slice(0, 60).map((cafe, i) => (
+                  <CafeCard
+                    key={cafe.id}
+                    cafe={cafe}
+                    index={i}
+                    highlighted={cafe.id === hoveredCafeId || cafe.id === selectedCafeId}
+                    onHoverEnter={setHoveredCafeId}
+                    onHoverLeave={() => setHoveredCafeId(null)}
+                  />
+                ))}
               </div>
-            )}
+            </div>
           </div>
 
-          {/* Mobile: card below map */}
+          {/* Mobile: when a marker is tapped, show that single card below. */}
           {selectedCafe && (
             <div className="mt-3 md:hidden">
               <CafeCard cafe={selectedCafe} />

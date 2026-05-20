@@ -199,6 +199,15 @@ h1, h2, h3, .font-display {
   }
 }
 
+/* Map ↔ list hover sync: when a marker is hovered, JS adds this class to
+   the matching card so the card lifts in concert with the map. */
+.gs-card-postcard-highlighted .gs-postcard-photo img { transform: scale(1.03); }
+.gs-card-postcard-highlighted .gs-postcard-title {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
 /* Sibling to .gs-postcard-photo so its descendants escape the photo's
    overflow:hidden. The 0-height anchor lets the stamp float onto the
    photo's bottom edge via negative `top` without consuming layout space. */

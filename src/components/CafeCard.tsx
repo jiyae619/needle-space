@@ -15,7 +15,15 @@ function safePhotoUrl(url: string | null | undefined): string | null {
   return url;
 }
 
-export default function CafeCard({ cafe, index = 0 }: { cafe: Cafe; index?: number }) {
+interface CafeCardProps {
+  cafe: Cafe;
+  index?: number;
+  highlighted?: boolean;
+  onHoverEnter?: (id: string) => void;
+  onHoverLeave?: (id: string) => void;
+}
+
+export default function CafeCard({ cafe, index = 0, highlighted, onHoverEnter, onHoverLeave }: CafeCardProps) {
   const street = cafe.address.split(",")[0];
   const photo  = safePhotoUrl(cafe.photo_url);
   // Crowdness depends on `new Date()` which would mismatch between SSR and
@@ -24,9 +32,15 @@ export default function CafeCard({ cafe, index = 0 }: { cafe: Cafe; index?: numb
   useEffect(() => { setCrowd(estimateCrowdness(cafe.id)); }, [cafe.id]);
 
   return (
-    <Link href={`/cafe/${cafe.id}`} className="block h-full group">
+    <Link
+      href={`/cafe/${cafe.id}`}
+      className="block h-full group"
+      id={`card-${cafe.id}`}
+      onMouseEnter={() => onHoverEnter?.(cafe.id)}
+      onMouseLeave={() => onHoverLeave?.(cafe.id)}
+    >
       <article
-        className="gs-card-postcard gs-rise h-full flex flex-col"
+        className={`gs-card-postcard gs-rise h-full flex flex-col${highlighted ? " gs-card-postcard-highlighted" : ""}`}
         style={{ animationDelay: `${Math.min(index * 40, 320)}ms` }}
       >
         <div className="gs-postcard-photo">
