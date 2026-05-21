@@ -250,6 +250,33 @@ function buildSummaryBlock(cafe) {
   return parts.length ? parts.join("\n") : null;
 }
 
+// Web research = Tavily snippets (reddit.com + yelp.com) plus Tavily's
+// synthesized answer. Reddit threads and Yelp tips often mention WiFi
+// quality, outlet density, and laptop-friendliness — exactly the
+// operational details Google reviewers skip. Cap at ~3K chars so the
+// total prompt stays reasonable.
+function buildWebResearchBlock(cafe) {
+  const wr = cafe.web_research_snippets;
+  if (!wr) return null;
+  const parts = ["WEB RESEARCH (Reddit + Yelp, via Tavily):"];
+  if (wr.answer) {
+    parts.push(`Synthesized answer: ${wr.answer}`);
+  }
+  let total = 0;
+  const lines = [];
+  for (let i = 0; i < (wr.results ?? []).length; i++) {
+    const r = wr.results[i];
+    if (!r?.snippet) continue;
+    const entry = `[W${i + 1}] ${r.title ? r.title + " — " : ""}${r.snippet}`;
+    if (total + entry.length > 3000) break;
+    lines.push(entry);
+    total += entry.length;
+  }
+  if (lines.length === 0 && !wr.answer) return null;
+  if (lines.length > 0) parts.push("", ...lines);
+  return parts.join("\n");
+}
+
 async function callGeminiWithTool(systemPrompt, userText, tool) {
   const response = await gemini.models.generateContent({
     model: GEMINI_MODEL,
@@ -292,11 +319,13 @@ async function extractAttributes(state) {
     };
   }
 
-  const summaryBlock = buildSummaryBlock(cafe);
+  const summaryBlock     = buildSummaryBlock(cafe);
+  const webResearchBlock = buildWebResearchBlock(cafe);
   const userText = [
     `Cafe: ${cafe.name}${cafe.neighborhood ? ` (${cafe.neighborhood})` : ""}`,
     "",
-    ...(summaryBlock ? [summaryBlock, ""] : []),
+    ...(summaryBlock     ? [summaryBlock, ""]     : []),
+    ...(webResearchBlock ? [webResearchBlock, ""] : []),
     "INDIVIDUAL REVIEWS:",
     buildReviewBlock(reviews),
   ].join("\n");
@@ -482,7 +511,7 @@ async function main() {
 
   let q = supabase
     .from("cafes")
-    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, google_review_summary, google_editorial_summary")
+    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, google_review_summary, google_editorial_summary, web_research_snippets")
     .order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
   if (!FORCE_RETAG && !FILTER_CAFE) q = q.is("llm_tagged_at", null);
