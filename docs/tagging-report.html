@@ -70,7 +70,7 @@
   <p class="eyebrow">Needle Space · Tagging Pipeline Report</p>
   <h1>How 255 Seattle cafes got tagged</h1>
   <p class="lede">Three evidence sources feed one LangGraph pipeline: Google's 5-review sample, Google's Gemini-synthesized <code>reviewSummary</code> (every review on the place), and Tavily web research scoped to Reddit + Yelp. Each new source materially moved attributes the prior one couldn't reach.</p>
-  <p class="small">Generated 2026-05-21 · 255 cafes · 198 have <code>reviewSummary</code> · 123 have <code>editorialSummary</code> · 245 have web research · 4 manually verified · v1 baseline loaded for v1→v2 comparison</p>
+  <p class="small">Generated 2026-05-21 · 255 cafes · 198 have <code>reviewSummary</code> · 123 have <code>editorialSummary</code> · 71 have web research · 4 manually verified · v1 baseline loaded for v1→v2 comparison</p>
 
   <h2>The improvement, in numbers</h2>
   <p>The clearest "is the LLM actually better" signal is <strong>coverage</strong> — what fraction of cafes get a real (non-unknown) tag. Regex bails to "unknown" any time no keyword fires; the LLM reads prose; web research surfaces the things Google reviewers don't grade.</p>
@@ -93,51 +93,51 @@
         <td><strong>WiFi</strong> <span class="small">(<code>wifi_quality</code>)</span></td>
         <td class="num">1.6% <span class="small">(4/255)</span></td>
         <td class="num">15.3%</td>
-        <td class="num"><strong>93.3%</strong> <span class="small">(238/255)</span></td>
-        <td class="num"><strong style="color:var(--good)">+78.0</strong></td>
-        <td class="num">+91.8</td>
-        <td class="num">+234</td>
+        <td class="num"><strong>48.6%</strong> <span class="small">(124/255)</span></td>
+        <td class="num"><strong style="color:var(--good)">+33.3</strong></td>
+        <td class="num">+47.1</td>
+        <td class="num">+120</td>
       </tr>
       <tr>
         <td><strong>Outlets</strong> <span class="small">(<code>outlet_availability</code>)</span></td>
         <td class="num">10.2% <span class="small">(26/255)</span></td>
         <td class="num">11.8%</td>
-        <td class="num"><strong>72.5%</strong> <span class="small">(185/255)</span></td>
-        <td class="num"><strong style="color:var(--good)">+60.8</strong></td>
-        <td class="num">+62.4</td>
-        <td class="num">+159</td>
+        <td class="num"><strong>29.0%</strong> <span class="small">(74/255)</span></td>
+        <td class="num"><strong style="color:var(--good)">+17.3</strong></td>
+        <td class="num">+18.8</td>
+        <td class="num">+48</td>
       </tr>
       <tr>
         <td><strong>Noise</strong> <span class="small">(<code>noise_level</code>)</span></td>
         <td class="num">69.4% <span class="small">(177/255)</span></td>
         <td class="num">79.2%</td>
-        <td class="num"><strong>87.5%</strong> <span class="small">(223/255)</span></td>
-        <td class="num"><strong style="color:var(--good)">+8.2</strong></td>
-        <td class="num">+18.0</td>
-        <td class="num">+46</td>
+        <td class="num"><strong>86.7%</strong> <span class="small">(221/255)</span></td>
+        <td class="num"><strong style="color:var(--good)">+7.5</strong></td>
+        <td class="num">+17.3</td>
+        <td class="num">+44</td>
       </tr>
       <tr>
         <td><strong>Laptops</strong> <span class="small">(<code>laptop_policy</code>)</span></td>
         <td class="num">17.3% <span class="small">(44/255)</span></td>
         <td class="num">54.5%</td>
-        <td class="num"><strong>93.7%</strong> <span class="small">(239/255)</span></td>
-        <td class="num"><strong style="color:var(--good)">+39.2</strong></td>
-        <td class="num">+76.5</td>
-        <td class="num">+195</td>
+        <td class="num"><strong>62.4%</strong> <span class="small">(159/255)</span></td>
+        <td class="num"><strong style="color:var(--good)">+7.8</strong></td>
+        <td class="num">+45.1</td>
+        <td class="num">+115</td>
       </tr>
       <tr>
         <td><strong>Seating</strong> <span class="small">(<code>seating_availability</code>)</span></td>
         <td class="num">34.5% <span class="small">(88/255)</span></td>
         <td class="num">82.7%</td>
-        <td class="num"><strong>87.8%</strong> <span class="small">(224/255)</span></td>
-        <td class="num"><strong style="color:var(--good)">+5.1</strong></td>
-        <td class="num">+53.3</td>
-        <td class="num">+136</td>
+        <td class="num"><strong>88.6%</strong> <span class="small">(226/255)</span></td>
+        <td class="num"><strong style="color:var(--good)">+5.9</strong></td>
+        <td class="num">+54.1</td>
+        <td class="num">+138</td>
       </tr>
     </tbody>
   </table>
 
-  <p>Read the table this way: on <strong>laptop_policy</strong>, the regex committed to 44 of 255 cafes (17.3%); the LLM committed to 239 (93.7%) — <strong>195 more cafes</strong> get a usable laptop-friendliness signal. <strong>seating_availability</strong> nearly tripled. <strong>WiFi</strong> jumped 7×, though both taggers still struggle (reviewers rarely talk about WiFi speed). <strong>outlet_availability</strong> is the one place they're tied — both bail to "unknown" most of the time because outlets are operational details reviews skip.</p>
+  <p>Read the table this way: on <strong>laptop_policy</strong>, the regex committed to 44 of 255 cafes (17.3%); the LLM committed to 159 (62.4%) — <strong>115 more cafes</strong> get a usable laptop-friendliness signal. <strong>seating_availability</strong> nearly tripled. <strong>WiFi</strong> jumped 7×, though both taggers still struggle (reviewers rarely talk about WiFi speed). <strong>outlet_availability</strong> is the one place they're tied — both bail to "unknown" most of the time because outlets are operational details reviews skip.</p>
 
   <p>And the LLM produces something the regex can't: <strong>per-attribute confidence + an evidence quote</strong>. That's how the admin page can show "WiFi=fast, 85% confidence, quote: <em>'lightning-fast WiFi I worked off all day'</em>" instead of just "fast." High-confidence tag counts:</p>
 
@@ -154,33 +154,33 @@
       
       <tr>
         <td><strong>WiFi</strong></td>
-        <td class="num">189</td>
-        <td class="num">49</td>
-        <td class="num">17</td>
+        <td class="num">24</td>
+        <td class="num">104</td>
+        <td class="num">127</td>
       </tr>
       <tr>
         <td><strong>Outlets</strong></td>
-        <td class="num">97</td>
-        <td class="num">88</td>
-        <td class="num">70</td>
+        <td class="num">10</td>
+        <td class="num">64</td>
+        <td class="num">181</td>
       </tr>
       <tr>
         <td><strong>Noise</strong></td>
-        <td class="num">70</td>
-        <td class="num">153</td>
-        <td class="num">32</td>
+        <td class="num">66</td>
+        <td class="num">155</td>
+        <td class="num">34</td>
       </tr>
       <tr>
         <td><strong>Laptops</strong></td>
-        <td class="num">218</td>
-        <td class="num">21</td>
-        <td class="num">16</td>
+        <td class="num">99</td>
+        <td class="num">60</td>
+        <td class="num">96</td>
       </tr>
       <tr>
         <td><strong>Seating</strong></td>
         <td class="num">118</td>
-        <td class="num">106</td>
-        <td class="num">31</td>
+        <td class="num">108</td>
+        <td class="num">29</td>
       </tr>
     </tbody>
   </table>
@@ -255,56 +255,56 @@
       <tr>
         <td><strong>WiFi</strong> <span class="small">(<code>wifi_quality</code>)</span></td>
         <td class="num">255</td>
-        <td class="num">8.2%</td>
-        <td class="num"><strong>0.012</strong></td>
+        <td class="num">52.9%</td>
+        <td class="num"><strong>0.044</strong></td>
         <td>slight</td>
         <td class="num">98.4%</td>
-        <td class="num">6.7%</td>
+        <td class="num">51.4%</td>
       </tr>
       <tr>
         <td><strong>Outlets</strong> <span class="small">(<code>outlet_availability</code>)</span></td>
         <td class="num">255</td>
-        <td class="num">34.1%</td>
-        <td class="num"><strong>0.053</strong></td>
-        <td>slight</td>
+        <td class="num">74.1%</td>
+        <td class="num"><strong>0.253</strong></td>
+        <td>fair</td>
         <td class="num">89.8%</td>
-        <td class="num">27.5%</td>
+        <td class="num">71.0%</td>
       </tr>
       <tr>
         <td><strong>Noise</strong> <span class="small">(<code>noise_level</code>)</span></td>
         <td class="num">255</td>
-        <td class="num">22.7%</td>
-        <td class="num"><strong>0.084</strong></td>
+        <td class="num">23.5%</td>
+        <td class="num"><strong>0.105</strong></td>
         <td>slight</td>
         <td class="num">30.6%</td>
-        <td class="num">12.5%</td>
+        <td class="num">13.3%</td>
       </tr>
       <tr>
         <td><strong>Laptops</strong> <span class="small">(<code>laptop_policy</code>)</span></td>
         <td class="num">255</td>
-        <td class="num">20.0%</td>
-        <td class="num"><strong>0.003</strong></td>
-        <td>slight</td>
+        <td class="num">38.8%</td>
+        <td class="num"><strong>-0.018</strong></td>
+        <td>poor</td>
         <td class="num">82.7%</td>
-        <td class="num">6.3%</td>
+        <td class="num">37.6%</td>
       </tr>
       <tr>
         <td><strong>Seating</strong> <span class="small">(<code>seating_availability</code>)</span></td>
         <td class="num">255</td>
-        <td class="num">32.2%</td>
-        <td class="num"><strong>0.181</strong></td>
+        <td class="num">31.0%</td>
+        <td class="num"><strong>0.172</strong></td>
         <td>slight</td>
         <td class="num">65.5%</td>
-        <td class="num">12.2%</td>
+        <td class="num">11.4%</td>
       </tr>
     </tbody>
   </table>
   <p class="small">Landis & Koch (1977): &lt;0 poor · 0–0.20 slight · 0.21–0.40 fair · 0.41–0.60 moderate · 0.61–0.80 substantial · 0.81–1.00 almost perfect.</p>
 
   <h2>What v2 (web research) changed</h2>
-  <p><strong>WiFi went from 85% unknown to 6.7% unknown.</strong> That's the single biggest move in this report. Reddit threads grade WiFi explicitly ("Storyville has solid WiFi, I work from there every Tuesday") and Yelp tips often add it as a one-liner. Google reviews almost never do. Adding Tavily snippets unlocked an attribute that v1 fundamentally couldn't reach.</p>
+  <p><strong>WiFi went from 85% unknown to 51.4% unknown.</strong> That's the single biggest move in this report. Reddit threads grade WiFi explicitly ("Storyville has solid WiFi, I work from there every Tuesday") and Yelp tips often add it as a one-liner. Google reviews almost never do. Adding Tavily snippets unlocked an attribute that v1 fundamentally couldn't reach.</p>
 
-  <p><strong>Outlets followed the same pattern.</strong> v1 LLM unknown was 88%; v2 is 27.5%. Same mechanism — Reddit's working-from-cafes discourse mentions outlet density routinely, Google reviews don't.</p>
+  <p><strong>Outlets followed the same pattern.</strong> v1 LLM unknown was 88%; v2 is 71.0%. Same mechanism — Reddit's working-from-cafes discourse mentions outlet density routinely, Google reviews don't.</p>
 
   <p><strong>Why agreement and kappa look worse in v2.</strong> Counterintuitively, the Cohen's κ scores in the agreement table below <em>dropped</em> after v2. That's the right outcome, not a regression. When both taggers mostly said "unknown" (v1), they trivially agreed by both bailing out. v2 makes the LLM commit in hundreds of additional cafes where the regex still bails — so now you see lots of "regex=unknown, LLM=moderate" disagreements that count against κ. The right metric for v2 isn't agreement with the regex; it's <em>coverage</em>. The regex isn't ground truth anymore — it's a sparse keyword matcher being out-evidenced.</p>
 
@@ -342,7 +342,7 @@
         </tr>
         <tr>
           <th>unknown</th>
-          <td class="num ">53</td><td class="num ">168</td><td class="num ">6</td><td class="num ">7</td><td class="num diag">17</td>
+          <td class="num ">4</td><td class="num ">97</td><td class="num ">8</td><td class="num ">11</td><td class="num diag">131</td>
         </tr>
       </tbody>
     </table>
@@ -364,7 +364,7 @@
         </tr>
         <tr>
           <th>most</th>
-          <td class="num "></td><td class="num diag">18</td><td class="num ">6</td><td class="num ">1</td><td class="num ">1</td>
+          <td class="num ">2</td><td class="num diag">12</td><td class="num ">7</td><td class="num ">1</td><td class="num ">4</td>
         </tr>
         <tr>
           <th>limited</th>
@@ -376,7 +376,7 @@
         </tr>
         <tr>
           <th>unknown</th>
-          <td class="num ">6</td><td class="num ">127</td><td class="num ">21</td><td class="num ">6</td><td class="num diag">69</td>
+          <td class="num "></td><td class="num ">28</td><td class="num ">24</td><td class="num "></td><td class="num diag">177</td>
         </tr>
       </tbody>
     </table>
@@ -394,7 +394,7 @@
         
         <tr>
           <th>quiet</th>
-          <td class="num diag">34</td><td class="num ">112</td><td class="num ">21</td><td class="num ">9</td>
+          <td class="num diag">35</td><td class="num ">112</td><td class="num ">19</td><td class="num ">10</td>
         </tr>
         <tr>
           <th>moderate</th>
@@ -406,7 +406,7 @@
         </tr>
         <tr>
           <th>unknown</th>
-          <td class="num ">9</td><td class="num ">33</td><td class="num ">13</td><td class="num diag">23</td>
+          <td class="num ">3</td><td class="num ">39</td><td class="num ">12</td><td class="num diag">24</td>
         </tr>
       </tbody>
     </table>
@@ -424,7 +424,7 @@
         
         <tr>
           <th>welcome</th>
-          <td class="num diag">38</td><td class="num ">2</td><td class="num ">1</td><td class="num ">3</td>
+          <td class="num diag">22</td><td class="num ">1</td><td class="num ">2</td><td class="num ">19</td>
         </tr>
         <tr>
           <th>limited</th>
@@ -436,7 +436,7 @@
         </tr>
         <tr>
           <th>unknown</th>
-          <td class="num ">177</td><td class="num ">19</td><td class="num ">2</td><td class="num diag">13</td>
+          <td class="num ">107</td><td class="num ">22</td><td class="num ">5</td><td class="num diag">77</td>
         </tr>
       </tbody>
     </table>
@@ -454,11 +454,11 @@
         
         <tr>
           <th>ample</th>
-          <td class="num diag">41</td><td class="num ">5</td><td class="num ">12</td><td class="num "></td><td class="num "></td>
+          <td class="num diag">40</td><td class="num ">8</td><td class="num ">10</td><td class="num "></td><td class="num "></td>
         </tr>
         <tr>
           <th>adequate</th>
-          <td class="num ">6</td><td class="num diag">10</td><td class="num ">12</td><td class="num ">2</td><td class="num "></td>
+          <td class="num ">4</td><td class="num diag">10</td><td class="num ">14</td><td class="num ">2</td><td class="num "></td>
         </tr>
         <tr>
           <th>limited</th>
@@ -470,7 +470,7 @@
         </tr>
         <tr>
           <th>unknown</th>
-          <td class="num ">24</td><td class="num ">48</td><td class="num ">58</td><td class="num ">6</td><td class="num diag">31</td>
+          <td class="num ">28</td><td class="num ">43</td><td class="num ">61</td><td class="num ">6</td><td class="num diag">29</td>
         </tr>
       </tbody>
     </table>
@@ -481,201 +481,30 @@
 
   
     <div class="card">
-      <p class="neighborhood">University District</p>
-      <h3>Agua Verde Cafe</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJK51Cgf0VkFQR9xus8VOJJI4</code></span></p>
+      <p class="neighborhood">Fremont</p>
+      <h3>Café Hagen Modern All-Day Cafe</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJP0Fh64oVkFQRyY0tlusdnRY</code></span></p>
 
       
       <div class="summary-block">
         <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        Diners like this cafe&#39;s delicious and flavorful Mexican food, including tacos, burritos, and enchiladas, as well as the excellent salsa bar. They also highlight the fantastic waterfront location with great views, the casual and fun atmosphere, and the friendly staff.
+        People say this coffee shop serves delicious coffee, pastries, and sandwiches, with many raving about the pour-over and breakfast sandwich. They also highlight the pleasant and helpful service, as well as the stylish and vibrant atmosphere, both indoors and outdoors.
 
 Some reviews mention the food can be overpriced.
       </div>
 
       
-      <div class="summary-block">
-        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
-        Waterside restaurant serving classic Mexican cuisine &amp; cocktails amid colorful decor.
-      </div>
 
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Agua Verde Cafe in Seattle&#39;s University District offers free Wi-Fi and laptop-friendly outlets. It is popular for breakfast and coffee. Verified by recent reviews.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Late Night Coffee Shops Central District, Seattle, WA - Yelp</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Late+Night+Coffee+Shops&amp;find_loc=Central+Dis</span>
-          <br><em>"Cafe Verde. 4.6. (9 reviews). Natalie R. ... Laptop Friendly Cafe Free Wifi In Seattle, WA · Popcorn Chicken In Seattle, WA."</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Christian Cafe near Portage Bay, Seattle, WA ... - Yelp</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Christian+Cafe&amp;find_loc=Portage+Bay%2C+Seatt</span>
-          <br><em>"Cafe for Working ... Agua Verde Cafe - Christian Cafe near me - Seattle, Washington ... Ugly Mug Cafe &amp; Coffee Roasters - U District - Christian Cafe near me -"</em>
-        </p>
-      </div>
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
 
       
       <details>
-        <summary>Stored reviews (2 of 2 shown)</summary>
-        <p class="quote">"The food here has always been overpriced ($15 for chips and guacamole, and over $2 to add sour cream to a burrito!), you&#39;re definitely paying for the privilege of dining in a beautiful location as much as you are for the meal. However, it tasted good enough to justify going here for lunch or dinner on occasion, until r…"</p><p class="quote">"The customer service was horrible here and the food was terrible. Definitely zero out of 10 recommending never to come here"</p>
-      </details>
+        <summary>Stored reviews (3 of 7 shown)</summary>
+        <p class="quote">"This is a pretty good coffee place off Queen Anne. It was very crowded when we went, so not a lot of seating and we had to stand for a while. Good sign that it’s crowded. The coffee was good, but I’m not sure I would call it amazing. The place is in a good location and they have indoor and outdoor seating. The layout w…"</p><p class="quote">"Completely Disappointed.GET YOUR ACT TOGETHER
 
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: fast</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: loud</span>
-            <span class="conf">conf 80% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"the music inside was blaring and they refused to turn it down."</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-regex">regex: adequate</span>
-            <span class="pill pill-llm">LLM: limited</span>
-            <span class="conf">conf 70% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"the line was out the door. We waiting outside for a good 10-15 mins"</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">Greenwood</p>
-      <h3>Atulea</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJeYSEVQAVkFQRKOsS-X3vwiI</code></span></p>
+I’ve been to the SLU location and the one time I come to Queen Anne there was NO HOSPITALITY. 2 Ladies (one with short hair and other with Circle Tattoo on right arm)
 
-      
-      <div class="summary-block">
-        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this cafe serves delicious strawberry matcha lattes, boba tea, and unique matcha drinks like the Uber matcha. They highlight the fresh ingredients, quality tea, and the option to customize drinks with coffee, matcha, or hojicha. They also like the cute and cozy atmosphere, and the friendly, helpful, and attentive staff.
-      </div>
-
-      
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Atulea in Seattle offers working outlets and free Wi-Fi for laptops. Located at 7006 Greenwood Ave N, it&#39;s popular for work and study. The cafe has received high ratings for its environment.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>ATULEA - 7006 Greenwood Ave N, Seattle, Washington - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/biz/atulea-seattle-9</span>
-          <br><em>"They have plugs and WiFi if you need to work or study. Coffee is decent, nothing too special. Not to mention, the coffee takes a good 10 minutes to come out"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Cozy Coffee Shop Comfy Chair near Greenwood ...</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Cozy+Coffee+Shop+Comfy+Chair&amp;find_loc=Greenw</span>
-          <br><em>"... Laptop Friendly Cafe Free Wifi · Coffee Wifi Work ... working or reading. Just FYI the ... Atulea. 4.5 (36 reviews). 1.0 mi. 7006 Greenwood Ave N, Seattle"</em>
-        </p>
-      </div>
-
-      
-      <details>
-        <summary>Stored reviews (3 of 4 shown)</summary>
-        <p class="quote">"Adorable place with amazing drinks. I love that this place let&#39;s you pick your choice of caffeine: matcha, espresso, hojicha, it makes it so nice in terms of customization! Their matcha is very solid and I really recommend the Sea Salt Cream Matcha! It&#39;s got a jasmine tea base and tastes really similar to HeyTea or eve…"</p><p class="quote">"solid matcha! 👍 They made their matcha by hand and it tastes pretty rich 🍵 friendly staff ❤️"</p><p class="quote">"This place is a hidden gem for matcha lovers. You can truly taste how authentic and high quality the matcha is rich, smooth, and not overly sweet. Everything feels thoughtfully made, from the drinks to the atmosphere. The staff is friendly and welcoming, and you can tell they really care about what they’re serving. If …"</p>
-      </details>
-
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: fast</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 70% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: limited</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The café itself is quite small with about four bar stools, so I’m hoping they add more outdoor seating once the weather warms up."</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">Capitol Hill</p>
-      <h3>Volunteer Park Cafe &amp; Pantry</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJLWGLg90VkFQREfImduJ7gjA</code></span></p>
-
-      
-      <div class="summary-block">
-        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this cafe offers delicious breakfast sandwiches, pastries, and cakes, with the carrot cake and buckwheat cookies being particularly popular. They also highlight the friendly staff, quick service, and cute outdoor seating in a great neighborhood.
-
-Some reviews mention the cafe can be crowded.
-      </div>
-
-      
-      <div class="summary-block">
-        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
-        Homey restaurant in an old storefront serving American comfort food for breakfast &amp; lunch.
-      </div>
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Volunteer Park Cafe &amp; Pantry in Capitol Hill, Seattle, offers free Wi-Fi and power outlets for laptops. It&#39;s a popular spot for working. Check Yelp for current details.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Laptop Friendly Cafe near Capitol Hill, Seattle, WA ...</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Laptop+Friendly+Cafe&amp;find_loc=Capitol+Hill%2</span>
-          <br><em>"... Volunteer Park Cafe &amp; Pantry, Piedmont Cafe ... Wifi · Free Wifi · Aesthetic Cafe · Cozy Coffee Shop ... Outlets · Reading Cafe · Quiet Coffee Shop · Decaf"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>VOLUNTEER PARK CAFE &amp; PANTRY - Updated May 2026 - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/biz/volunteer-park-cafe-and-pantry-seattle</span>
-          <br><em>"A cute, airy, lovely lighting kind of cafe in north Capitol Hill with good amount of street parking. ... Wifi available, washroom (restrooms) available, and"</em>
-        </p>
-      </div>
-
-      
-      <details>
-        <summary>Stored reviews (3 of 4 shown)</summary>
-        <p class="quote">"Found this gem while completing a neighborhood stroll.  Such a quaint place.  In the middle of a residential area, tree lined streets.  Street parking.  Limited tables.  Coffee, pastry’s, etc.  pet and kid friendly.  Lines might be long and tables go fast."</p><p class="quote">"Amazing focaccia bread! The coffees were alright! Cute lil cafe!"</p><p class="quote">"cute place that serves good coffee and also wine"</p>
+Purchased 3 eggs. 1 came with cheese which was not disclosed when purchased. Then waited 35 minutes for t…"</p><p class="quote">"Love the ambience and decoration of this obviously Euro-Vibe cafe. Food is pretty good. A bit on the pricey side (but what isn&#39;t in this infernal city at this point.) I&#39;ve been the Bellevue location which is super spacious and great for sitting and getting work done. This location is great a nice weathered day to be ou…"</p>
       </details>
 
       <div class="grid">
@@ -684,435 +513,48 @@ Some reviews mention the cafe can be crowded.
             <span class="attr">WiFi</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 80% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 80% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 70% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The Cafe was busy but service was fast."</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: limited</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Limited tables."</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">Redmond</p>
-      <h3>Village Square Cafe</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJfT0fK7NykFQRCYUuUvXZYZQ</code></span></p>
-
-      
-      <div class="summary-block">
-        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        Diners like this cafe&#39;s delicious and fresh breakfast and brunch offerings, including hearty omelets, fluffy pancakes, and flavorful eggs Benedict. They also highlight the generous portion sizes and the friendly, attentive staff. Guests mention the cozy, classic diner atmosphere and appreciate the good value for the price.
-      </div>
-
-      
-      <div class="summary-block">
-        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
-        Bustling daytime diner offers a range of classic comfort fare in a light-filled, cheery dining room.
-      </div>
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Village Square Cafe in Redmond offers free Wi-Fi and has outlets available for laptops. It&#39;s a popular spot for studying and working. The cafe is located near Redmond Town Center.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>The Best 10 Cafes near Residence Inn Seattle East/Redmond ... - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?cflt=cafes&amp;find_near=residence-inn-seattle-east-redm</span>
-          <br><em>"Village Square Cafe - Cafes near me - Redmond, Washington. Village Square Cafe ... Shops Free Wifi · Breakfast &amp; Brunch · Study Cafe · Breakfast · See more cafes"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Best Cafes near Redmond Town Center in Redmond, WA - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Cafes&amp;find_near=redmond-town-center-redmon</span>
-          <br><em>"Coffee Shops Free Wifi · Breakfast &amp; Brunch · Study Cafe · Breakfast · See more cafes ... Village Square Cafe (624 reviews). Victor&#39;s Celtic Coffee (556 reviews)."</em>
-        </p>
-      </div>
-
-      
-
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 70% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The atmosphere and seating were average, kind of like your typical diner (3.5 stars)."</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: limited</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"After waiting about 40 minutes for a table"</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">Pioneer Square</p>
-      <h3>Monorail Espresso</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJb7pH7bRqkFQRwTaGcN9XkP0</code></span></p>
-
-      
-      <div class="summary-block">
-        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this cafe offers delicious coffee, including lattes, cold brews, and seasonal specials, with many highlighting the strong, well-made espresso. They also mention the fast and friendly service, with staff often described as welcoming and efficient. Guests appreciate the convenient walk-up counter and outdoor seating, making it a great spot for a quick grab-and-go.
-      </div>
-
-      
-      <div class="summary-block">
-        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
-        Snappy little takeout window serving espresso-based hot beverages &amp; homemade cookies.
-      </div>
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Monorail Espresso in Pioneer Square, Seattle, offers laptop use and working wifi. It&#39;s a popular study spot.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Coffee Shops Pioneer Square, Seattle, WA 98104 - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Coffee+Shops&amp;find_loc=Pioneer+Square%2C+Se</span>
-          <br><em>"... Monorail Espresso - Coffee Shops near me - Seattle, Washington. 5. Monorail ... Coffee Shops Free Wifi · Cute Coffee Shops · Coffee &amp; Tea Shops · Study Spots."</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Coffee Shops Harrison St, Seattle, WA 98109 - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Coffee+Shops&amp;find_loc=Harrison+St%2C+Seatt</span>
-          <br><em>"... Monorail Espresso - Coffee Shops near me - Seattle, Washington. 20. Monorail ... Perfect place to get work done too. They also have a 90&#39;s gallery full"</em>
-        </p>
-      </div>
-
-      
-      <details>
-        <summary>Stored reviews (3 of 3 shown)</summary>
-        <p class="quote">"This used to be the perfect mocha with the dark chocolate powder, but they switched to syrup and it’s not the same anymore! Pls bring it back and keep it as an upgrade if you will!"</p><p class="quote">"I stopped by Monorail Espresso in downtown Seattle for a quick coffee and it really lives up to its reputation as a fast, no-frills espresso stop. The tiny walk-up window keeps things moving, so even when there’s a line, you’re served pretty quickly. I ordered a latte, and it was smooth, strong, and well-balanced—perfe…"</p><p class="quote">"Fast service and really good!"</p>
-      </details>
-
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 80% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: none</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"This is a window-only grab and go style coffee shop"</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 60% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"you’ll typically find a line her throughout the day, especially during rush hour times."</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: not_allowed</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"This is a window-only grab and go style coffee shop"</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: none</span>
-            <span class="conf">conf 80% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"It’s not a place to hang out"</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">Pioneer Square</p>
-      <h3>Cafe Campagne</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJWfoS3bJqkFQRe8w36H6VslI</code></span></p>
-
-      
-      <div class="summary-block">
-        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this French restaurant serves delicious quiche, French toast, and lamb burgers. They highlight the charming, cozy atmosphere and the attentive service. They also like the fresh baguette and the variety of sweet and savory options.
-      </div>
-
-      
-      <div class="summary-block">
-        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
-        Casual French bistro serving a classic menu in a homey space with vintage posters.
-      </div>
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Cafe Campagne in Pioneer Square, Seattle, offers working WiFi and laptop outlets. It&#39;s a popular spot for coffee and relaxation. The cafe supports remote work with its amenities.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Cafe Campagne Seattle, WA - Last Updated May 2026 - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Cafe+Campagne&amp;find_loc=Seattle%2C+WA</span>
-          <br><em>"... Pioneer Square&#39;s story meets your next coffee and macaron.read more · See all ... WiFi &amp; ample outlets available, local art featured, chill overhead"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Computer Cafe in Seattle, WA - Updated 2026 - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Computer+Cafe&amp;find_loc=Seattle%2C+WA</span>
-          <br><em>"Free wifi and plugs for laptops. They have lots of great snack food options like ramen, popcorn chicken, sushi burrito, ramen burger and beef noodle soup"</em>
-        </p>
-      </div>
-
-      
-      <details>
-        <summary>Stored reviews (3 of 8 shown)</summary>
-        <p class="quote">"A classic French restaurant right at Pike Place Market and just a few steps to the Inn at the Market hotel.
-
-Excellent wine selection and the daily special was awesome
-
-If you like calamari it is the best appetizer on the menu."</p><p class="quote">"Had been talking about getting cassoulet and was told this is the place to go.  It didn&#39;t disappoint.  Kinda cozy smallish restaurant with a nice bar area and excellent table service.  Cassoulet comes in a personal Les Creuset croc at the table and its delicious.  It&#39;s also a lot to eat for one (although I ate it).  Ha…"</p><p class="quote">"The atmosphere is as expected. We were transported to Paris. It was lovely. However, we ordered French onion soups and they came out as moist bread and cheese with an emphasis on cheese! The onions were barely visible and the broth was so absent. I had to request a side of broth. I had pulled so much cheese out that th…"</p>
-      </details>
-
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 80% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: loud</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"However, I did find the restaurant to be rather loud because it was crowded."</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: limited</span>
-            <span class="conf">conf 80% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Kinda cozy smallish restaurant with a nice bar area and excellent table service."</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">South Lake Union</p>
-      <h3>PLUS84</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJ1RjHsxwVkFQRQtjvw0mai-Y</code></span></p>
-
-      
-      <div class="summary-block">
-        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this coffee shop offers delicious Vietnamese coffee, boba, and pastries, including the signature milk tea, Hanoi egg coffee, and raspberry croissant. They highlight the rich and flavorful drinks, the spacious and clean interior, and the cozy and inviting atmosphere. They also like the friendly and helpful staff, and the well-designed rewards program.
-      </div>
-
-      
-      <div class="summary-block">
-        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
-        Simple, modern coffee shop featuring a menu with lattes, matcha, milk tea &amp; more, plus desserts &amp; snacks.
-      </div>
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Plus 84 in South Lake Union, Seattle, offers free WiFi and laptop outlets for work. It&#39;s a popular spot for studying and working. The cafe is modern and chic, with street parking available.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Coffee Wifi Work near South Lake Union, Seattle, WA ...</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Coffee+Wifi+Work&amp;find_loc=South+Lake+Union%2</span>
-          <br><em>"... Plus 84, Cafe Opla, Stone Way Cafe, Armistice Coffee ... Laptop Friendly Cafe Free Wifi · Espressos ... outlets, and free WiFi. It&#39;s in the lobby of an"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Study Wifi near South Lake Union, Seattle, WA ... - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Study+Wifi&amp;find_loc=South+Lake+Union%2C+Se</span>
-          <br><em>"Top 10 Best Study Wifi in Seattle, WA - Last Updated February 2026 - Yelp - 203° Farenheit Coffee, Lemieux Library &amp; McGoldrick Learning Commons,"</em>
-        </p>
-      </div>
-
-      
-      <details>
-        <summary>Stored reviews (3 of 9 shown)</summary>
-        <p class="quote">"Very nice interior"</p><p class="quote">"Interesting little Vietnamese coffee spot - I opted for a hot taro latte and a baguette. The transaction and experience was quick, easy, and tasty! The space is large and was very quiet when I was there (weekday, late morning) but I&#39;ve walked by and seen it packed with people."</p><p class="quote">"If you love strong coffee, this is the spot. Their drinks are bold, rich, and high quality. I also tried the milk tea — super flavorful and strong. Drinks lean a bit sweet, but you can always adjust the sweetness to your liking. Highly recommend! (We’re here when they decorate for lunar new year)"</p>
-      </details>
-
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 70% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The vibe is relaxed but lively"</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"great coworking space as well!"</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: ample</span>
             <span class="conf">conf 85% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The space is large"</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">Redmond</p>
-      <h3>The Screaming Parrots Cafe: Desserts + Tea + Bites</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJ2w2A9OFzkFQRLO_hkdgy02o</code></span></p>
-
-      
-      <div class="summary-block">
-        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this cafe offers delicious and high-quality matcha, coffee, and unique tea lattes, along with amazing soufflé pancakes and crepes. They also highlight the cozy, welcoming atmosphere, which is great for studying or relaxing, and appreciate the friendly, attentive staff. Visitors mention the convenient late-night hours and free validated parking.
-      </div>
-
-      
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> The Screaming Parrots Cafe in Redmond offers desserts, tea, and coffee with free Wi-Fi. It has limited laptop outlets. It&#39;s near Residence Inn Seattle East/Redmond.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Coffee Shops Redmond, WA 98052 - Last Updated May 2026 - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Coffee+Shops&amp;find_loc=Redmond%2C+WA+98052</span>
-          <br><em>"... Screaming Parrots Cafe, River Trail Roasters, Jack Sprat, Tous Les Jours, Kitanda Espresso &amp; Açaí, Mercurys Coffee, Paris Baguette, MOWOOD, Nuttea, Matcha"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>The Best 10 Cafes near Residence Inn Seattle East/Redmond ... - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?cflt=cafes&amp;find_near=residence-inn-seattle-east-redm</span>
-          <br><em>"Best Cafes near Residence Inn Seattle East/Redmond - The Screaming Parrots Cafe ... Tea · Coffee Shops Free Wifi · Breakfast &amp; Brunch · Study Cafe · Breakfast."</em>
-        </p>
-      </div>
-
-      
-
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: fast</span>
-            <span class="conf">conf 90% · diverge</span>
             
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Outlets</span>
             <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: limited</span>
-            <span class="conf">conf 90% · diverge</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
             
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Noise</span>
             <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 70% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The cafe itself is cozy with a relaxed vibe."</p></div>
+            <span class="pill pill-llm">LLM: loud</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] The two employees working were not hospitable at all and were abnormally loud the entire time."</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Laptops</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: welcome</span>
             <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"It is a life saver for people that need to work late, studying students"</p></div>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Great place to work and grab coffee too!"</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Seating</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: limited</span>
             <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Place is small and tight so my family and I dined outside their cafe."</p></div>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Seating and walking around is tight."</p></div>
           </div>
       </div>
     </div>
     <div class="card">
-      <p class="neighborhood">Ballard</p>
-      <h3>Caffe Umbria</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJETfrY8YVkFQRNpoRbGmq6yk</code></span></p>
+      <p class="neighborhood">Fremont</p>
+      <h3>Feva Coffee Company- Café Feva</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJSSmw9hUVkFQRcXxRBJe6R1U</code></span></p>
 
       
       <div class="summary-block">
         <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this cafe serves good, strong coffee, including vanilla lattes, mochas, and ginger turmeric lattes. They highlight the drinks are expertly prepared and the atmosphere is cozy and relaxed. They also like the quick, friendly, and helpful service.
+        People say this coffee shop serves delicious cold brew, lattes, and London fogs, as well as a variety of pastries. They highlight the cozy and inviting atmosphere, and the friendly and welcoming staff. They also like the creative specials and the dog-friendly policy.
       </div>
 
       
@@ -1120,32 +562,21 @@ If you like calamari it is the best appetizer on the menu."</p><p class="quote">
       
       <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
         <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Caffe Umbria in Ballard, Seattle, offers free WiFi and is a laptop-friendly coffee shop. It is located at 5407 Ballard Ave NW. It has received positive reviews for its work environment.</p>
+        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Café Feva in Seattle offers laptop-friendly outlets and free Wi-Fi. Fremont Coffee also provides plugs and Wi-Fi for working. Both locations are in Fremont, Seattle.</p>
         
         <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Coffee Shops With Free Wifi Ballard, Seattle, WA - Yelp</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=coffee+shops+with+free+wifi&amp;find_loc=Ballard</span>
-          <br><em>"... Caffe Umbria - coffee shops with free wifi near me - Seattle, Washington. 6. Caffe Umbria. 4.2 (160 reviews). 0.6 mi. 5407 Ballard Ave NW, Seattle ... Laptop"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Coffee Work Space near Ballard, Seattle, WA ... - Yelp</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Coffee+Work+Space&amp;find_loc=Ballard%2C+Seattl</span>
-          <br><em>"... Outlets · Shared Workspace · Coffee House · Coffee Shops Free Wifi ... Laptop Friendly Cafe · Cafe ... Seattle, Washington. Caffe Umbria. 4.2 (160 reviews). Coffee"</em>
+          <strong>What&#39;s your favorite coffee shop(s) in Seattle? A must try. - Reddit</strong>
+          <br><span class="small">https://www.reddit.com/r/Seattle/comments/1j7qnn5/whats_your_favorite_coffee_sho</span>
+          <br><em>"Stone Way Cafe in Fremont! Great coffee, excellent food, good vibes ... Place with internet to work from 14:00-21:00. 3. 11. About 3"</em>
         </p>
       </div>
 
       
       <details>
         <summary>Stored reviews (3 of 5 shown)</summary>
-        <p class="quote">"Love coming to this coffee shop to edit photos! They serve excellent coffee, the interior is super cute, and the location couldn’t be better. It’s cozy, stylish, and has such a creative atmosphere — perfect for getting work done or just relaxing.
+        <p class="quote">"Great coffee and cute little shop! They use Monorail beans here. We ordered a 12oz latte and a lemon currant scone, which they kindly warmed up for us, not a lot of shop does that these days. The coffee had a nutty smell and leaned a bit on the bitter side, but it paired really well with the scone. Also want to highlig…"</p><p class="quote">"A small neighborhood-style coffee place with a good selection of standard coffee-based drinks and monthly specialty drinks. Got a standard iced americano that tasted pretty good.
 
-It’s also a great stop for a photoshoot! I brought one of my couples her…"</p><p class="quote">"The latte here was amazing. I got the seasonal which had some citrus and vanilla and I’m in love! I may need to breakup
-with my bf and date this latte instead. Anyways, a girl can dream. I would highly recommend. The vibes were also cute and the staff was helpful and actually cared about the product and if I liked the …"</p><p class="quote">"Italian Coffee!
-The aroma is out on the street and the coffee is amazing.
-
-Loved the biscotti too!
-
-The overall ambience, decor of this coffee place is great!"</p>
+The vibe here is quiet and also chill - there was only one barista on a weekend afternoon and seems like she knew a lot of the customer who …"</p><p class="quote">"Cafe Feva is the sweetest establishment. Staff are lovely, friendly, and helpful! Coffees and treats are delicious! Great place to read, work, craft, catch up with friends, the works! And their mugs…mama the mugs…cutest little things you ever did done see. Anytime I’m in Fremont you can bet you bottom dollar I’ll be at…"</p>
       </details>
 
       <div class="grid">
@@ -1154,36 +585,234 @@ The overall ambience, decor of this coffee place is great!"</p>
             <span class="attr">WiFi</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"perfect for getting work done"</p></div>
+            <span class="conf">conf 85% · diverge</span>
+            
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-regex">regex: most</span>
             <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 85% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"perfect for getting work done"</p></div>
+            <span class="conf">conf 85% · agree</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Window seats with outlets and wifi."</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Noise</span>
             <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 70% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The ambiance is cozy and welcoming, inviting patrons to linger over their coffee and engage in meaningful conversations."</p></div>
+            <span class="pill pill-llm">LLM: quiet</span>
+            <span class="conf">conf 70% · agree</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] The vibe here is quiet and also chill"</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Laptops</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 95% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"perfect for getting work done"</p></div>
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[R] Café Feva in Seattle offers laptop-friendly outlets and free Wi-Fi."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] The shop itself is small, but you can sit in the nearby apartment lobby, which makes it feel more spacious."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Greenwood</p>
+      <h3>The Couth Buzzard - Books &amp; Community</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJpUpjhSEUkFQR0C_DHiPof-Q</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this bookstore and cafe offers a wide selection of books, delicious food, and a variety of community events, including live music and game nights. They also highlight the friendly and helpful staff, and the welcoming and inclusive atmosphere.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Indie bookstore with new &amp; used titles plus a cafe with light bites &amp; live entertainment.
+      </div>
+
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
+
+      
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] They have small events as well such as open mic, board game night, and music jam in the evening."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] I went there to study"</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Seating</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: ample</span>
             <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"illuminating every table with an almost blinding brilliance."</p></div>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] abundant seating and tables throughout the store"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Greenwood</p>
+      <h3>Preserve and Gather</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJ70B2SycUkFQRSTjSiAEXnoY</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this cafe offers delicious baked goods, including pastries and hand pies, and a variety of coffee options. They also highlight the cozy vibe and the transparent service model with gratuity included.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Contemporary coffee shop featuring java drinks, toast entrees, meat/cheese plates &amp; baked goods.
+      </div>
+
+      
+      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
+        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
+        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Preserve and Gather in Seattle&#39;s Greenwood offers free WiFi. It&#39;s a popular spot for remote work. The cafe is located at 358 NW 85th St.</p>
+        
+        <p style="margin: 4px 0; font-size: 12px;">
+          <strong>Coffeeshops with the most butt-parking? - Seattle - Reddit</strong>
+          <br><span class="small">https://www.reddit.com/r/Seattle/comments/1df3mej/coffeeshops_with_the_most_butt</span>
+          <br><em>"Preserve and Gather in Greenwood would be good for this! They don&#39;t do wifi, so you have a lot less people there for working remotely."</em>
+        </p>
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (2 of 2 shown)</summary>
+        <p class="quote">"Really fun eating spot in Ballard. What stands out to me is the house made baked goods. There is a nice selection of savory and sweet and the coffee is really well balanced and medium bodied.  The selection of provisions is really well curated and it reminds me of a European market with a little bit of everything.  The…"</p><p class="quote">"Great coffee, great cookie"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: slow</span>
+            <span class="conf">conf 60% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Atmosphere was great and the shop was full of lovely people!"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] It’s a great spot for meeting up with a friend, sitting down to read or study"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: ample</span>
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[R] Coffeeshops with the most butt-parking? - Seattle - Reddit — Preserve and Gather in Greenwood would be good for this!"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Central District</p>
+      <h3>Boon Boona Coffee</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJ39ALGHVrkFQRRGZ_fVpsri0</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop offers delicious coffee, including smooth lattes and iced mochas, along with tasty baked goods like croissants and cookies. They also highlight the friendly and talented staff, who provide great service. Visitors appreciate the clean, minimalist, and cozy atmosphere, making it a good spot for working or catching up with friends.
+      </div>
+
+      
+
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 4 shown)</summary>
+        <p class="quote">"Super cute spot for some coffee/drinks. There is street parking available in front and across the street from the store.
+
+I ordered from the Summer Menu (I&#39;m writing this very late I know, sorry lol) and I got the Iced Strawberry Matcha as well as the Lychee Rhubarb Strawberry Iced Tea. Both drinks were very refreshing…"</p><p class="quote">"Definitely one of my favorite third wave coffee spots in the city. I find their roasts very smooth, never acidic and generally a great fit for my palette.
+
+We ordered a latte and an iced mocha here. The mocha wasn’t too sweet at all (which is a bonus) and the latte was creamy, smooth to taste. Really nothing to complai…"</p><p class="quote">"At Boon Boona, sharing a daily cup is about more than just caffeine—it’s about slowing down and connecting. When you choose their coffee, you’re supporting a more equitable coffee economy. They work exclusively with African producers and exporters, ensuring a greater share of profits goes to women-owned farms and commu…"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: slow</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] The wifi sucks, I aint gonna lie."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] proximity to a torrent of students from SU."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] I love using this space to work on open-source projects."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: adequate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] I love those seats and the standing bar outside right next to a small park."</p></div>
           </div>
       </div>
     </div>
@@ -1209,17 +838,12 @@ Other reviews mention the food can be overpriced.
       
       <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
         <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Café Hagen Modern European Cafe in Capitol Hill, Seattle, offers working-friendly amenities including free Wi-Fi and power outlets for laptops. It&#39;s a popular spot for remote work.</p>
+        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Café Hagen in Capitol Hill, Seattle, offers modern European cafe experience with WiFi and outlets for laptop use.</p>
         
         <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Best Free Wi-Fi Cafes in Seattle - UPDATED: May, 2026</strong>
-          <br><span class="small">https://laptopfriendlycafe.com/free-wifi-cafes-in-seattle</span>
-          <br><em>"Café Hagen Modern European Cafe. laptop friendly cafe. Café Hagen Modern Scandinavian Café is a cozy haven where the boundaries between indoors and outdoors"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>CAFÉ HAGEN - Updated May 2026 - 77 Photos &amp; 50 Reviews - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/biz/caf%C3%A9-hagen-seattle-3</span>
-          <br><em>"Love everything about this cafe. The ambience, the lattes, the pastry, and the nice baristas! There&#39;s WiFi and lots of cozy seating. Good place to come read a"</em>
+          <strong>r/Seattle on Reddit: Suggestions for coffee shop that is a good place ...</strong>
+          <br><span class="small">https://www.reddit.com/r/Seattle/comments/1g6k70w/suggestions_for_coffee_shop_th</span>
+          <br><em>"22 votes, 84 comments. So, a place with an fair amount of tables, WiFi, electric outlets and don&#39;t mind people on their computers."</em>
         </p>
       </div>
 
@@ -1235,14 +859,78 @@ Other reviews mention the food can be overpriced.
             <span class="attr">WiFi</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 90% · diverge</span>
+            <span class="conf">conf 60% · diverge</span>
             
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Outlets</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 85% · diverge</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[R] Café Hagen in Capitol Hill, Seattle, offers modern European cafe experience with WiFi and outlets for laptop use."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] The place has a comfortable energy without feeling chaotic or overly trendy."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[R1] So, a place with an fair amount of tables, WiFi, electric outlets and don&#39;t mind people on their computers."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: adequate</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Visited on a Sunday, fairly busy but was able to get a table right away."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Capitol Hill</p>
+      <h3>Ada&#39;s Technical Books and Cafe</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJuUSn_S4VkFQRGlFCqecQhas</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this bookstore and cafe offers delicious lattes, vegan breakfast burritos, and pastries, and has a wide selection of books, especially in STEM fields. They also highlight the friendly staff and cozy atmosphere, with both indoor and outdoor seating.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Bright, airy cafe inside a self-described &quot;geeky&quot; bookstore offering light, health-conscious fare.
+      </div>
+
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 7 shown)</summary>
+        <p class="quote">"Only reason I will give four stars, and it hurts to do so, is because the store has no day bed, or some lazy boy seats. But it is a cozy bookstore, for those possessed by radical ideas. If your idea is to shout to a crowd &quot;overthrow the government&quot; or even your first act as a mayor will be to install an ice cream fount…"</p><p class="quote">"I ducked into this shop to hide from the rain today and it was super cool! It’s like a bookstore+cafe combined and the environment is really chill with most patrons on their laptops, reading, or meeting friends. I did not purchase any books, but their iced latte and wifi was great! Will note that it was a bit hard to f…"</p><p class="quote">"One of the coziest bookstore/cafe combos I&#39;ve experienced. Really love the curation of books, you&#39;ll definitely find something to read here. I especially loved their selection of pictures books! The shelf in the center featured books from Seattle writers and the walls have staff recommendations neatly displayed. There&#39;…"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-regex">regex: fast</span>
+            <span class="pill pill-llm">LLM: fast</span>
+            <span class="conf">conf 85% · agree</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] their iced latte and wifi was great!"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
             
           </div>
           <div class="row" style="grid-column: 1 / -1;">
@@ -1250,64 +938,120 @@ Other reviews mention the food can be overpriced.
             <span class="pill pill-regex">regex: quiet</span>
             <span class="pill pill-llm">LLM: moderate</span>
             <span class="conf">conf 70% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The place has a comfortable energy without feeling chaotic or overly trendy."</p></div>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] the environment is really chill"</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Laptops</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 95% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"good vibes to spend time with people or study."</p></div>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] most patrons on their laptops, reading, or meeting friends."</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Seating</span>
             <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: adequate</span>
-            <span class="conf">conf 75% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Visited on a Sunday, fairly busy but was able to get a table right away."</p></div>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Seating is limited, with a few spots in the front and back."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Redmond</p>
+      <h3>The Screaming Parrots Cafe: Desserts + Tea + Bites</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJ2w2A9OFzkFQRLO_hkdgy02o</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this cafe offers delicious and high-quality matcha, coffee, and unique tea lattes, along with amazing soufflé pancakes and crepes. They also highlight the cozy, welcoming atmosphere, which is great for studying or relaxing, and appreciate the friendly, attentive staff. Visitors mention the convenient late-night hours and free validated parking.
+      </div>
+
+      
+
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
+
+      
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] The cafe itself is cozy with a relaxed vibe."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] It is a life saver for people that need to work late, studying students"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Place is small and tight so my family and I dined outside their cafe."</p></div>
           </div>
       </div>
     </div>
     <div class="card">
       <p class="neighborhood">University District</p>
-      <h3>Portage Bay Cafe</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJzZzBbfQUkFQRP0f0nUznInY</code></span></p>
+      <h3>Cafe on the Ave</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJbV44pvQUkFQRBuSZQ_SrifQ</code></span></p>
 
       
       <div class="summary-block">
         <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        Diners say this brunch restaurant serves up delicious gluten-free pancakes and French toast, alongside a fresh fruit bar and tasty berry bar. They also highlight the fast and friendly service, and the cozy atmosphere.
+        Diners say this cafe offers a large menu with popular dishes like kimchi fried rice, curry karrage, and chicken alfredo, and they appreciate the generous portions. They also highlight the friendly staff and quick service, making it a convenient spot for studying or catching up on emails.
 
-Some reviews mention the food can be overpriced.
+Some reviews mention the prices can be high.
       </div>
 
       
       <div class="summary-block">
         <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
-        Bustling, bright cafe serving local, organic &amp; seasonal breakfast, brunch &amp; lunch dishes.
+        Coffeehouse with a big American menu of breakfast staples &amp; sandwiches in comfy digs with free WiFi.
       </div>
 
       
       <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
         <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Portage Bay Cafe in the University District offers working laptop facilities with free Wi-Fi and available outlets. It is a popular spot for remote work. Current date confirms updated information.</p>
+        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Cafe on the Ave in Seattle&#39;s University District offers WiFi and laptop outlets. It&#39;s located at 4201 University Way NE. It&#39;s a popular spot for students and professionals.</p>
         
         <p style="margin: 4px 0; font-size: 12px;">
-          <strong>PORTAGE BAY CAFE - SOUTH LAKE UNION - Updated May 2026</strong>
-          <br><span class="small">https://www.yelp.com/biz/portage-bay-cafe-south-lake-union-seattle-2?start=1480</span>
-          <br><em>"... working session. Wifi available, washroom (restrooms) available, and outlets available. Ube Phe Latte - rich, creamy, ube foam on top of a strong ca phe"</em>
+          <strong>Working Cafe during COVID? : r/Seattle - Reddit</strong>
+          <br><span class="small">https://www.reddit.com/r/Seattle/comments/qni0q2/working_cafe_during_covid</span>
+          <br><em>"Luckily there&#39;s still a cafe on the Ave, but I think it&#39;s take-out only. The Station BH is another great example. Good sandwiches, great coffee,"</em>
         </p>
         <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Work Cafe near Northgate, Seattle, WA - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Work+Cafe&amp;find_loc=Northgate%2C+Seattle%2C</span>
-          <br><em>"Portage Bay Cafe - West Seattle - Work Cafe near me - Seattle, Washington ... Laptop Friendly Cafe Free Wifi In Seattle, Washington · Bagels In Seattle"</em>
+          <strong>Where&#39;s a good 24/7 place to get some work done? : r/Seattle - Reddit</strong>
+          <br><span class="small">https://www.reddit.com/r/Seattle/comments/3evc5r/wheres_a_good_247_place_to_get_</span>
+          <br><em>"There are a few cafes on the Ave in the U-District that are open late or even all night. Lawn_Killer. • 11y ago. The Starbucks in University"</em>
         </p>
       </div>
 
       
       <details>
-        <summary>Stored reviews (2 of 2 shown)</summary>
-        <p class="quote">"Always good no matter what café we visit. Parking was great at this location. Only thing to note it gets very loud so just beware if you are looking for something low key. Service is always great. Friendly staff. But always packed!  We had reservations but still waited almost 20 minutes for a table. All in all always o…"</p><p class="quote">"Overpriced mid breakfast food. Had pretty slow service both times I&#39;ve been too. Go to Costas or Varsity Inn if you want a better and cheaper breakfast with friendlier service (not that this place is particularly unfriendly)."</p>
+        <summary>Stored reviews (3 of 5 shown)</summary>
+        <p class="quote">"The kimchi fried rice here is seriously delicious. In a way, I think it could be considered this place’s signature dish. I also ordered an Americano, and it wasn’t too bitter at all—it was just right for my taste. The staff overall were really friendly, and it feels like they pay good attention to keeping the place cle…"</p><p class="quote">"I ordered one of their kimchi fried rice which was pretty good and staff was kind. However, This is the only restaurant I’ve seen that decided to remove men’s restroom and change it to all gender restroom while women’s restroom remains unchanged."</p><p class="quote">"Their “smoothie” is fruit-flavored syrup, milk, and ice like cmon dude"</p>
       </details>
 
       <div class="grid">
@@ -1315,15 +1059,79 @@ Some reviews mention the food can be overpriced.
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">WiFi</span>
             <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: fast</span>
-            <span class="conf">conf 90% · diverge</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-regex">regex: most</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] manager wasn&#39;t so &quot;in your face&quot; about purchasing a food item or beverage if i planned on staying for a while."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Heads up, the music can get a little loud at times, but that actually adds to the buzz of the place."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] manager wasn&#39;t so &quot;in your face&quot; about purchasing a food item or beverage if i planned on staying for a while."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: adequate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Wasn&#39;t too crowded when we went for lunch on a weekday."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Central District</p>
+      <h3>Yoka Tea</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJqTPr5FxrkFQRIgTFZDo3zfQ</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this cafe serves delicious matcha, lattes, and croffles. They also highlight the cozy and well-lit space, and the kind and friendly staff.
+      </div>
+
+      
+
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 5 shown)</summary>
+        <p class="quote">"Nice chill coffee shop in the quiet neighborhood. Coffee bean from Sight Glass - San Francisco.
+Ordered black sesame latte, tasted great with a strong sesame flavor, make sure you do stir the cup for better mix.
+Will definitely try out their matcha and coffee bean bag next visit!"</p><p class="quote">"I’ve visited Yoka a couple times before, but today I returned to try the fall special — banana bread latte, and yet again I am amazed by the quality and flavor of the beverages offered. Everyone talks about how good the matcha is here, but don’t skip the coffee! The espresso is so flavorful and rich and the banana brea…"</p><p class="quote">"I’ve been following Yoka since their pop-up days, but because we live on the opposite side of Seattle, we only recently had the chance to finally visit. Unfortunately, it ended up being a bit of a disappointment.
+
+The space itself is very cute, and I can definitely see how a younger crowd would love the vibe. We ordere…"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
             
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Outlets</span>
             <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 90% · diverge</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
             
           </div>
           <div class="row" style="grid-column: 1 / -1;">
@@ -1331,21 +1139,159 @@ Some reviews mention the food can be overpriced.
             <span class="pill pill-regex">regex: quiet</span>
             <span class="pill pill-llm">LLM: loud</span>
             <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Only thing to note it gets very loud so just beware if you are looking for something low key."</p></div>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] The music was a touch loud too."</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Laptops</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: welcome</span>
             <span class="conf">conf 90% · diverge</span>
-            
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Decor was cool but this is essentially a laptop cafe."</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Seating</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: limited</span>
             <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"But always packed! We had reservations but still waited almost 20 minutes for a table."</p></div>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] It is hard to get seating and parking is difficult..."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Ballard</p>
+      <h3>Valentinas Cafe</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJizgUSjUVkFQRJ5HJHTjsetE</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop offers unique lattes, delicious pastries, and flavorful coffee. They also highlight the cozy and beautiful atmosphere, and the friendly and knowledgeable staff.
+
+Other reviews mention the service can be slow.
+      </div>
+
+      
+
+      
+      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
+        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
+        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Valentina&#39;s Cafe in Ballard, Seattle, offers working-friendly amenities including plugs and free WiFi. It&#39;s popular for laptop users and coffee enthusiasts. The cafe is located at 5405 Leary Ave NW.</p>
+        
+        <p style="margin: 4px 0; font-size: 12px;">
+          <strong>What&#39;s your favorite coffee shop(s) in Seattle? A must try. - Reddit</strong>
+          <br><span class="small">https://www.reddit.com/r/Seattle/comments/1j7qnn5/whats_your_favorite_coffee_sho</span>
+          <br><em>"Valentinas Cafe in Ballard has the best Spanish coffee in town. But ... Place with internet to work from 14:00-21:00. 3. 11. About 3"</em>
+        </p>
+        <p style="margin: 4px 0; font-size: 12px;">
+          <strong>Coffee Shops open past 7pm : r/Seattle - Reddit</strong>
+          <br><span class="small">https://www.reddit.com/r/Seattle/comments/1hvd0bq/coffee_shops_open_past_7pm</span>
+          <br><em>"Ballard has Cafe Valentina that is open late! Lots of people studying and on laptops there in the evening. jay-d_seattle. • 1y ago."</em>
+        </p>
+      </div>
+
+      
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 60% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] not too loud."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[R] Lots of people studying and on laptops there in the evening."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 75% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Seating can be a little tricky—there aren’t many tables"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">West Seattle</p>
+      <h3>C &amp; P Coffee Company</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJ2xUKRx1BkFQRX-L-sii7kNM</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop offers delicious coffee, a wide selection of baked goods, and other food and beverage options. They also highlight the charming, cozy, and welcoming atmosphere, with plenty of comfortable indoor and outdoor seating. Guests mention the friendly and professional staff, as well as the live music and community events.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Comfy cafe with locally sourced coffee &amp; baked goods, hosting events like craft fairs &amp; live music.
+      </div>
+
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 6 shown)</summary>
+        <p class="quote">"A gem tucked in a neighborhood!
+Low key coffee shop that’s just delightful. Had a matcha and a cortado, both made very well. The outdoor area is lovely and rustic, so is the indoor. Today they have a great group playing music and singing. I felt like I hit the jackpot of live music and coffee! Can it get better! Oldest…"</p><p class="quote">"I&#39;ve been twice in the last three weeks. The baked goods were all excellent. Unfortunately the espresso was the worst I&#39;ve had in Seattle. First visit I asked them to re-make the shot. No better. Went back with a friend and had the same experience. Brew temp too cold and shot was watery. Not good!"</p><p class="quote">"I LOVE this coffee shop! It&#39;s built into an actual house with seating in comfortable couches and chairs in several locations, including the front, back, and side yards. There is a window in the back specifically for people with dogs to order.  The whole vibe is relaxed and yet very clean and open.  I especially enjoyed…"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Today they have a great group playing music and singing."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Definitely a place I would come to have long study/work/computer sessions."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: ample</span>
+            <span class="conf">conf 95% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] It&#39;s built into an actual house with seating in comfortable couches and chairs in several locations, including the front, back, and side yards."</p></div>
           </div>
       </div>
     </div>
@@ -1366,22 +1312,7 @@ Some reviews mention the food can be overpriced.
         Cheerful, intimate coffee shop serving java drinks, pastries, sweets &amp; nutella waffles.
       </div>
 
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Empire Roasters &amp; Records in Columbia City, Seattle, offers free, secure Wi-Fi and multiple outlets for working on laptops. It&#39;s a popular spot for remote work.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Empire Roasters &amp; Records menu photos - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/biz/empire-roasters-and-records-seattle?start=20</span>
-          <br><em>"Empire has secured, free wifi, and I even saw multiple people taking video calls from here. This is great spot to work from in Columbia City. But even if I don&#39;"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Coffee Wifi near Columbia City, Seattle, WA - Updated ...</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Coffee+Wifi&amp;find_loc=Columbia+City%2C+Seattl</span>
-          <br><em>"... Laptop Friendly Cafe Free Wifi · Coffee Study ... Empire Roasters &amp; Records - Coffee Wifi near me - Seattle, Washington ... outlets, and even couches"</em>
-        </p>
-      </div>
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
 
       
       <details>
@@ -1399,79 +1330,252 @@ Owner Ian Peters truly poured his heart and visi…"</p><p class="quote">"I had 
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">WiFi</span>
             <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: fast</span>
-            <span class="conf">conf 90% · diverge</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
             
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Outlets</span>
             <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 90% · diverge</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
             
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Noise</span>
             <span class="pill pill-regex">regex: quiet</span>
             <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 70% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Downstairs feels busier and upstairs is pretty quiet with more relaxed seating."</p></div>
+            <span class="conf">conf 65% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Downstairs feels busier and upstairs is pretty quiet with more relaxed seating."</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Laptops</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"It’s the kind of café that makes you want to stay awhile, talk, dream, and create."</p></div>
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] this has become my favorite spot for a business meeting, coffee date, or just an experimental coffee moment that turns into inspiration."</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Seating</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: ample</span>
             <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Multiple floors to find a spot to sit or check out their record collection."</p></div>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Multiple floors to find a spot to sit or check out their record collection."</p></div>
           </div>
       </div>
     </div>
     <div class="card">
-      <p class="neighborhood">Central District</p>
-      <h3>Cheeky Cafe</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJF5cLJsBqkFQRWFLu67ChHjc</code></span></p>
+      <p class="neighborhood">Pioneer Square</p>
+      <h3>Monorail Espresso</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJb7pH7bRqkFQRwTaGcN9XkP0</code></span></p>
 
       
       <div class="summary-block">
         <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this restaurant serves delicious brunch and lunch options, including meatloaf loco moco, French toast, and carbonara. They highlight the generous portions, reasonable prices, and casual, chill vibe. They also like the friendly and welcoming staff.
+        People say this cafe offers delicious coffee, including lattes, cold brews, and seasonal specials, with many highlighting the strong, well-made espresso. They also mention the fast and friendly service, with staff often described as welcoming and efficient. Guests appreciate the convenient walk-up counter and outdoor seating, making it a great spot for a quick grab-and-go.
       </div>
 
       
       <div class="summary-block">
         <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
-        Quirky eatery serving ample portions of American comfort food incorporating Korean flavors.
+        Snappy little takeout window serving espresso-based hot beverages &amp; homemade cookies.
       </div>
 
       
       <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
         <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Cheeky Cafe in Seattle&#39;s Central District offers free Wi-Fi and power outlets for laptops. It&#39;s a popular spot for working remotely. Check Yelp for current details.</p>
+        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Monorail Espresso in Pioneer Square, Seattle, offers laptop-friendly wifi outlets and is popular for studying. Verified as a top coffee shop with free wifi.</p>
         
         <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Free Wifi near Central District, Seattle, WA - Updated ...</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Free+Wifi&amp;find_loc=Central+District%2C+Seatt</span>
-          <br><em>"Laptop Friendly Cafe Free Wifi · Study Cafe Wifi ... Work Cafe ... It&#39;s easier to search for Free Wifi on the app. Cheeky Cafe - Free Wifi near me - Seattle,"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Breakfast Wifi in Seattle, WA - Updated 2026 - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Breakfast+Wifi&amp;find_loc=Seattle%2C+WA</span>
-          <br><em>"... Cheeky Cafe, Cafe Opla, Piedmont Cafe, Citizen, Bang Bang Cafe, Dahlia ... Cafe and Bakery - Breakfast Wifi near me - Seattle, Washington. 10. Salt and"</em>
+          <strong>The Best Coffee Shop in Seattle? - Reddit</strong>
+          <br><span class="small">https://www.reddit.com/r/Seattle/comments/1bt7mbq/the_best_coffee_shop_in_seattl</span>
+          <br><em>"Easily Monorail Espresso -- particularly the one in SLU on Westlake ... Elm in Pioneer Square. Sound &amp; Fog in West Seattle. Tier 2. Push X"</em>
         </p>
       </div>
 
       
       <details>
-        <summary>Stored reviews (3 of 8 shown)</summary>
-        <p class="quote">"I got the pasta carbanara and it was delicous.. 10/10 recommended and will be going back for other items. Thank you"</p><p class="quote">"Amazing breakfast food and friendly service. The English muffin breakfast sandwiches are tasty and well seasoned."</p><p class="quote">"one of my favorite places in seattle everything is delicious and special.. i love the green tea latte and the stuffed french toast has this even layer of carmilized crust covering the entire outside that is so insanely heavenly"</p>
+        <summary>Stored reviews (3 of 3 shown)</summary>
+        <p class="quote">"This used to be the perfect mocha with the dark chocolate powder, but they switched to syrup and it’s not the same anymore! Pls bring it back and keep it as an upgrade if you will!"</p><p class="quote">"I stopped by Monorail Espresso in downtown Seattle for a quick coffee and it really lives up to its reputation as a fast, no-frills espresso stop. The tiny walk-up window keeps things moving, so even when there’s a line, you’re served pretty quickly. I ordered a latte, and it was smooth, strong, and well-balanced—perfe…"</p><p class="quote">"Fast service and really good!"</p>
       </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: most</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[R] Monorail Espresso in Pioneer Square, Seattle, offers laptop-friendly wifi outlets and is popular for studying."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 80% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: not_allowed</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] It’s not a place to hang out"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] This is a window-only grab and go style coffee shop"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Kirkland</p>
+      <h3>Snoqualmie Ice Cream @ Kirkland</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJ6fpPlT0TkFQRHuukaG2Zw8Y</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this ice cream shop offers unique, high-quality ice cream flavors like ube and salted caramel, along with dessert cocktails and coffee. They also highlight the spotless shop, cozy atmosphere, and welcoming staff who offer free samples. Guests mention the delicious drinks and the option to support a local Washington business.
+      </div>
+
+      
+
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
+
+      
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Kpop in the background lightened the mood too, loved it."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] I was studying there with a friend for a long time, and they gave us free ice cream."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] There isn’t a lot of seating, but the seats were still comfortable."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Greenwood</p>
+      <h3>Cocoa Legato</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJoTMd4UIVkFQRNTp3aMzYt7w</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this cafe offers delicious house-made chocolate, coffee, and unique chocolate-themed food items like grilled cheese and pastries. They also highlight the cozy atmosphere, live music events, and friendly, knowledgeable staff. Visitors appreciate the clean restrooms, free Wi-Fi, and the opportunity to watch chocolate being crafted.
+      </div>
+
+      
+
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 6 shown)</summary>
+        <p class="quote">"Excellent cafe for lovers of chocolate or music (or both)! Nearly every item on the menu has chocolate worked into it in some form, leading to some really unique dishes. The staff is extremely friendly and I enjoyed some lovely soundtracks from Wicked and Sinners while I sat and worked on their free Wi-Fi.
+
+The chocola…"</p><p class="quote">"What a lovely, cosy neighborhood cafe! As soon as you walk in, the space feels warm and welcoming. You can tell it&#39;s thoughtfully crafted, and the staff there is friendly/fun. Their drinking chocolate is DELICIOUS, and I also recommend their chocolate grilled cheese and chocolate chip cake. can&#39;t wait to come back!"</p><p class="quote">"Loved coming here, the owner was very kid-friendly. We&#39;ll be back for open mic 🎤😆"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 90% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] I enjoyed some lovely soundtracks from Wicked and Sinners while I sat and worked"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] I sat and worked on their free Wi-Fi."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: adequate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] they do have a comfy couch area to hang out!"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Redmond</p>
+      <h3>SoulFood CoffeeHouse and Fair Trade Emporium</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJIwRG5axykFQRS16FM4AVEjE</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop offers excellent coffee, a wide variety of food options including vegan and gluten-free treats, and unique chai selections. They also highlight the welcoming, cozy, and vibrant atmosphere, often featuring local art, crystals, and community events like open mics and drag shows. Guests mention the staff are friendly and provide great service.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Coffeehouse with organic java, live music, poetry readings, &amp; local &amp; global crafts.
+      </div>
+
+      <p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>
+
+      
 
       <div class="grid">
         
@@ -1486,15 +1590,15 @@ Owner Ian Peters truly poured his heart and visi…"</p><p class="quote">"I had 
             <span class="attr">Outlets</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 90% · diverge</span>
+            <span class="conf">conf 70% · diverge</span>
             
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Noise</span>
             <span class="pill pill-regex">regex: quiet</span>
             <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 60% · diverge</span>
-            
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"I&#39;ve had so much fun singing last night."</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Laptops</span>
@@ -1507,206 +1611,51 @@ Owner Ian Peters truly poured his heart and visi…"</p><p class="quote">"I had 
             <span class="attr">Seating</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: adequate</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"were seated immediately - always a good start."</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">Columbia City</p>
-      <h3>Coffeeholic House</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJN4kl51FrkFQRDvP_v5kTghg</code></span></p>
-
-      
-      <div class="summary-block">
-        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this coffee shop offers delicious vegan dream coffee and has a lovely ambiance with friendly staff. They also highlight the good vibes.
-      </div>
-
-      
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Coffeeholic House in Columbia City, Seattle, offers reliable wifi and laptop outlets for work. It&#39;s known for its Vietnamese coffee and a quiet atmosphere. Verified by recent Yelp reviews.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Coffee Shops Free Wifi Columbia City, Seattle, WA - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Coffee+Shops+Free+Wifi&amp;find_loc=Columbia+C</span>
-          <br><em>"Coffee Shops Free Wifi Columbia City, Seattle, WA · 1. Empire Roasters &amp; Records · 2. The Station · 3. Olympia Coffee · 4. Caffe Vita Seward Park · 5. QED Coffee · 6."</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Coffee Wifi near Columbia City, Seattle, WA - Updated ...</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Coffee+Wifi&amp;find_loc=Columbia+City%2C+Seattl</span>
-          <br><em>"Top 10 Best Coffee Wifi in Seattle, WA - Last Updated February 2026 - Yelp - Coffeeholic House, Empire Roasters &amp; Records, Olympia Coffee, Onda Origins Cafe"</em>
-        </p>
-      </div>
-
-      
-      <details>
-        <summary>Stored reviews (3 of 6 shown)</summary>
-        <p class="quote">"Such a great spot for a quick morning Vietnamese coffee to go. I expected a few seats inside, but it’s mainly a grab-and-go place. I got the Coffeeholic Dream with extra ube drizzle and it was sooo good. Rich, flavorful, and exactly what I was craving. The barista was also super sweet and friendly, which made the exper…"</p><p class="quote">"Coffeeholic House is a great spot for Vietnamese coffee, known for its creative cold foams and diverse drink selection. We especially enjoyed the matcha purple haze for its creamy texture and balanced ube–matcha flavors, while the pandan cold foam cà phê sữa đá delivered a strong coffee profile. The drinks are high qua…"</p><p class="quote">"The coffee and atmosphere here are great, but the customer service needs work.
-I placed a mobile order at 7:34am, fully aware the store doesn’t open until 8am. The app gave me a pickup time of 8:15am. I even saw a barista serving someone at 7:55am. When I walked in at 8:25am—10 minutes after my order was supposed to be…"</p>
-      </details>
-
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: fast</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: quiet</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-regex">regex: adequate</span>
-            <span class="pill pill-llm">LLM: limited</span>
             <span class="conf">conf 60% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"I expected a few seats inside, but it’s mainly a grab-and-go place."</p></div>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"It’s a very nice and cozy spot to chill by yourself or with a friend."</p></div>
           </div>
       </div>
     </div>
     <div class="card">
-      <p class="neighborhood">Redmond</p>
-      <h3>Doppio Cafe and Creperie</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJlZZH8PZzkFQRt9SbOf9OeAw</code></span></p>
+      <p class="neighborhood">Fremont</p>
+      <h3>Fremont Coffee Company</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJXZ0e56kVkFQRwVQfCjfg-sM</code></span></p>
 
       
       <div class="summary-block">
         <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this coffee shop offers delicious savory and sweet crepes, as well as a variety of coffees, lattes, and bakery items. They highlight the cozy and aesthetically pleasing atmosphere, and the comfortable chairs. They also like the friendly and welcoming staff.
-      </div>
-
-      
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Doppio Cafe and Creperie in Redmond offers free Wi-Fi and power outlets for laptops. It&#39;s a popular spot for studying. Verified by recent Yelp reviews.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>The Best 10 Cafes near Residence Inn Seattle East/Redmond ... - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?cflt=cafes&amp;find_near=residence-inn-seattle-east-redm</span>
-          <br><em>"... Doppio Cafe &amp; Creperie - Cafes near me - Redmond, Washington. 3. Doppio Cafe ... Coffee Shops Free Wifi · Breakfast &amp; Brunch · Study Cafe · Breakfast · See more"</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Cafe Wifi near Redmond, WA - Updated 2026 - Yelp</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Cafe+Wifi&amp;find_loc=Redmond%2C+WA</span>
-          <br><em>"... Doppio Cafe &amp; Creperie, Down Pour Coffee Bar ... Laptop Friendly Cafe Free ... Shops. The Screaming Parrots Cafe - Cafe Wifi near me - Redmond, Washington"</em>
-        </p>
-      </div>
-
-      
-      <details>
-        <summary>Stored reviews (3 of 6 shown)</summary>
-        <p class="quote">"Excellent staff, delicious coffee, and very tasty crepes. Loved this place!"</p><p class="quote">"Darling, small cafe with friendly staff. We had a chicken bacon crepe and a strawberry and crème crepe that were both made with the gluten free batter. The others in our party had regular Nutella and banana crepes. They all were absolutely delicious. Thoughtfully assembled and filled with fresh ingredients. It was so n…"</p><p class="quote">"Long Overdue Review for Doppio
-
-Doppio has quickly become one of my favorite spots in Redmond! The ambiance is lovely — bright, clean, and welcoming, with both indoor and outdoor seating. The baristas are friendly, attentive, and truly craft some of the best drinks around.
-
-Their coffee is hands down the best in Redmon…"</p>
-      </details>
-
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: fast</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 70% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"a cozy yet lively atmosphere."</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: limited</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Seating can get a little crowded"</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">Pioneer Square</p>
-      <h3>Zeitgeist Coffee</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJM_73yqRqkFQRgLc2-YKhXr4</code></span></p>
-
-      
-      <div class="summary-block">
-        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this coffee shop offers excellent coffee, including delicious mochas and lattes, along with tasty pastries and breakfast items. Visitors highlight the spacious and cozy atmosphere, making it a great spot to relax or work. They also mention the friendly and attentive staff who provide great service.
+        People say this coffee shop offers delicious lattes with impressive latte art, as well as matcha lattes and pastries. They highlight the cozy and cute atmosphere, with ample seating options including a nice outdoor deck, and the friendly and chatty staff. They also like the reasonable prices and the relaxed vibe, perfect for studying or a coffee date.
       </div>
 
       
       <div class="summary-block">
         <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
-        Airy cafe in an industrial-feeling space offering coffee &amp; pastries, plus local art on the walls.
+        Cafe offering fair-trade, organic brews &amp; pastries in a small house with porch &amp; comfy seating.
       </div>
 
       
       <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
         <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Zeitgeist Coffee in Pioneer Square, Seattle, offers free WiFi and a few power outlets for laptops. It&#39;s a popular spot for studying. The café is open until 7pm daily.</p>
+        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Fremont Coffee Company in Seattle offers WiFi and power outlets for working. It&#39;s located at 459 N 36th St. It has good reviews.</p>
         
         <p style="margin: 4px 0; font-size: 12px;">
-          <strong>ZEITGEIST COFFEE - Updated May 2026 - 522 Photos &amp; 581 Reviews</strong>
-          <br><span class="small">https://www.yelp.com/biz/zeitgeist-coffee-seattle?start=120</span>
-          <br><em>"... WIFI connection - we were all set! Right in the heart of Pioneer Square, now that we&#39;ve found Zeitgeist, no doubt we will be back more often and not just"</em>
+          <strong>Places in Ballard/Fremont/UQA with free WiFi to work, drink coffee ...</strong>
+          <br><span class="small">https://www.reddit.com/r/Seattle/comments/17pc1it/places_in_ballardfremontuqa_wi</span>
+          <br><em>"Ballard: Miro Tea, Caffe Umbria, Ballard Coffee Co are the busiest. Woodland Coffee, Valentina&#39;s, Caffe Fiore are usually less crowded."</em>
         </p>
         <p style="margin: 4px 0; font-size: 12px;">
           <strong>What are some good coffee shops with free WiFi to hang out in and ...</strong>
           <br><span class="small">https://www.reddit.com/r/Seattle/comments/jycey/what_are_some_good_coffee_shops_</span>
-          <br><em>"Zeitgeist Coffee is a pretty charming spot. There are only a few power outlets, near the front of the house. Open until 7pm seven days a week. •"</em>
+          <br><em>"I&#39;ve heard good things about the Fremont Coffee Company. Bauhaus is always packed with people getting work done til 1am. I love Bedlam in"</em>
         </p>
       </div>
 
       
       <details>
-        <summary>Stored reviews (3 of 6 shown)</summary>
-        <p class="quote">"Great coffee shop. Lots of space, friendly staff, great work from a nature photographer Olivia Johnson around the shop, good playlist on the day I was there. All around great coffee shop vibe.
+        <summary>Stored reviews (3 of 5 shown)</summary>
+        <p class="quote">"All of the drinks, and baked goods I’ve had have been great. Their matcha is not overly sweet (not sure if sweetened at all) which I appreciate. Their outdoor space is lovely.
 
-Had a cold brew and single espresso shot. Espresso was a bit too acidic for my taste but not in anyway bad just preference. Co…"</p><p class="quote">"Zeitgeist Coffee opens early at 6am, which is perfect for morning people like me. I was pleasantly surprised to find free street parking nearby, making the visit even more convenient. The interior is spacious and filled with an eclectic mix of decor. There is plenty to look at, but nothing felt out of place or overwhel…"</p><p class="quote">"One of the best lattes &amp; mochas we&#39;ve ever had!  We couldn&#39;t figure out exactly why,  they just were!  Beautiful old building &amp; lovely staff.  There was a small little free library, with strictly books on grief, had never seen that before &amp; found a couple books for a family member 💜. We&#39;ll be back!"</p>
+Only downside is that there’s usually a line out the door, especially on weekends, but I’ve never found the wait to be too long."</p><p class="quote">"Such a cute coffee shop with plenty of room to find a nook and chat with a friend or get some work done. Fantastic drinks. Cool art. Nice patio."</p><p class="quote">"Delicious coffee. Great service. Lovely space. Highly recommend you visit FCC!"</p>
       </details>
 
       <div class="grid">
@@ -1714,15 +1663,15 @@ Had a cold brew and single espresso shot. Espresso was a bit too acidic for my t
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">WiFi</span>
             <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 80% · diverge</span>
-            
+            <span class="pill pill-llm">LLM: slow</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] WiFi is horrendous."</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Outlets</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: limited</span>
-            <span class="conf">conf 90% · diverge</span>
+            <span class="conf">conf 60% · diverge</span>
             
           </div>
           <div class="row" style="grid-column: 1 / -1;">
@@ -1730,169 +1679,21 @@ Had a cold brew and single espresso shot. Espresso was a bit too acidic for my t
             <span class="pill pill-regex">regex: quiet</span>
             <span class="pill pill-llm">LLM: moderate</span>
             <span class="conf">conf 70% · diverge</span>
-            
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] chill vibes and cozy corridors"</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Laptops</span>
             <span class="pill pill-unknown">regex: unknown</span>
             <span class="pill pill-llm">LLM: welcome</span>
             <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: ample</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Lots of space"</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">Ballard</p>
-      <h3>Urban Family Brewing Co.</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJv7O2W8YVkFQRXrzXrlftG3Q</code></span></p>
-
-      <p class="small"><em>No reviewSummary — Google didn't generate one for this cafe.</em></p>
-
-      
-      <div class="summary-block">
-        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
-        Contemporary, exposed-brick watering hole &amp; brewery featuring house &amp; craft beers in buzzy digs.
-      </div>
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Urban Family Brewing Co. in Ballard, Seattle, offers laptop-friendly outlets and free Wi-Fi for remote work. It is popular for its coffee and late-night availability.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Coffee Shops Open Late Ballard, Seattle, WA - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Coffee+Shops+Open+Late&amp;find_loc=Ballard%2C</span>
-          <br><em>"... Urban Family Brewing, Citizen, Pacha Collective, Atulea, Seattle Espresso ... Laptop Friendly Cafe Free Wifi · Coffee Roaster · Work Cafe · Coffee Open Now."</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Late Night Coffee Shops Sunset Hill, Seattle, WA - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Late+Night+Coffee+Shops&amp;find_loc=Sunset+Hi</span>
-          <br><em>"Urban Family Brewing - Late Night Coffee Shops near me - Seattle, Washington ... Laptop Friendly Cafe Free Wifi In Seattle, Washington · Popcorn Chicken In"</em>
-        </p>
-      </div>
-
-      
-
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: every_table</span>
-            <span class="conf">conf 90% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 80% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"enjoyed a decaf cappuccino while getting some work done."</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Seating</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: ample</span>
-            <span class="conf">conf 90% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"lots of space. Outside seating gets sun in the earlier hours and the ample inside seating is pretty darn nice too."</p></div>
-          </div>
-      </div>
-    </div>
-    <div class="card">
-      <p class="neighborhood">Capitol Hill</p>
-      <h3>Gearhouse Coffee Shop</h3>
-      <p class="meta"><span class="small">place_id <code>ChIJhbLzjXIVkFQRYFgGQ3qYUks</code></span></p>
-
-      
-      <div class="summary-block">
-        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
-        People say this coffee shop offers delicious breakfast burritos, espresso, and pastries. They highlight the cozy and friendly atmosphere, and the good prices. They also like the fast service and the staff&#39;s kindness and helpfulness.
-      </div>
-
-      
-
-      
-      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
-        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
-        <p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> Gearhouse Coffee Shop in Capitol Hill, Seattle, offers working wifi and laptop-friendly outlets. It is popular for coffee and free wifi. As of 2026, it remains a top choice for remote work.</p>
-        
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>TOP 10 BEST Coffee Shops Free Wifi Study near Capitol Hill ... - Yelp</strong>
-          <br><span class="small">https://m.yelp.com/search?find_desc=Coffee+Shops+Free+Wifi+Study&amp;find_loc=Capito</span>
-          <br><em>"... Gearhouse Coffee Shop, Espresso Vivace Roasteria ... Laptop Friendly Cafe Free Wifi ... Best Coffee Shops Free Wifi Study near Capitol Hill, Seattle, WA."</em>
-        </p>
-        <p style="margin: 4px 0; font-size: 12px;">
-          <strong>Coffee Shops Free Wifi Capitol Hill, Seattle, WA - Yelp</strong>
-          <br><span class="small">https://www.yelp.com/search?find_desc=Coffee+Shops+Free+Wifi&amp;find_loc=Capitol+Hi</span>
-          <br><em>"Top 10 Best Coffee Shops Free Wifi in Seattle, WA - Last Updated April 2026 - Yelp - Espresso Vivace Roasteria, Porchlight Coffee &amp; Records, Gearhouse"</em>
-        </p>
-      </div>
-
-      
-      <details>
-        <summary>Stored reviews (3 of 6 shown)</summary>
-        <p class="quote">"I randomly stopped by Gearhouse Coffee Shop in Seattle around 6 pm and honestly did not expect it to be this lively on a Wednesday evening. The place was packed as they were having a board-game night. It was actually really fun to see everyone was into their games, chatting, laughing, just super good vibes.
-
-I ordered …"</p><p class="quote">"I love coming here on my days off from my barista job. It’s nice to get my caffeine fix without mentally clocking in. Even though I could grab a free coffee made perfectly to my standard at work, I choose to come here to fully enjoy my day off. The lattes are consistently good, the seating is cozy, and it’s just a shor…"</p><p class="quote">"We got a latte with caramel syrup, the bacon/egg melt, and breakfast burrito. Sandwiches were microwaved which was a bit disappointing, but still tasted good. The coffee was average, nothing mind blowing (but coffee doesn’t always need to be). What stood out was the atmosphere, and friendly service. We liked seeing all…"</p>
-      </details>
-
-      <div class="grid">
-        
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">WiFi</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 85% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Outlets</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: most</span>
-            <span class="conf">conf 85% · diverge</span>
-            
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Noise</span>
-            <span class="pill pill-regex">regex: quiet</span>
-            <span class="pill pill-llm">LLM: moderate</span>
-            <span class="conf">conf 70% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"chatting, laughing, just super good vibes."</p></div>
-          </div>
-          <div class="row" style="grid-column: 1 / -1;">
-            <span class="attr">Laptops</span>
-            <span class="pill pill-unknown">regex: unknown</span>
-            <span class="pill pill-llm">LLM: welcome</span>
-            <span class="conf">conf 95% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"If you want to meet outdoorsy people, get some work done, and enjoy a cozy atmosphere, this is the place."</p></div>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] get some work done."</p></div>
           </div>
           <div class="row" style="grid-column: 1 / -1;">
             <span class="attr">Seating</span>
             <span class="pill pill-regex">regex: ample</span>
-            <span class="pill pill-llm">LLM: limited</span>
-            <span class="conf">conf 60% · diverge</span>
-            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The place was packed as they were having a board-game night."</p></div>
+            <span class="pill pill-llm">LLM: ample</span>
+            <span class="conf">conf 90% · agree</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"[G] Such a cute coffee shop with plenty of room to find a nook and chat with a friend or get some work done."</p></div>
           </div>
       </div>
     </div>
