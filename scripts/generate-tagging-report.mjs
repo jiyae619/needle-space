@@ -444,9 +444,14 @@ async function main() {
   </table>
   <p class="small">Landis & Koch (1977): &lt;0 poor · 0–0.20 slight · 0.21–0.40 fair · 0.41–0.60 moderate · 0.61–0.80 substantial · 0.81–1.00 almost perfect.</p>
 
-  <h2>Where the summary helped most</h2>
-  <p><strong>outlet_availability — κ = ${perAttr[1].kappa.toFixed(3)} (${kappaInterp(perAttr[1].kappa)}).</strong> Mid-run, before all cafes had the new signal, this attribute sat at κ ≈ 0.39 (fair). After the full retag with <code>reviewSummary</code>, it crossed into moderate territory. Google's summary tends to mention outlets and seating when reviewers do — exactly the operational details that matter for a working cafe.</p>
-  <p><strong>laptop_policy — κ ≈ 0 (poor).</strong> Striking: the LLM and the regex are essentially uncorrelated on this attribute. Reviews almost never say "laptops welcome" verbatim; both taggers have to infer from outcome signals ("worked here for 4 hours," "great for studying"). The LLM commits more often (46% unknown vs 83% regex unknown), but where they both commit, they pick differently. This is a hard-problem signal, not a tagger-failure signal.</p>
+  <h2>What v2 (web research) changed</h2>
+  <p><strong>WiFi went from 85% unknown to ${pct(perAttr[0].llmUnk)} unknown.</strong> That's the single biggest move in this report. Reddit threads grade WiFi explicitly ("Storyville has solid WiFi, I work from there every Tuesday") and Yelp tips often add it as a one-liner. Google reviews almost never do. Adding Tavily snippets unlocked an attribute that v1 fundamentally couldn't reach.</p>
+
+  <p><strong>Outlets followed the same pattern.</strong> v1 LLM unknown was 88%; v2 is ${pct(perAttr[1].llmUnk)}. Same mechanism — Reddit's working-from-cafes discourse mentions outlet density routinely, Google reviews don't.</p>
+
+  <p><strong>Why agreement and kappa look worse in v2.</strong> Counterintuitively, the Cohen's κ scores in the agreement table below <em>dropped</em> after v2. That's the right outcome, not a regression. When both taggers mostly said "unknown" (v1), they trivially agreed by both bailing out. v2 makes the LLM commit in hundreds of additional cafes where the regex still bails — so now you see lots of "regex=unknown, LLM=moderate" disagreements that count against κ. The right metric for v2 isn't agreement with the regex; it's <em>coverage</em>. The regex isn't ground truth anymore — it's a sparse keyword matcher being out-evidenced.</p>
+
+  <p><strong>The honest caveat.</strong> Tavily snippets pull from the open web, which isn't pre-validated. The LLM now has more rope. We're trusting confidence calibration (the high-confidence rows in the table below) plus evidence quotes (each tag carries the verbatim review snippet that justified it) to catch hallucinations. Manual spot-checking on the admin page is the failsafe.</p>
 
   <h2>Confusion matrices</h2>
   <p class="small">Rows = regex (baseline). Columns = LLM. Diagonal = agreement. Off-diagonal cells tell you <em>how</em> they disagree.</p>
