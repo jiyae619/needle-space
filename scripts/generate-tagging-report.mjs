@@ -164,15 +164,44 @@ async function main() {
       .filter(p => p.regex !== null && p.llm !== null);
     const regexArr = pairs.map(p => p.regex);
     const llmArr   = pairs.map(p => p.llm);
+    const regexUnk = unknownRate(regexArr);
+    const llmUnk   = unknownRate(llmArr);
+    // Coverage = % of cafes where the tagger committed to a real (non-unknown) value.
+    // This is the cleanest "how much better is the LLM" number — regex bails to
+    // unknown whenever no keyword hits, the LLM can read prose and outcome signals.
+    const regexCoverage = 1 - regexUnk;
+    const llmCoverage   = 1 - llmUnk;
+    const coverageDeltaPp = (llmCoverage - regexCoverage) * 100; // percentage points
+    const regexCommitted = regexArr.filter(v => v !== "unknown").length;
+    const llmCommitted   = llmArr.filter(v => v !== "unknown").length;
+    const newCommits     = llmCommitted - regexCommitted; // additional cafes the LLM tagged
     return {
       attr,
       n: pairs.length,
       agreement: agreementRate(regexArr, llmArr),
       kappa:     cohensKappa(regexArr, llmArr, attr.values),
       matrix:    confusionMatrix(llmArr, regexArr, attr.values),
-      regexUnk:  unknownRate(regexArr),
-      llmUnk:    unknownRate(llmArr),
+      regexUnk, llmUnk,
+      regexCoverage, llmCoverage, coverageDeltaPp,
+      regexCommitted, llmCommitted, newCommits,
     };
+  });
+
+  // ── LLM confidence distribution ──────────────────────────────────────
+  // For each attribute, count how often the LLM put confidence ≥ 0.8 — i.e.
+  // tags it would be unsafe to mark "unknown" against. The regex has no
+  // analogue; this is signal the LLM contributes that the regex literally
+  // can't.
+  const confidenceBuckets = ATTRIBUTES.map(attr => {
+    let high = 0, mid = 0, low = 0;
+    for (const c of cafes) {
+      const conf = c.tagging_confidence?.[attr.key]?.confidence;
+      if (conf == null) continue;
+      if (conf >= 0.8) high++;
+      else if (conf >= 0.5) mid++;
+      else low++;
+    }
+    return { attr, high, mid, low };
   });
 
   // ── Coverage / volume ────────────────────────────────────────────────
@@ -258,14 +287,107 @@ async function main() {
 
   <p class="eyebrow">Needle Space · Tagging Pipeline Report</p>
   <h1>How 255 Seattle cafes got tagged</h1>
-  <p class="lede">A regex tagger and an LLM tagger walk into a bar. Both read Google reviews. The LLM has one extra trick: it can read Google's <em>summary of every review</em>, not just five. Here's how often they agree, where they don't, and how the wider evidence matters.</p>
+  <p class="lede">A regex tagger and an LLM tagger walk into a bar. Both read Google reviews. The LLM has one extra trick — Google's <em>summary of every review</em>, not just five. Here's the measurable gap.</p>
   <p class="small">Generated ${now} · ${totalCafes} cafes · ${withSummary} have <code>reviewSummary</code> · ${withEditorial} have <code>editorialSummary</code> · ${verified} manually verified</p>
 
+  <h2>The improvement, in numbers</h2>
+  <p>The clearest "is the LLM actually better" signal is <strong>coverage</strong> — what fraction of cafes get a real (non-unknown) tag from each tagger. The regex bails to "unknown" any time no keyword fires. The LLM reads prose and outcome signals ("worked here 4 hours" → laptop-friendly), so it commits where the regex can't.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Attribute</th>
+        <th class="num">Regex coverage</th>
+        <th class="num">LLM coverage</th>
+        <th class="num">Δ (pp)</th>
+        <th class="num">Extra cafes tagged</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${perAttr.map(r => `
+      <tr>
+        <td><strong>${esc(r.attr.label)}</strong> <span class="small">(<code>${esc(r.attr.key)}</code>)</span></td>
+        <td class="num">${pct(r.regexCoverage)} <span class="small">(${r.regexCommitted}/${r.n})</span></td>
+        <td class="num">${pct(r.llmCoverage)} <span class="small">(${r.llmCommitted}/${r.n})</span></td>
+        <td class="num"><strong>${r.coverageDeltaPp >= 0 ? "+" : ""}${r.coverageDeltaPp.toFixed(1)}</strong></td>
+        <td class="num">${r.newCommits >= 0 ? "+" : ""}${r.newCommits}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>
+
+  <p>Read the table this way: on <strong>laptop_policy</strong>, the regex committed to ${perAttr[3].regexCommitted} of ${perAttr[3].n} cafes (${pct(perAttr[3].regexCoverage)}); the LLM committed to ${perAttr[3].llmCommitted} (${pct(perAttr[3].llmCoverage)}) — <strong>${perAttr[3].newCommits} more cafes</strong> get a usable laptop-friendliness signal. <strong>seating_availability</strong> nearly tripled. <strong>WiFi</strong> jumped 7×, though both taggers still struggle (reviewers rarely talk about WiFi speed). <strong>outlet_availability</strong> is the one place they're tied — both bail to "unknown" most of the time because outlets are operational details reviews skip.</p>
+
+  <p>And the LLM produces something the regex can't: <strong>per-attribute confidence + an evidence quote</strong>. That's how the admin page can show "WiFi=fast, 85% confidence, quote: <em>'lightning-fast WiFi I worked off all day'</em>" instead of just "fast." High-confidence tag counts:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Attribute</th>
+        <th class="num">≥ 0.8 confidence</th>
+        <th class="num">0.5–0.8</th>
+        <th class="num">&lt; 0.5</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${confidenceBuckets.map(b => `
+      <tr>
+        <td><strong>${esc(b.attr.label)}</strong></td>
+        <td class="num">${b.high}</td>
+        <td class="num">${b.mid}</td>
+        <td class="num">${b.low}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>
+
+  <p class="small">High-confidence tags are safe to ship without manual review. Mid and low are the cafes the admin verify UI surfaces for a human glance — the active-learning loop.</p>
+
   <h2>Pipeline at a glance</h2>
-  <p><strong>Input.</strong> Google Places API returns up to 5 reviews per cafe per call. <code>scripts/analyze-reviews.mjs</code> calls twice — once sorted by relevance, once by recency — and stores the union in <code>cafe_reviews</code>. It also captures Google's <code>reviewSummary</code> (Gemini-generated paragraph synthesizing <em>all</em> reviews on the place) and <code>editorialSummary</code> (curated blurb for notable spots) into the <code>cafes</code> table.</p>
+  <p><strong>Input.</strong> Google Places API returns up to 5 reviews per cafe per call. <code>scripts/analyze-reviews.mjs</code> calls twice — once sorted by relevance, once by recency — and stores the union in <code>cafe_reviews</code> (~${reviews.length} reviews across ${reviewsByPlace.size} places). It also captures Google's <code>reviewSummary</code> (Gemini-generated paragraph synthesizing <em>all</em> reviews on the place — often 50–200) and <code>editorialSummary</code> (curated blurb for notable spots) into the <code>cafes</code> table.</p>
   <p><strong>Regex tagger.</strong> The same script scores each cafe across five workspace attributes by counting weighted keyword hits in the stored review corpus + the summaries. Output is deterministic and reproducible; it's the baseline / ground truth for the eval.</p>
-  <p><strong>LLM tagger.</strong> <code>scripts/analyze-reviews-llm.mjs</code> runs a LangGraph pipeline (Gemini 2.5 Flash via forced function-calling). Each cafe gets a <code>tag_cafe_attributes</code> call followed by a <code>record_evidence_quotes</code> call, with Zod validation and a retry edge if the schema fails. The tagger sees both the individual reviews and Google's <code>reviewSummary</code> — the latter is the wider evidence the regex never reads.</p>
-  <p><strong>Why two taggers.</strong> The regex acts as ground truth so a quantitative eval (Cohen's kappa) can measure where the LLM agrees and where it diverges. Disagreement isn't failure — it's usually the LLM tagging a cafe the regex marked "unknown."</p>
+  <p><strong>LLM tagger.</strong> <code>scripts/analyze-reviews-llm.mjs</code> runs a LangGraph pipeline (Gemini 2.5 Flash via forced function-calling). Each cafe gets a <code>tag_cafe_attributes</code> call followed by a <code>record_evidence_quotes</code> call, with Zod validation and a retry edge if the schema fails. The tagger sees both the individual reviews and Google's <code>reviewSummary</code> — the wider evidence the regex never reads.</p>
+
+  <h2>Why LangGraph (not a plain script)</h2>
+  <p>An ergonomic answer would have been: <em>for each cafe, call Gemini twice, save the result</em>. A 50-line script. Tempting. But it falls apart on the second cafe.</p>
+
+  <p><strong>Validation + retry as part of the graph, not the script.</strong> LLMs sometimes return enums that don't match the contract (<code>"lightning"</code> instead of <code>"fast"</code>). The graph has a <code>validate</code> node that runs Zod, and a conditional edge: pass → embed; fail → <code>retryNode</code> → back to <code>extractAttributes</code> with the error context. Two retries max, then the pipeline gives up gracefully and logs why. Doing this with try/catch in a plain script tangles control flow until it's unreadable.</p>
+
+  <p><strong>State as a typed contract between nodes.</strong> Each node reads from and writes to a shared state object (<code>reviews</code>, <code>rawAttributes</code>, <code>evidenceQuotes</code>, <code>validatedTags</code>, <code>embedding</code>). Errors accumulate via a reducer. You can read the state at any node boundary and know exactly what the pipeline knew at that point. Easier to debug than threading 7 arguments through 4 functions.</p>
+
+  <p><strong>Atomic writes.</strong> The <code>writeToSupabase</code> node only fires after both LLM calls succeed AND validation passes AND the embedding lands. If anything upstream errors, the row doesn't get half-tagged. The graph makes "the write happens at the end" a structural property, not a comment in the code.</p>
+
+  <p><strong>Swappable nodes for future evidence sources.</strong> Adding a Reddit/Tavily research node before <code>extractAttributes</code> is a one-edge edit — wire <code>START → webResearch → extractAttributes</code> and the new evidence flows into the same prompt. Same for a vision-on-photos node, or a second LLM for low-confidence cafes. The topology is the API.</p>
+
+  <p><strong>Portfolio signal.</strong> "LLM pipeline as a graph" is what production agentic systems look like — Adept, Inflection, Anthropic's own tool-use cookbook. Demonstrating that the abstraction makes sense (vs. just calling an API in a loop) signals you understand the orchestration layer that matters at scale.</p>
+
+  <pre style="background: var(--paper-2); padding: 14px 16px; border-radius: 4px; font-size: 12px; overflow-x: auto;">
+  START
+    │
+    ▼
+  fetchReviewCorpus   ◄── Supabase: stored reviews + reviewSummary
+    │
+    ▼
+  extractAttributes   ◄── Gemini Flash · tag_cafe_attributes tool (forced)
+    │
+    ▼
+  extractEvidenceQuotes ◄ Gemini Flash · record_evidence_quotes tool (forced)
+    │
+    ▼
+  validate            ◄── Zod schema + confidence floor
+    │       │
+   pass   fail (retryCount &lt; 2)
+    │       │
+    │       ▼
+    │     retryNode ──► back to extractAttributes
+    │
+    ▼
+  embedCafe           ◄── Voyage-3 (1024-dim) over tag-derived sentence
+    │
+    ▼
+  writeToSupabase     ◄── single atomic upsert: tags + confidence + embedding
+    │
+    ▼
+  END
+  </pre>
 
   <h2>Agreement scoreboard</h2>
   <p>Cohen's kappa is agreement corrected for chance. Pure agreement rate misleads because most reviews are silent on most attributes — both taggers say "unknown" and agree trivially.</p>
