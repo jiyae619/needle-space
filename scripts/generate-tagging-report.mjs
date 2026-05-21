@@ -33,6 +33,20 @@ const env = Object.fromEntries(
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
 // ---------------------------------------------------------------------------
+// Optional v1 baseline (post-reviewSummary, pre-web-research). When this
+// file exists, the report adds a "v1 (Google only)" coverage column so the
+// reader can see how much web research moved each attribute.
+// Snapshot it with: node scripts/evaluate-tagging.mjs --json > docs/tagging-baseline-v1.json
+// ---------------------------------------------------------------------------
+let v1Baseline = null;
+try {
+  const raw = readFileSync(resolve(process.cwd(), "docs/tagging-baseline-v1.json"), "utf-8");
+  const parsed = JSON.parse(raw);
+  v1Baseline = {};
+  for (const r of parsed.results) v1Baseline[r.attribute] = r;
+} catch { /* baseline optional */ }
+
+// ---------------------------------------------------------------------------
 // Config — attributes mirror evaluate-tagging.mjs
 // ---------------------------------------------------------------------------
 const ATTRIBUTES = [
@@ -137,6 +151,7 @@ async function main() {
     .select([
       "id", "name", "neighborhood", "google_place_id", "verified", "llm_tagged_at",
       "google_review_summary", "google_editorial_summary", "tagging_confidence",
+      "web_research_snippets", "web_research_at",
       ...ATTRIBUTES.flatMap(a => [a.key, `${a.key}_llm`]),
     ].join(", "))
     .not("llm_tagged_at", "is", null);
@@ -208,6 +223,7 @@ async function main() {
   const totalCafes = cafes.length;
   const withSummary = cafes.filter(c => c.google_review_summary).length;
   const withEditorial = cafes.filter(c => c.google_editorial_summary).length;
+  const withWebResearch = cafes.filter(c => c.web_research_snippets).length;
   const verified = cafes.filter(c => c.verified).length;
 
   // ── Sample ───────────────────────────────────────────────────────────
@@ -287,31 +303,40 @@ async function main() {
 
   <p class="eyebrow">Needle Space · Tagging Pipeline Report</p>
   <h1>How 255 Seattle cafes got tagged</h1>
-  <p class="lede">A regex tagger and an LLM tagger walk into a bar. Both read Google reviews. The LLM has one extra trick — Google's <em>summary of every review</em>, not just five. Here's the measurable gap.</p>
-  <p class="small">Generated ${now} · ${totalCafes} cafes · ${withSummary} have <code>reviewSummary</code> · ${withEditorial} have <code>editorialSummary</code> · ${verified} manually verified</p>
+  <p class="lede">Three evidence sources feed one LangGraph pipeline: Google's 5-review sample, Google's Gemini-synthesized <code>reviewSummary</code> (every review on the place), and Tavily web research scoped to Reddit + Yelp. Each new source materially moved attributes the prior one couldn't reach.</p>
+  <p class="small">Generated ${now} · ${totalCafes} cafes · ${withSummary} have <code>reviewSummary</code> · ${withEditorial} have <code>editorialSummary</code> · ${withWebResearch} have web research · ${verified} manually verified${v1Baseline ? " · v1 baseline loaded for v1→v2 comparison" : ""}</p>
 
   <h2>The improvement, in numbers</h2>
-  <p>The clearest "is the LLM actually better" signal is <strong>coverage</strong> — what fraction of cafes get a real (non-unknown) tag from each tagger. The regex bails to "unknown" any time no keyword fires. The LLM reads prose and outcome signals ("worked here 4 hours" → laptop-friendly), so it commits where the regex can't.</p>
+  <p>The clearest "is the LLM actually better" signal is <strong>coverage</strong> — what fraction of cafes get a real (non-unknown) tag. Regex bails to "unknown" any time no keyword fires; the LLM reads prose; web research surfaces the things Google reviewers don't grade.</p>
 
   <table>
     <thead>
       <tr>
-        <th>Attribute</th>
-        <th class="num">Regex coverage</th>
-        <th class="num">LLM coverage</th>
-        <th class="num">Δ (pp)</th>
-        <th class="num">Extra cafes tagged</th>
+        <th rowspan="2">Attribute</th>
+        <th class="num" rowspan="2">Regex<br><span class="small">baseline</span></th>
+        ${v1Baseline ? `<th class="num" rowspan="2">LLM v1<br><span class="small">Google only</span></th>` : ""}
+        <th class="num" rowspan="2">LLM v2<br><span class="small">${v1Baseline ? "Google + web" : "current"}</span></th>
+        ${v1Baseline ? `<th class="num" rowspan="2">v1 → v2<br>Δ (pp)</th>` : ""}
+        <th class="num" rowspan="2">vs. regex<br>Δ (pp)</th>
+        <th class="num" rowspan="2">Extra cafes<br>tagged</th>
       </tr>
     </thead>
     <tbody>
-      ${perAttr.map(r => `
+      ${perAttr.map(r => {
+        const v1 = v1Baseline?.[r.attr.key];
+        const v1Cov = v1 ? (1 - v1.llm_unknown_rate) : null;
+        const v1ToV2Pp = v1Cov != null ? (r.llmCoverage - v1Cov) * 100 : null;
+        return `
       <tr>
         <td><strong>${esc(r.attr.label)}</strong> <span class="small">(<code>${esc(r.attr.key)}</code>)</span></td>
         <td class="num">${pct(r.regexCoverage)} <span class="small">(${r.regexCommitted}/${r.n})</span></td>
-        <td class="num">${pct(r.llmCoverage)} <span class="small">(${r.llmCommitted}/${r.n})</span></td>
-        <td class="num"><strong>${r.coverageDeltaPp >= 0 ? "+" : ""}${r.coverageDeltaPp.toFixed(1)}</strong></td>
+        ${v1Cov != null ? `<td class="num">${pct(v1Cov)}</td>` : ""}
+        <td class="num"><strong>${pct(r.llmCoverage)}</strong> <span class="small">(${r.llmCommitted}/${r.n})</span></td>
+        ${v1ToV2Pp != null ? `<td class="num"><strong style="color:${v1ToV2Pp > 5 ? "var(--good)" : v1ToV2Pp > 0 ? "var(--ink)" : "var(--kraft)"}">${v1ToV2Pp >= 0 ? "+" : ""}${v1ToV2Pp.toFixed(1)}</strong></td>` : ""}
+        <td class="num">${r.coverageDeltaPp >= 0 ? "+" : ""}${r.coverageDeltaPp.toFixed(1)}</td>
         <td class="num">${r.newCommits >= 0 ? "+" : ""}${r.newCommits}</td>
-      </tr>`).join("")}
+      </tr>`;
+      }).join("")}
     </tbody>
   </table>
 
@@ -363,10 +388,11 @@ async function main() {
   START
     │
     ▼
-  fetchReviewCorpus   ◄── Supabase: stored reviews + reviewSummary
+  fetchReviewCorpus   ◄── Supabase: stored reviews + reviewSummary + web_research_snippets
     │
     ▼
   extractAttributes   ◄── Gemini Flash · tag_cafe_attributes tool (forced)
+                         prompt sees: Google reviews + reviewSummary + Tavily snippets
     │
     ▼
   extractEvidenceQuotes ◄ Gemini Flash · record_evidence_quotes tool (forced)
@@ -470,6 +496,18 @@ async function main() {
         <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
         ${esc(c.google_editorial_summary)}
       </div>` : ""}
+
+      ${c.web_research_snippets ? `
+      <div class="summary-block" style="background: rgba(74,125,63,0.06); border-left: 3px solid var(--good); padding-left: 12px;">
+        <span class="label" style="color: var(--good);">Web research <span class="small">(Tavily · reddit.com + yelp.com)</span></span>
+        ${c.web_research_snippets.answer ? `<p style="margin: 0 0 8px;"><strong>Synthesized answer:</strong> ${esc(c.web_research_snippets.answer)}</p>` : ""}
+        ${(c.web_research_snippets.results ?? []).slice(0, 2).map(r => `
+        <p style="margin: 4px 0; font-size: 12px;">
+          <strong>${esc((r.title || "").slice(0, 80))}</strong>
+          <br><span class="small">${esc((r.url || "").slice(0, 80))}</span>
+          <br><em>"${esc((r.snippet || "").slice(0, 220))}${r.snippet && r.snippet.length > 220 ? "…" : ""}"</em>
+        </p>`).join("")}
+      </div>` : `<p class="small"><em>No Tavily web research yet — small indie cafe Reddit/Yelp don't discuss.</em></p>`}
 
       ${cafeReviews.length > 0 ? `
       <details>
