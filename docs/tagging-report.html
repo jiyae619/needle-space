@@ -1,0 +1,1434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Needle Space — Tagging Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #faf5ec;
+    --paper-2: #f1ead9;
+    --kraft: #8a7a5c;
+    --espresso: #2e2418;
+    --ink: #463a2a;
+    --good: #4a7d3f;
+    --warn: #c2691a;
+    --bad:  #a23a2a;
+    --rule: #d9cfb8;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); margin: 0; }
+  body { font-family: 'Inter', -apple-system, system-ui, sans-serif; line-height: 1.55; font-size: 15px; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 56px 32px 96px; }
+  h1, h2, h3 { font-family: 'Fraunces', Georgia, serif; color: var(--espresso); font-weight: 500; letter-spacing: -0.01em; }
+  h1 { font-size: 44px; line-height: 1.05; margin: 0 0 8px; font-variation-settings: "opsz" 96, "SOFT" 50; }
+  h2 { font-size: 26px; margin: 56px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--rule); }
+  h3 { font-size: 18px; margin: 28px 0 8px; }
+  .eyebrow { text-transform: uppercase; letter-spacing: 0.25em; font-size: 11px; color: var(--kraft); margin-bottom: 16px; font-weight: 600; }
+  p { margin: 0 0 12px; max-width: 70ch; }
+  .lede { font-size: 17px; color: var(--ink); }
+  .num, .gs-num { font-variant-numeric: tabular-nums; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0 24px; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+  th { font-weight: 600; color: var(--kraft); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+  .pill-regex   { background: rgba(138,122,92,0.18);  color: var(--espresso); }
+  .pill-llm     { background: rgba(46,36,24,0.84);    color: var(--paper); }
+  .pill-unknown { background: rgba(138,122,92,0.12);  color: var(--kraft); font-style: italic; }
+  .pill-good    { background: rgba(74,125,63,0.18);   color: var(--good); }
+  .pill-warn    { background: rgba(194,105,26,0.18);  color: var(--warn); }
+  .pill-bad     { background: rgba(162,58,42,0.18);   color: var(--bad); }
+  .pill-neutral { background: rgba(138,122,92,0.10);  color: var(--ink); }
+  .conf { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--kraft); margin-left: 6px; }
+  .card { background: var(--paper-2); border-radius: 6px; padding: 22px 24px; margin: 18px 0; }
+  .card h3 { margin-top: 0; }
+  .neighborhood { text-transform: uppercase; letter-spacing: 0.22em; font-size: 10px; color: var(--kraft); font-weight: 600; }
+  .meta { color: var(--kraft); font-size: 13px; margin-bottom: 12px; }
+  .quote { font-style: italic; color: var(--kraft); border-left: 2px solid var(--rule); padding: 2px 0 2px 12px; margin: 6px 0; font-size: 13px; }
+  .summary-block { background: rgba(46,36,24,0.04); padding: 12px 14px; border-radius: 4px; margin: 10px 0; font-size: 13px; }
+  .summary-block .label { font-weight: 600; color: var(--kraft); font-size: 10px; text-transform: uppercase; letter-spacing: 0.18em; display: block; margin-bottom: 4px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin: 12px 0; }
+  .grid .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--rule); font-size: 13px; }
+  .grid .row .attr { color: var(--kraft); text-transform: uppercase; font-size: 10px; letter-spacing: 0.18em; flex: 0 0 70px; }
+  .matrix { font-size: 12px; }
+  .matrix td, .matrix th { padding: 4px 8px; }
+  .matrix td.num { text-align: right; }
+  .matrix td.diag { background: rgba(74,125,63,0.08); font-weight: 600; }
+  .small { font-size: 12px; color: var(--kraft); }
+  details { margin: 10px 0; }
+  summary { cursor: pointer; color: var(--kraft); font-size: 12px; text-transform: uppercase; letter-spacing: 0.18em; font-weight: 600; padding: 4px 0; }
+  details[open] summary { color: var(--espresso); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Needle Space · Tagging Pipeline Report</p>
+  <h1>How 255 Seattle cafes got tagged</h1>
+  <p class="lede">A regex tagger and an LLM tagger walk into a bar. Both read Google reviews. The LLM has one extra trick: it can read Google's <em>summary of every review</em>, not just five. Here's how often they agree, where they don't, and how the wider evidence matters.</p>
+  <p class="small">Generated 2026-05-21 · 255 cafes · 198 have <code>reviewSummary</code> · 123 have <code>editorialSummary</code> · 4 manually verified</p>
+
+  <h2>Pipeline at a glance</h2>
+  <p><strong>Input.</strong> Google Places API returns up to 5 reviews per cafe per call. <code>scripts/analyze-reviews.mjs</code> calls twice — once sorted by relevance, once by recency — and stores the union in <code>cafe_reviews</code>. It also captures Google's <code>reviewSummary</code> (Gemini-generated paragraph synthesizing <em>all</em> reviews on the place) and <code>editorialSummary</code> (curated blurb for notable spots) into the <code>cafes</code> table.</p>
+  <p><strong>Regex tagger.</strong> The same script scores each cafe across five workspace attributes by counting weighted keyword hits in the stored review corpus + the summaries. Output is deterministic and reproducible; it's the baseline / ground truth for the eval.</p>
+  <p><strong>LLM tagger.</strong> <code>scripts/analyze-reviews-llm.mjs</code> runs a LangGraph pipeline (Gemini 2.5 Flash via forced function-calling). Each cafe gets a <code>tag_cafe_attributes</code> call followed by a <code>record_evidence_quotes</code> call, with Zod validation and a retry edge if the schema fails. The tagger sees both the individual reviews and Google's <code>reviewSummary</code> — the latter is the wider evidence the regex never reads.</p>
+  <p><strong>Why two taggers.</strong> The regex acts as ground truth so a quantitative eval (Cohen's kappa) can measure where the LLM agrees and where it diverges. Disagreement isn't failure — it's usually the LLM tagging a cafe the regex marked "unknown."</p>
+
+  <h2>Agreement scoreboard</h2>
+  <p>Cohen's kappa is agreement corrected for chance. Pure agreement rate misleads because most reviews are silent on most attributes — both taggers say "unknown" and agree trivially.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Attribute</th>
+        <th class="num">n</th>
+        <th class="num">Agreement</th>
+        <th class="num">Cohen's κ</th>
+        <th>Interpretation</th>
+        <th class="num">Regex unknown</th>
+        <th class="num">LLM unknown</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+      <tr>
+        <td><strong>WiFi</strong> <span class="small">(<code>wifi_quality</code>)</span></td>
+        <td class="num">255</td>
+        <td class="num">87.5%</td>
+        <td class="num"><strong>0.186</strong></td>
+        <td>slight</td>
+        <td class="num">98.4%</td>
+        <td class="num">85.9%</td>
+      </tr>
+      <tr>
+        <td><strong>Outlets</strong> <span class="small">(<code>outlet_availability</code>)</span></td>
+        <td class="num">255</td>
+        <td class="num">90.6%</td>
+        <td class="num"><strong>0.520</strong></td>
+        <td>moderate</td>
+        <td class="num">89.8%</td>
+        <td class="num">89.0%</td>
+      </tr>
+      <tr>
+        <td><strong>Noise</strong> <span class="small">(<code>noise_level</code>)</span></td>
+        <td class="num">255</td>
+        <td class="num">25.5%</td>
+        <td class="num"><strong>0.115</strong></td>
+        <td>slight</td>
+        <td class="num">30.6%</td>
+        <td class="num">20.8%</td>
+      </tr>
+      <tr>
+        <td><strong>Laptops</strong> <span class="small">(<code>laptop_policy</code>)</span></td>
+        <td class="num">255</td>
+        <td class="num">45.1%</td>
+        <td class="num"><strong>-0.001</strong></td>
+        <td>poor</td>
+        <td class="num">82.7%</td>
+        <td class="num">45.9%</td>
+      </tr>
+      <tr>
+        <td><strong>Seating</strong> <span class="small">(<code>seating_availability</code>)</span></td>
+        <td class="num">255</td>
+        <td class="num">38.0%</td>
+        <td class="num"><strong>0.229</strong></td>
+        <td>fair</td>
+        <td class="num">65.5%</td>
+        <td class="num">17.3%</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="small">Landis & Koch (1977): &lt;0 poor · 0–0.20 slight · 0.21–0.40 fair · 0.41–0.60 moderate · 0.61–0.80 substantial · 0.81–1.00 almost perfect.</p>
+
+  <h2>Where the summary helped most</h2>
+  <p><strong>outlet_availability — κ = 0.520 (moderate).</strong> Mid-run, before all cafes had the new signal, this attribute sat at κ ≈ 0.39 (fair). After the full retag with <code>reviewSummary</code>, it crossed into moderate territory. Google's summary tends to mention outlets and seating when reviewers do — exactly the operational details that matter for a working cafe.</p>
+  <p><strong>laptop_policy — κ ≈ 0 (poor).</strong> Striking: the LLM and the regex are essentially uncorrelated on this attribute. Reviews almost never say "laptops welcome" verbatim; both taggers have to infer from outcome signals ("worked here for 4 hours," "great for studying"). The LLM commits more often (46% unknown vs 83% regex unknown), but where they both commit, they pick differently. This is a hard-problem signal, not a tagger-failure signal.</p>
+
+  <h2>Confusion matrices</h2>
+  <p class="small">Rows = regex (baseline). Columns = LLM. Diagonal = agreement. Off-diagonal cells tell you <em>how</em> they disagree.</p>
+  
+  <details>
+    <summary>WiFi — wifi_quality</summary>
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>regex \ LLM</th>
+          <th class="num">fast</th><th class="num">moderate</th><th class="num">slow</th><th class="num">none</th><th class="num">unknown</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <th>fast</th>
+          <td class="num diag">3</td><td class="num "></td><td class="num "></td><td class="num "></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>moderate</th>
+          <td class="num "></td><td class="num diag">1</td><td class="num "></td><td class="num "></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>slow</th>
+          <td class="num "></td><td class="num "></td><td class="num diag"></td><td class="num "></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>none</th>
+          <td class="num "></td><td class="num "></td><td class="num "></td><td class="num diag"></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>unknown</th>
+          <td class="num ">2</td><td class="num ">20</td><td class="num ">6</td><td class="num ">4</td><td class="num diag">219</td>
+        </tr>
+      </tbody>
+    </table>
+  </details>
+  <details>
+    <summary>Outlets — outlet_availability</summary>
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>regex \ LLM</th>
+          <th class="num">every_table</th><th class="num">most</th><th class="num">limited</th><th class="num">none</th><th class="num">unknown</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <th>every_table</th>
+          <td class="num diag"></td><td class="num "></td><td class="num "></td><td class="num "></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>most</th>
+          <td class="num ">3</td><td class="num diag">9</td><td class="num ">8</td><td class="num ">1</td><td class="num ">5</td>
+        </tr>
+        <tr>
+          <th>limited</th>
+          <td class="num "></td><td class="num "></td><td class="num diag"></td><td class="num "></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>none</th>
+          <td class="num "></td><td class="num "></td><td class="num "></td><td class="num diag"></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>unknown</th>
+          <td class="num "></td><td class="num ">2</td><td class="num ">3</td><td class="num ">2</td><td class="num diag">222</td>
+        </tr>
+      </tbody>
+    </table>
+  </details>
+  <details>
+    <summary>Noise — noise_level</summary>
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>regex \ LLM</th>
+          <th class="num">quiet</th><th class="num">moderate</th><th class="num">loud</th><th class="num">unknown</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <th>quiet</th>
+          <td class="num diag">31</td><td class="num ">105</td><td class="num ">20</td><td class="num ">20</td>
+        </tr>
+        <tr>
+          <th>moderate</th>
+          <td class="num "></td><td class="num diag">1</td><td class="num "></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>loud</th>
+          <td class="num "></td><td class="num "></td><td class="num diag"></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>unknown</th>
+          <td class="num ">3</td><td class="num ">28</td><td class="num ">14</td><td class="num diag">33</td>
+        </tr>
+      </tbody>
+    </table>
+  </details>
+  <details>
+    <summary>Laptops — laptop_policy</summary>
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>regex \ LLM</th>
+          <th class="num">welcome</th><th class="num">limited</th><th class="num">not_allowed</th><th class="num">unknown</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <th>welcome</th>
+          <td class="num diag">19</td><td class="num ">2</td><td class="num ">2</td><td class="num ">21</td>
+        </tr>
+        <tr>
+          <th>limited</th>
+          <td class="num "></td><td class="num diag"></td><td class="num "></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>not_allowed</th>
+          <td class="num "></td><td class="num "></td><td class="num diag"></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>unknown</th>
+          <td class="num ">87</td><td class="num ">23</td><td class="num ">5</td><td class="num diag">96</td>
+        </tr>
+      </tbody>
+    </table>
+  </details>
+  <details>
+    <summary>Seating — seating_availability</summary>
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>regex \ LLM</th>
+          <th class="num">ample</th><th class="num">adequate</th><th class="num">limited</th><th class="num">none</th><th class="num">unknown</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <th>ample</th>
+          <td class="num diag">43</td><td class="num ">6</td><td class="num ">9</td><td class="num "></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>adequate</th>
+          <td class="num ">4</td><td class="num diag">11</td><td class="num ">12</td><td class="num ">2</td><td class="num ">1</td>
+        </tr>
+        <tr>
+          <th>limited</th>
+          <td class="num "></td><td class="num "></td><td class="num diag"></td><td class="num "></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>none</th>
+          <td class="num "></td><td class="num "></td><td class="num "></td><td class="num diag"></td><td class="num "></td>
+        </tr>
+        <tr>
+          <th>unknown</th>
+          <td class="num ">19</td><td class="num ">36</td><td class="num ">63</td><td class="num ">6</td><td class="num diag">43</td>
+        </tr>
+      </tbody>
+    </table>
+  </details>
+
+  <h2>Sample cafes — walk the data</h2>
+  <p>18 cafes picked for illustrating LLM tags backed by Google's wider review evidence — typically cafes where the regex stayed "unknown" but the LLM committed with confidence ≥ 0.7, or where the two taggers disagree on a non-unknown call. The reviewSummary block is what made the difference for many of these.</p>
+
+  
+    <div class="card">
+      <p class="neighborhood">Bellevue</p>
+      <h3>Capital One Café</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJb4GNEYZskFQRE7VgD5cQya4</code></span></p>
+
+      <p class="small"><em>No reviewSummary — Google didn't generate one for this cafe.</em></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Bank-affiliated coffeehouse chain offering hot drinks &amp; free WiFi in a modern setting.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (2 of 2 shown)</summary>
+        <p class="quote">"The whole model of the cafe is creepy. Bankers roaming around and fraternizing, sales pitching you. I came for the half off coffee, that&#39;s it. Please kick rocks"</p><p class="quote">"I always bring my own mug so I don’t waste a “to go” cup however the guy still made my coffee in a paper cup only to pour it into my mug and then throw it out anyways :( on top of that the vanilla latte I ordered tasted like warmed up sweet milk."</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-regex">regex: fast</span>
+            <span class="pill pill-llm">LLM: fast</span>
+            <span class="conf">conf 90% · agree</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"good wifi"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-regex">regex: most</span>
+            <span class="pill pill-llm">LLM: every_table</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"There are plenty of power outlets"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: quiet</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"it never feels noisy or chaotic."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 95% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Captial one Coffee is a great spot for remote work and studying."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: ample</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Nice open cafe with lots of windows, outlets, good wifi, and seating areas."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">West Seattle</p>
+      <h3>Hotwire Coffeehouse</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJddAEgvdAkFQROY7wAGaswyY</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this espresso bar serves delicious coffee, including the Sasquatch (dark chocolate and salted pistachio) and specialty lattes, and they praise the cozy outdoor patio. They also highlight the friendly baristas and comfortable atmosphere.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Petite brick Internet cafe provides computers for guests, specialty espresso drinks &amp; patio seating.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 4 shown)</summary>
+        <p class="quote">"I&#39;ym Hawaii this lovely spot would be considered a puka, a tiny hole in the wall that, in this case, serves beautiful coffee. Staff are so kind and friendly."</p><p class="quote">"First off the coffee here is amazing. Probably some of the best in West Seattle. The baristas are usually great and very friendly. Unfortunately, I have to leave a bad review. Every Sunday morning, I have a ritual to grab a latte and then walk to the farmers market. Hot wire has been my go to, but the last couple of we…"</p><p class="quote">"Drinks were really tasty. I had the Sasquatch and it was soooo good! The cafe is a great size to comfortably fit ~8 people between the inside and outside seating availability. The menu has a great selection of drinks. Wish there was a little more inside seating spaces for the winter weather and it&#39;d be perfect! Very co…"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 80% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-regex">regex: adequate</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Wish there was a little more inside seating spaces for the winter weather and it&#39;d be perfect!"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">University District</p>
+      <h3>Cafe on the Ave</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJbV44pvQUkFQRBuSZQ_SrifQ</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        Diners say this cafe offers a large menu with popular dishes like kimchi fried rice, curry karrage, and chicken alfredo, and they appreciate the generous portions. They also highlight the friendly staff and quick service, making it a convenient spot for studying or catching up on emails.
+
+Some reviews mention the prices can be high.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Coffeehouse with a big American menu of breakfast staples &amp; sandwiches in comfy digs with free WiFi.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 5 shown)</summary>
+        <p class="quote">"The kimchi fried rice here is seriously delicious. In a way, I think it could be considered this place’s signature dish. I also ordered an Americano, and it wasn’t too bitter at all—it was just right for my taste. The staff overall were really friendly, and it feels like they pay good attention to keeping the place cle…"</p><p class="quote">"I ordered one of their kimchi fried rice which was pretty good and staff was kind. However, This is the only restaurant I’ve seen that decided to remove men’s restroom and change it to all gender restroom while women’s restroom remains unchanged."</p><p class="quote">"Their “smoothie” is fruit-flavored syrup, milk, and ice like cmon dude"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 80% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-regex">regex: most</span>
+            <span class="pill pill-llm">LLM: most</span>
+            <span class="conf">conf 60% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: loud</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Heads up, the music can get a little loud at times, but that actually adds to the buzz of the place."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"manager wasn&#39;t so &quot;in your face&quot; about purchasing a food item or beverage if i planned on staying for a while."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: adequate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Wasn&#39;t too crowded when we went for lunch on a weekday."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Fremont</p>
+      <h3>Irwin&#39;s Neighborhood Bakery and Cafe</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJHbJe-vgUkFQRryD8W-0S7xA</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this cafe offers delicious baked goods, including croissants and muffins, along with a variety of coffee and tea options. They also highlight the cozy and inviting atmosphere, making it a great spot for studying or socializing. Guests mention the friendly staff and efficient service.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Sun-splashed bakery with outdoor tables serves muffins, pies &amp; other pastries along with cafe bites.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 6 shown)</summary>
+        <p class="quote">"This small cozy cafe offers delicious baked goods and a variety of tea options. The decoration is charming and the staff are nice. One thing to mention is that there isn’t much ventilation in the cafe and the smell of coffee lingers on your clothes for a few hours after."</p><p class="quote">"The food has a good spread for vegetarians and also a few vegan options, which is very inclusive. Food is fresh and good.
+But oh boy it feels so stuffy inside, extremely poor ventilation and dirty restroom. It is a small place and it’s hard to find a place to sit inside but that should not be an issue during non busy h…"</p><p class="quote">"This is a small cozy cafe, sitting in a nice neighborhood. They serve a variety of homie and comforting food, bakery and drink. This is a perfect spot to enjoy some quiet study and working time, or socialize with your friends."</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"This is a perfect spot to enjoy some quiet study and working time, or socialize with your friends."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"This is a perfect spot to enjoy some quiet study and working time, or socialize with your friends."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"It is a small place and it’s hard to find a place to sit inside but that should not be an issue during non busy hours."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Redmond</p>
+      <h3>The Screaming Parrots Cafe: Desserts + Tea + Bites</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJ2w2A9OFzkFQRLO_hkdgy02o</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this cafe offers delicious and high-quality matcha, coffee, and unique tea lattes, along with amazing soufflé pancakes and crepes. They also highlight the cozy, welcoming atmosphere, which is great for studying or relaxing, and appreciate the friendly, attentive staff. Visitors mention the convenient late-night hours and free validated parking.
+      </div>
+
+      
+
+      
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The cafe itself is cozy with a relaxed vibe."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"It is a life saver for people that need to work late, studying students"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Place is small and tight so my family and I dined outside their cafe."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Central District</p>
+      <h3>Boon Boona Coffee</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJ39ALGHVrkFQRRGZ_fVpsri0</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop offers delicious coffee, including smooth lattes and iced mochas, along with tasty baked goods like croissants and cookies. They also highlight the friendly and talented staff, who provide great service. Visitors appreciate the clean, minimalist, and cozy atmosphere, making it a good spot for working or catching up with friends.
+      </div>
+
+      
+
+      
+      <details>
+        <summary>Stored reviews (3 of 4 shown)</summary>
+        <p class="quote">"Super cute spot for some coffee/drinks. There is street parking available in front and across the street from the store.
+
+I ordered from the Summer Menu (I&#39;m writing this very late I know, sorry lol) and I got the Iced Strawberry Matcha as well as the Lychee Rhubarb Strawberry Iced Tea. Both drinks were very refreshing…"</p><p class="quote">"Definitely one of my favorite third wave coffee spots in the city. I find their roasts very smooth, never acidic and generally a great fit for my palette.
+
+We ordered a latte and an iced mocha here. The mocha wasn’t too sweet at all (which is a bonus) and the latte was creamy, smooth to taste. Really nothing to complai…"</p><p class="quote">"At Boon Boona, sharing a daily cup is about more than just caffeine—it’s about slowing down and connecting. When you choose their coffee, you’re supporting a more equitable coffee economy. They work exclusively with African producers and exporters, ensuring a greater share of profits goes to women-owned farms and commu…"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: slow</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The wifi sucks, I aint gonna lie."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"I love using this space to work on open-source projects."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: adequate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"I love those seats and the standing bar outside right next to a small park."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Pioneer Square</p>
+      <h3>Monorail Espresso</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJb7pH7bRqkFQRwTaGcN9XkP0</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this cafe offers delicious coffee, including lattes, cold brews, and seasonal specials, with many highlighting the strong, well-made espresso. They also mention the fast and friendly service, with staff often described as welcoming and efficient. Guests appreciate the convenient walk-up counter and outdoor seating, making it a great spot for a quick grab-and-go.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Snappy little takeout window serving espresso-based hot beverages &amp; homemade cookies.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 3 shown)</summary>
+        <p class="quote">"This used to be the perfect mocha with the dark chocolate powder, but they switched to syrup and it’s not the same anymore! Pls bring it back and keep it as an upgrade if you will!"</p><p class="quote">"I stopped by Monorail Espresso in downtown Seattle for a quick coffee and it really lives up to its reputation as a fast, no-frills espresso stop. The tiny walk-up window keeps things moving, so even when there’s a line, you’re served pretty quickly. I ordered a latte, and it was smooth, strong, and well-balanced—perfe…"</p><p class="quote">"Fast service and really good!"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: none</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"This is a window-only grab and go style coffee shop"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: not_allowed</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"It’s not a place to hang out"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: none</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"This is a window-only grab and go style coffee shop"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">West Seattle</p>
+      <h3>C &amp; P Coffee Company</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJ2xUKRx1BkFQRX-L-sii7kNM</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop offers delicious coffee, a wide selection of baked goods, and other food and beverage options. They also highlight the charming, cozy, and welcoming atmosphere, with plenty of comfortable indoor and outdoor seating. Guests mention the friendly and professional staff, as well as the live music and community events.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Comfy cafe with locally sourced coffee &amp; baked goods, hosting events like craft fairs &amp; live music.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 6 shown)</summary>
+        <p class="quote">"A gem tucked in a neighborhood!
+Low key coffee shop that’s just delightful. Had a matcha and a cortado, both made very well. The outdoor area is lovely and rustic, so is the indoor. Today they have a great group playing music and singing. I felt like I hit the jackpot of live music and coffee! Can it get better! Oldest…"</p><p class="quote">"I&#39;ve been twice in the last three weeks. The baked goods were all excellent. Unfortunately the espresso was the worst I&#39;ve had in Seattle. First visit I asked them to re-make the shot. No better. Went back with a friend and had the same experience. Brew temp too cold and shot was watery. Not good!"</p><p class="quote">"I LOVE this coffee shop! It&#39;s built into an actual house with seating in comfortable couches and chairs in several locations, including the front, back, and side yards. There is a window in the back specifically for people with dogs to order.  The whole vibe is relaxed and yet very clean and open.  I especially enjoyed…"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Today they have a great group playing music and singing."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Definitely a place I would come to have long study/work/computer sessions."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: ample</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"It&#39;s built into an actual house with seating in comfortable couches and chairs in several locations, including the front, back, and side yards."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Ballard</p>
+      <h3>Woodland Coffee</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJyQwSx8kVkFQR1Utoi8oQDVU</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop offers delicious coffee, pastries, scones, and breakfast sandwiches. They highlight the comfortable seating, outlets, and decent wifi, making it a great spot to work or read. They also like the friendly and welcoming staff.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Coffee menu featuring guest roasters &amp; an array of pastries &amp; café fare with gluten free options.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 6 shown)</summary>
+        <p class="quote">"We are visiting from Southern Indiana and stopped in on our way to hike in the North Cascades. The girl who was working was so nice and helpful. We got two coffees, two danishes and two sandwiches for our hike and everything was reasonably priced! We would 100% go back."</p><p class="quote">"Great baristas. Comfortable atmosphere. Nice indoor as well as outdoor area. They have a fine selection of vegan, gluten-free and regular treats/baked goods. The coffee and tea they serve is delicious! Finally a place that had descent drip. Good hours too 7am-5pm."</p><p class="quote">"I love this coffee shop. The split days between serving Stamp Act and Olympia Coffee is a great idea and allows one to try different roasts from different roasters. Both are excellent."</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-regex">regex: moderate</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-regex">regex: most</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 60% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Comfortable atmosphere."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"There appears to be a decent amount of indoor seating and a small outdoor area as well if you want to work or hang out for a bit."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-regex">regex: ample</span>
+            <span class="pill pill-llm">LLM: adequate</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Nice indoor as well as outdoor area."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">West Seattle</p>
+      <h3>Lula Coffee Co</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJa2gKsmlBkFQRsNPqi8Jb6W4</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop offers a wide variety of delicious coffee, tea, and energy drinks, including unique and vegan options. They also highlight the cute, colorful, and welcoming atmosphere with themed seating areas, strong Wi-Fi, and a convenient drive-through. Guests mention the staff are friendly, helpful, and provide fast service.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Trendy, bright digs dedicated to specialty coffee/ tea drinks plus breakfast burritos &amp; pastries.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 4 shown)</summary>
+        <p class="quote">"Super cute centrally located coffee shop with neat themed areas. You can generally a quiet spot to sit but still has a vibe. Drinks are tasty and the menu has plenty of options to pick from.  The mini seating areas are all decorated differently and make for a great spot to catch up or talk to friends."</p><p class="quote">"My second favorite coffee location I visited during my trip to Seattle was such a cute spot. The staff worked quickly, always with smiles and laughter while serving customers. It was truly a great experience here."</p><p class="quote">"Fantastic local coffee shop. With a drive through!
+Super nice employees!! They always hook up me &amp; my doggo with treats."</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: fast</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The WiFi was also strong, and it was a great place to get some work done."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"You can generally a quiet spot to sit but still has a vibe."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"it was a great place to get some work done."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-regex">regex: adequate</span>
+            <span class="pill pill-llm">LLM: adequate</span>
+            <span class="conf">conf 70% · agree</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"You can generally a quiet spot to sit"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Fremont</p>
+      <h3>Café Hagen Modern All-Day Cafe</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJP0Fh64oVkFQRyY0tlusdnRY</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop serves delicious coffee, pastries, and sandwiches, with many raving about the pour-over and breakfast sandwich. They also highlight the pleasant and helpful service, as well as the stylish and vibrant atmosphere, both indoors and outdoors.
+
+Some reviews mention the food can be overpriced.
+      </div>
+
+      
+
+      
+      <details>
+        <summary>Stored reviews (3 of 7 shown)</summary>
+        <p class="quote">"This is a pretty good coffee place off Queen Anne. It was very crowded when we went, so not a lot of seating and we had to stand for a while. Good sign that it’s crowded. The coffee was good, but I’m not sure I would call it amazing. The place is in a good location and they have indoor and outdoor seating. The layout w…"</p><p class="quote">"Completely Disappointed.GET YOUR ACT TOGETHER
+
+I’ve been to the SLU location and the one time I come to Queen Anne there was NO HOSPITALITY. 2 Ladies (one with short hair and other with Circle Tattoo on right arm)
+
+Purchased 3 eggs. 1 came with cheese which was not disclosed when purchased. Then waited 35 minutes for t…"</p><p class="quote">"Love the ambience and decoration of this obviously Euro-Vibe cafe. Food is pretty good. A bit on the pricey side (but what isn&#39;t in this infernal city at this point.) I&#39;ve been the Bellevue location which is super spacious and great for sitting and getting work done. This location is great a nice weathered day to be ou…"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: loud</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The two employees working were not hospitable at all and were abnormally loud the entire time."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Loads of folks there usually working on their laptops, so it’s a great environment for when you need to focus."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Seating and walking around is tight."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">South Lake Union</p>
+      <h3>PLUS84</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJ1RjHsxwVkFQRQtjvw0mai-Y</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop offers delicious Vietnamese coffee, boba, and pastries, including the signature milk tea, Hanoi egg coffee, and raspberry croissant. They highlight the rich and flavorful drinks, the spacious and clean interior, and the cozy and inviting atmosphere. They also like the friendly and helpful staff, and the well-designed rewards program.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Simple, modern coffee shop featuring a menu with lattes, matcha, milk tea &amp; more, plus desserts &amp; snacks.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 9 shown)</summary>
+        <p class="quote">"Very nice interior"</p><p class="quote">"Interesting little Vietnamese coffee spot - I opted for a hot taro latte and a baguette. The transaction and experience was quick, easy, and tasty! The space is large and was very quiet when I was there (weekday, late morning) but I&#39;ve walked by and seen it packed with people."</p><p class="quote">"If you love strong coffee, this is the spot. Their drinks are bold, rich, and high quality. I also tried the milk tea — super flavorful and strong. Drinks lean a bit sweet, but you can always adjust the sweetness to your liking. Highly recommend! (We’re here when they decorate for lunar new year)"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"The vibe is relaxed but lively"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"great coworking space as well!"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: ample</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"such an incredibly bright&amp; spacious cafe"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Greenwood</p>
+      <h3>The Couth Buzzard - Books &amp; Community</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJpUpjhSEUkFQR0C_DHiPof-Q</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this bookstore and cafe offers a wide selection of books, delicious food, and a variety of community events, including live music and game nights. They also highlight the friendly and helpful staff, and the welcoming and inclusive atmosphere.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Indie bookstore with new &amp; used titles plus a cafe with light bites &amp; live entertainment.
+      </div>
+
+      
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Nice jazz music scene on Sundays"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"I went there to study and got Mac and cheese and it was pretty good."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: ample</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"although there was abundant seating and tables throughout the store"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Columbia City</p>
+      <h3>Empire Roasters &amp; Records</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJx1P-zQ1qkFQRDLsXG9LgTtI</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this cafe offers delicious coffee, espresso drinks, and tasty waffles, including gluten-free options. They also highlight the multi-story building with a record store and rooftop patio, creating a unique and cozy atmosphere. Guests mention the staff are friendly and welcoming.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Cheerful, intimate coffee shop serving java drinks, pastries, sweets &amp; nutella waffles.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 7 shown)</summary>
+        <p class="quote">"⭐️⭐️⭐️⭐️⭐️
+Empire Roasters &amp; Records — Columbia City’s Creative Coffee Oasis ☕🎶
+
+Right around the corner from Brain and Body Recess, this has become my favorite spot for a business meeting, coffee date, or just an experimental coffee moment that turns into inspiration.
+
+Owner Ian Peters truly poured his heart and visi…"</p><p class="quote">"I had coffee and breakfast here on a Saturday morning; such a fun atmosphere. The record store selection is fantastic, and while I didn&#39;t purchase anything as I was traveling, I could have spent hours browsing and shopping."</p><p class="quote">"This is my favorite cafe in Columbia City! Their coffee and food is very good, and the people who work there are so nice. It&#39;s a three story building, with the cafe primarily on the first floor, a full record store on the second floor, and additional cafe seating up on the third floor. It seems to be in what was once a…"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Downstairs feels busier and upstairs is pretty quiet with more relaxed seating."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"It’s the kind of café that makes you want to stay awhile, talk, dream, and create."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: ample</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Multiple floors to find a spot to sit or check out their record collection."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Greenwood</p>
+      <h3>Cocoa Legato</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJoTMd4UIVkFQRNTp3aMzYt7w</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this cafe offers delicious house-made chocolate, coffee, and unique chocolate-themed food items like grilled cheese and pastries. They also highlight the cozy atmosphere, live music events, and friendly, knowledgeable staff. Visitors appreciate the clean restrooms, free Wi-Fi, and the opportunity to watch chocolate being crafted.
+      </div>
+
+      
+
+      
+      <details>
+        <summary>Stored reviews (3 of 6 shown)</summary>
+        <p class="quote">"Excellent cafe for lovers of chocolate or music (or both)! Nearly every item on the menu has chocolate worked into it in some form, leading to some really unique dishes. The staff is extremely friendly and I enjoyed some lovely soundtracks from Wicked and Sinners while I sat and worked on their free Wi-Fi.
+
+The chocola…"</p><p class="quote">"What a lovely, cosy neighborhood cafe! As soon as you walk in, the space feels warm and welcoming. You can tell it&#39;s thoughtfully crafted, and the staff there is friendly/fun. Their drinking chocolate is DELICIOUS, and I also recommend their chocolate grilled cheese and chocolate chip cake. can&#39;t wait to come back!"</p><p class="quote">"Loved coming here, the owner was very kid-friendly. We&#39;ll be back for open mic 🎤😆"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"I sat and worked on their free Wi-Fi."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"I enjoyed some lovely soundtracks from Wicked and Sinners while I sat and worked on their free Wi-Fi."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 80% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"I sat and worked on their free Wi-Fi."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: adequate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"they do have a comfy couch area to hang out!"</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Kirkland</p>
+      <h3>Snoqualmie Ice Cream @ Kirkland</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJ6fpPlT0TkFQRHuukaG2Zw8Y</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this ice cream shop offers unique, high-quality ice cream flavors like ube and salted caramel, along with dessert cocktails and coffee. They also highlight the spotless shop, cozy atmosphere, and welcoming staff who offer free samples. Guests mention the delicious drinks and the option to support a local Washington business.
+      </div>
+
+      
+
+      
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 60% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Kpop in the background lightened the mood too, loved it."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"I was studying there with a friend for a long time, and they gave us free ice cream."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 85% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"There isn’t a lot of seating, but the seats were still comfortable."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Fremont</p>
+      <h3>Fremont Coffee Company</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJXZ0e56kVkFQRwVQfCjfg-sM</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this coffee shop offers delicious lattes with impressive latte art, as well as matcha lattes and pastries. They highlight the cozy and cute atmosphere, with ample seating options including a nice outdoor deck, and the friendly and chatty staff. They also like the reasonable prices and the relaxed vibe, perfect for studying or a coffee date.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Cafe offering fair-trade, organic brews &amp; pastries in a small house with porch &amp; comfy seating.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 5 shown)</summary>
+        <p class="quote">"All of the drinks, and baked goods I’ve had have been great. Their matcha is not overly sweet (not sure if sweetened at all) which I appreciate. Their outdoor space is lovely.
+
+Only downside is that there’s usually a line out the door, especially on weekends, but I’ve never found the wait to be too long."</p><p class="quote">"Such a cute coffee shop with plenty of room to find a nook and chat with a friend or get some work done. Fantastic drinks. Cool art. Nice patio."</p><p class="quote">"Delicious coffee. Great service. Lovely space. Highly recommend you visit FCC!"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: slow</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"WiFi is horrendous."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"chill vibes and cozy corridors"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"get some work done."</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-regex">regex: ample</span>
+            <span class="pill pill-llm">LLM: ample</span>
+            <span class="conf">conf 90% · agree</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"plenty of seating at the outdoor bar."</p></div>
+          </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="neighborhood">Capitol Hill</p>
+      <h3>Ada&#39;s Technical Books and Cafe</h3>
+      <p class="meta"><span class="small">place_id <code>ChIJuUSn_S4VkFQRGlFCqecQhas</code></span></p>
+
+      
+      <div class="summary-block">
+        <span class="label">Google reviewSummary <span class="small">(Gemini synthesis of all reviews)</span></span>
+        People say this bookstore and cafe offers delicious lattes, vegan breakfast burritos, and pastries, and has a wide selection of books, especially in STEM fields. They also highlight the friendly staff and cozy atmosphere, with both indoor and outdoor seating.
+      </div>
+
+      
+      <div class="summary-block">
+        <span class="label">Editorial summary <span class="small">(Google-curated)</span></span>
+        Bright, airy cafe inside a self-described &quot;geeky&quot; bookstore offering light, health-conscious fare.
+      </div>
+
+      
+      <details>
+        <summary>Stored reviews (3 of 7 shown)</summary>
+        <p class="quote">"Only reason I will give four stars, and it hurts to do so, is because the store has no day bed, or some lazy boy seats. But it is a cozy bookstore, for those possessed by radical ideas. If your idea is to shout to a crowd &quot;overthrow the government&quot; or even your first act as a mayor will be to install an ice cream fount…"</p><p class="quote">"I ducked into this shop to hide from the rain today and it was super cool! It’s like a bookstore+cafe combined and the environment is really chill with most patrons on their laptops, reading, or meeting friends. I did not purchase any books, but their iced latte and wifi was great! Will note that it was a bit hard to f…"</p><p class="quote">"One of the coziest bookstore/cafe combos I&#39;ve experienced. Really love the curation of books, you&#39;ll definitely find something to read here. I especially loved their selection of pictures books! The shelf in the center featured books from Seattle writers and the walls have staff recommendations neatly displayed. There&#39;…"</p>
+      </details>
+
+      <div class="grid">
+        
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">WiFi</span>
+            <span class="pill pill-regex">regex: fast</span>
+            <span class="pill pill-llm">LLM: fast</span>
+            <span class="conf">conf 90% · agree</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"wifi was great!"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Outlets</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-unknown">LLM: unknown</span>
+            <span class="conf">conf 30% · agree</span>
+            
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Noise</span>
+            <span class="pill pill-regex">regex: quiet</span>
+            <span class="pill pill-llm">LLM: moderate</span>
+            <span class="conf">conf 70% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"the environment is really chill"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Laptops</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: welcome</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"most patrons on their laptops"</p></div>
+          </div>
+          <div class="row" style="grid-column: 1 / -1;">
+            <span class="attr">Seating</span>
+            <span class="pill pill-unknown">regex: unknown</span>
+            <span class="pill pill-llm">LLM: limited</span>
+            <span class="conf">conf 90% · diverge</span>
+            <div style="flex-basis: 100%; margin-top: 2px;"><p class="quote">"Seating is limited, with a few spots in the front and back."</p></div>
+          </div>
+      </div>
+    </div>
+
+  <h2>What this means going forward</h2>
+  <p><strong>Where the LLM clearly beats the regex:</strong> any attribute where the regex says "unknown" but Google's reviewSummary explicitly mentions it (outlets, seating). The LLM can read prose; the regex can only match phrases.</p>
+  <p><strong>Where neither tagger has enough signal:</strong> WiFi quality and outlet count on cafes whose reviewers focus on coffee and ambience. Both taggers correctly say "unknown" rather than guess — high LLM unknown rates (86%, 89%) are calibration working, not failure.</p>
+  <p><strong>What unlocks the next jump:</strong> evidence beyond Google. Reddit threads ("best cafes to work from in Capitol Hill") and blog roundups ("Eater Seattle — laptop-friendly") discuss exactly the operational details Google reviews skip. A Tavily-style web-search node feeding the same LangGraph pipeline would close most of the remaining unknown gap, especially on WiFi and outlets.</p>
+
+  <p class="small" style="margin-top: 48px; padding-top: 12px; border-top: 1px solid var(--rule);">Source: <code>scripts/generate-tagging-report.mjs</code> · regenerate with <code>node scripts/generate-tagging-report.mjs</code></p>
+
+</div>
+</body>
+</html>
