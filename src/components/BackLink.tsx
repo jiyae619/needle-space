@@ -21,7 +21,7 @@ export default function BackLink() {
     <a
       href="/explore"
       onClick={handleBack}
-      className="inline-flex items-center gap-1 text-xs tracking-widest uppercase mb-4"
+      className="inline-flex items-center gap-1 text-xs tracking-widest uppercase mb-4 p-2 -m-2 min-h-[40px]"
       style={{ color: "var(--gs-kraft)" }}
     >
       ← Back to cafes

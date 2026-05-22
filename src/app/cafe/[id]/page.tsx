@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { MapPin, Phone, Globe, Star, NavigationArrow } from "@phosphor-icons/react/dist/ssr";
 import ScoreBreakdown from "@/components/ScoreBreakdown";
 import BackLink from "@/components/BackLink";
+import CafeCrowdness from "@/components/CafeCrowdness";
 
 export const dynamic = "force-dynamic";
 
@@ -30,17 +31,17 @@ export default async function CafeDetailPage({
   const photo = safePhotoUrl(cafe.photo_url);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 pb-12">
+    <article className="max-w-3xl mx-auto px-4 py-4 pb-16">
       <BackLink />
 
-      {/* Hero image */}
+      {/* Hero — full-bleed editorial, no border, taller than before. */}
       {photo && (
-        <div className="relative w-full h-56 md:h-72 rounded-xl overflow-hidden border border-[var(--gs-rule)] mb-6">
+        <div className="gs-detail-hero">
           <Image
             src={photo}
             alt={`Inside ${cafe.name}`}
             fill
-            sizes="(max-width: 768px) 100vw, 700px"
+            sizes="(max-width: 768px) 100vw, 800px"
             className="object-cover"
             unoptimized
             priority
@@ -49,20 +50,22 @@ export default async function CafeDetailPage({
       )}
 
       {/* Header */}
-      <div className="mb-6">
-        <p className="text-xs tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
-          {cafe.neighborhood}
-        </p>
+      <header className="mt-8 mb-10">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <p className="text-xs tracking-[0.22em] uppercase font-semibold" style={{ color: "var(--gs-kraft)" }}>
+            {cafe.neighborhood}
+          </p>
+          <CafeCrowdness cafeId={cafe.id} />
+        </div>
         <h1
-          className="font-display font-bold text-3xl md:text-4xl leading-tight mt-1"
+          className="font-display font-medium text-4xl md:text-5xl leading-[1.05] tracking-tight"
           style={{ color: "var(--gs-espresso)" }}
         >
           {cafe.name}
         </h1>
 
-        {/* Vibe keywords (editorial) */}
         {cafe.vibe_keywords && cafe.vibe_keywords.length > 0 && (
-          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-5">
             {cafe.vibe_keywords.map((kw) => (
               <span key={kw} className="gs-vibe-tag">{kw}</span>
             ))}
@@ -70,23 +73,24 @@ export default async function CafeDetailPage({
         )}
 
         {cafe.google_rating && (
-          <div className="flex items-center gap-1.5 mt-3 text-sm" style={{ color: "var(--gs-ink)" }}>
+          <div className="flex items-center gap-1.5 mt-5 text-sm gs-num" style={{ color: "var(--gs-ink)" }}>
             <Star size={14} weight="fill" style={{ color: "var(--gs-warn)" }} aria-hidden />
-            {cafe.google_rating} on Google ({cafe.google_review_count} reviews)
+            <span>{cafe.google_rating}</span>
+            <span style={{ color: "var(--gs-kraft)" }}>
+              · {cafe.google_review_count} reviews
+            </span>
           </div>
         )}
-      </div>
+      </header>
 
       {/* Score breakdown */}
-      <div className="mb-6">
+      <section className="gs-detail-section">
         <ScoreBreakdown cafe={cafe} />
-      </div>
+      </section>
 
-      {/* Location & Info */}
-      <div className="gs-card p-5 mb-6">
-        <h2 className="text-xs tracking-widest uppercase mb-3 font-semibold" style={{ color: "var(--gs-kraft)" }}>
-          Location & Info
-        </h2>
+      {/* Location & Info — borderless editorial section with horizontal rule. */}
+      <section className="gs-detail-section">
+        <h2 className="gs-detail-heading">Location &amp; Info</h2>
         <div className="space-y-2.5 text-sm" style={{ color: "var(--gs-ink)" }}>
           <div className="flex items-start gap-3">
             <MapPin size={16} weight="regular" className="shrink-0 mt-0.5" style={{ color: "var(--gs-kraft)" }} aria-hidden />
@@ -106,22 +110,20 @@ export default async function CafeDetailPage({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="truncate hover:underline"
-                style={{ color: "var(--gs-accent)" }}
+                style={{ color: "var(--gs-ink)" }}
               >
                 {cafe.website.replace(/^https?:\/\//, "")}
               </a>
             </div>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Hours — explicit Mon→Sun order so the calendar reads naturally. */}
+      {/* Hours */}
       {cafe.hours_json && (
-        <div className="gs-card p-5 mb-6">
-          <h2 className="text-xs tracking-widest uppercase mb-3 font-semibold" style={{ color: "var(--gs-kraft)" }}>
-            Hours
-          </h2>
-          <div className="space-y-1.5 text-sm">
+        <section className="gs-detail-section">
+          <h2 className="gs-detail-heading">Hours</h2>
+          <div className="space-y-1.5 text-sm gs-num">
             {(["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] as const)
               .map(day => {
                 const value = cafe.hours_json?.[day];
@@ -134,41 +136,40 @@ export default async function CafeDetailPage({
                 );
               })}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Actions */}
-      <div className="flex gap-3">
+      <div className="flex gap-3 mt-10">
         <a
           href={googleMapsUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="gs-btn-primary flex-1 justify-center py-3"
+          className="gs-btn-ink flex-1 justify-center"
         >
           <NavigationArrow size={16} weight="fill" aria-hidden />
-          Get Directions
+          Get directions
         </a>
         {cafe.website && (
           <a
             href={cafe.website}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-1 flex items-center justify-center gap-2 rounded-lg border py-3 text-sm font-medium hover:bg-[var(--gs-paper)] transition-colors"
-            style={{ borderColor: "var(--gs-rule)", color: "var(--gs-ink)" }}
+            className="gs-btn-ghost flex-1 justify-center"
           >
             <Globe size={16} weight="regular" aria-hidden />
-            Visit Website
+            Visit website
           </a>
         )}
       </div>
 
-      <p className="text-center text-xs mt-6" style={{ color: "var(--gs-kraft)" }}>
-        Last verified:{" "}
+      <p className="text-center text-xs mt-10" style={{ color: "var(--gs-kraft)" }}>
+        Last verified{" "}
         {new Date(cafe.last_synced_at).toLocaleDateString("en-US", {
           month: "long",
           year: "numeric",
         })}
       </p>
-    </div>
+    </article>
   );
 }
