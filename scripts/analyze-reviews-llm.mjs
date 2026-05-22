@@ -229,6 +229,27 @@ function buildReviewBlock(reviews) {
   return lines.join("\n\n") || "(no reviews available)";
 }
 
+// Google's reviewSummary is Gemini synthesizing ALL reviews on a place, not
+// just the 5 the API returns. Feeding it to the tagger materially widens the
+// evidence base. editorialSummary is sparse but high-quality when present.
+function buildSummaryBlock(cafe) {
+  const parts = [];
+  if (cafe.google_review_summary) {
+    parts.push(
+      "GOOGLE'S AI SYNTHESIS (synthesized from every review on this place):",
+      cafe.google_review_summary,
+    );
+  }
+  if (cafe.google_editorial_summary) {
+    if (parts.length) parts.push("");
+    parts.push(
+      "CURATED DESCRIPTION:",
+      cafe.google_editorial_summary,
+    );
+  }
+  return parts.length ? parts.join("\n") : null;
+}
+
 async function callGeminiWithTool(systemPrompt, userText, tool) {
   const response = await gemini.models.generateContent({
     model: GEMINI_MODEL,
@@ -271,10 +292,12 @@ async function extractAttributes(state) {
     };
   }
 
+  const summaryBlock = buildSummaryBlock(cafe);
   const userText = [
     `Cafe: ${cafe.name}${cafe.neighborhood ? ` (${cafe.neighborhood})` : ""}`,
     "",
-    "REVIEWS:",
+    ...(summaryBlock ? [summaryBlock, ""] : []),
+    "INDIVIDUAL REVIEWS:",
     buildReviewBlock(reviews),
   ].join("\n");
 
@@ -459,7 +482,7 @@ async function main() {
 
   let q = supabase
     .from("cafes")
-    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at")
+    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, google_review_summary, google_editorial_summary")
     .order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
   if (!FORCE_RETAG && !FILTER_CAFE) q = q.is("llm_tagged_at", null);

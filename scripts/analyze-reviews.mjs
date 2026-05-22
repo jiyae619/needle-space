@@ -39,7 +39,12 @@ const env = Object.fromEntries(
     .map(l => { const [k, ...v] = l.split("="); return [k.trim(), v.join("=").trim()]; })
 );
 
-const GOOGLE_KEY = env.GOOGLE_PLACES_API_KEY;
+// Prefer GOOGLE_PLACES_SERVER_KEY for server-side runs — the browser-side
+// key has HTTP referrer restrictions that block Node.js (no Referer header)
+// with 403 API_KEY_HTTP_REFERRER_BLOCKED. Falls back to the browser key when
+// the server key isn't set so this still works in dev environments that
+// haven't split keys yet.
+const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY;
 const supabase   = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
 // ---------------------------------------------------------------------------
@@ -349,7 +354,11 @@ async function fetchGoogleData(placeId) {
       ].join(","),
     },
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`     ⚠️  Places v1 API ${res.status}: ${body.slice(0, 300)}`);
+    return null;
+  }
   const data = await res.json();
 
   const reviewTexts = (data.reviews || []).map(r => r.text?.text || "").filter(Boolean);
@@ -370,6 +379,8 @@ async function fetchGoogleData(placeId) {
   return {
     source: "Google v1 (relevant)",
     rawReviews,
+    reviewSummary,
+    editorialSummary,
     summaryTexts: [reviewSummary, editorialSummary].filter(Boolean),
     structuredSignals,
     rating: data.rating,
@@ -574,17 +585,27 @@ async function main() {
       console.log("     ✏️  (dry-run: not written)\n");
       updated++;
     } else {
+      // Only write the summary columns when we actually fetched them this run —
+      // don't blank out previously-stored values when the API call failed.
+      const updatePayload = {
+        wifi_quality: wifi,
+        outlet_availability: outlets,
+        noise_level: noise,
+        laptop_policy: laptop,
+        seating_availability: seating,
+        productivity_score: score,
+        verified: false,
+      };
+      if (googleResult?.reviewSummary) {
+        updatePayload.google_review_summary = googleResult.reviewSummary;
+      }
+      if (googleResult?.editorialSummary) {
+        updatePayload.google_editorial_summary = googleResult.editorialSummary;
+      }
+
       const { error: updateError } = await supabase
         .from("cafes")
-        .update({
-          wifi_quality: wifi,
-          outlet_availability: outlets,
-          noise_level: noise,
-          laptop_policy: laptop,
-          seating_availability: seating,
-          productivity_score: score,
-          verified: false,
-        })
+        .update(updatePayload)
         .eq("id", cafe.id);
 
       if (updateError) {
