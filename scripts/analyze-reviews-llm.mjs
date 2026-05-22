@@ -152,18 +152,28 @@ const QUOTES_TOOL = {
 
 // System prompt is identical for every cafe — short enough that it fits well
 // inside Gemini Flash's free-tier per-call token budget.
-const SYSTEM_PROMPT_ATTRIBUTES = `You analyze Google reviews of cafes to tag five workspace attributes for a remote-worker discovery app.
+const SYSTEM_PROMPT_ATTRIBUTES = `You analyze evidence about cafes to tag five workspace attributes for a remote-worker discovery app.
 
-For each attribute, choose the value that the reviews collectively support, plus a confidence between 0 and 1.
+EVIDENCE SOURCES (in order of trust)
+1. INDIVIDUAL REVIEWS — verbatim Google reviews from real visitors. Highest trust.
+2. GOOGLE AI SYNTHESIS — Gemini's paragraph summarizing ALL reviews on the place. High trust.
+3. WEB RESEARCH — Reddit threads from r/Seattle, r/Coffee, r/AskSeattle, etc. Useful prose context but secondhand. SUPPLEMENTARY.
+4. STRUCTURED SIGNALS — e.g. "Yelp lists this cafe in free-wifi category." Categorical, not testimony.
 
-GUIDELINES
-- If reviews are silent on an attribute, return value "unknown" with low confidence (~0.3).
-- High confidence (>0.8) only when at least two reviews directly mention the signal.
-- Moderate (0.5–0.8) when one review mentions it explicitly, or several imply it.
+For each attribute, choose the value that the evidence collectively supports, plus a confidence between 0 and 1.
+
+CONFIDENCE GUIDELINES
+- If sources are silent on an attribute, return "unknown" with low confidence (~0.3).
+- High confidence (>0.8) requires at least two INDIVIDUAL REVIEWS or one review + one Reddit snippet directly mentioning the signal.
+- Moderate (0.5–0.8) when one review OR one Reddit snippet mentions it explicitly, or several imply it.
+- **Cap confidence at 0.6 when the only evidence is WEB RESEARCH or STRUCTURED SIGNALS** (no Google review or reviewSummary corroborates).
 - Low (<0.5) when only weak / indirect signals exist.
-- Outcome signals beat direct descriptors. "I worked here for 4 hours" is stronger evidence of laptop_policy=welcome than the literal phrase "laptop friendly".
-- Negative signals override positive ones at equal weight. "Asked to leave after one drink" outweighs two casual "good for studying" mentions.
-- Never invent signals. If the reviews don't say it, it isn't there.
+
+CALIBRATION
+- Outcome signals beat descriptors. "I worked here 4 hours" is stronger for laptop_policy=welcome than "laptop friendly".
+- Negative signals override positive at equal weight.
+- Yelp free-wifi listing CONFIRMS wifi exists (so wifi_quality ≥ slow, never "none"), but says NOTHING about speed.
+- Never invent signals. If no source says it, it isn't there.
 
 ATTRIBUTE DEFINITIONS
 - wifi_quality: fast (strong / fast WiFi mentioned), moderate (works fine, no complaints), slow (buffering, dropouts), none (no WiFi).
@@ -174,12 +184,13 @@ ATTRIBUTE DEFINITIONS
 
 Return all five attributes via the tag_cafe_attributes tool.`;
 
-const SYSTEM_PROMPT_QUOTES = `For each of the five workspace attributes already tagged for this cafe, find ONE short verbatim quote from the reviews that supports the tag. Quotes must:
+const SYSTEM_PROMPT_QUOTES = `For each of the five workspace attributes already tagged for this cafe, find ONE short verbatim quote that supports the tag. Quotes must:
 - be copied verbatim (do not paraphrase)
 - be ≤ 120 characters
-- come from the reviews supplied below
+- come from EITHER the INDIVIDUAL REVIEWS or the WEB RESEARCH snippets supplied below
+- include the source prefix: "[G] " for a Google review, or "[R] " for a Reddit snippet
 
-If no review supports a tag (e.g. the tag was set to "unknown" because reviews were silent), return an empty array for that attribute. Use the record_evidence_quotes tool.`;
+If no source supports a tag (e.g. the tag was set to "unknown"), return an empty array for that attribute. Use the record_evidence_quotes tool.`;
 
 // ---------------------------------------------------------------------------
 // LangGraph state definition
@@ -250,6 +261,49 @@ function buildSummaryBlock(cafe) {
   return parts.length ? parts.join("\n") : null;
 }
 
+// Web research = Tavily snippets from a curated subreddit allow-list
+// (r/Seattle, r/SeattleWA, r/Coffee, r/AskSeattle, r/udub, r/productivity,
+// r/PNWcoffee). Reddit threads discuss WiFi/outlets/laptop-friendliness
+// in prose that Google reviewers skip. Tavily's synthesized answer is
+// included but flagged as secondhand so the LLM weights it appropriately.
+function buildWebResearchBlock(cafe) {
+  const wr = cafe.web_research_snippets;
+  if (!wr) return null;
+  const parts = ["WEB RESEARCH (Reddit, via Tavily — secondhand evidence, supplementary):"];
+  if (wr.answer) {
+    parts.push(`Tavily synthesized answer (paraphrased): ${wr.answer}`);
+  }
+  let total = 0;
+  const lines = [];
+  for (let i = 0; i < (wr.results ?? []).length; i++) {
+    const r = wr.results[i];
+    if (!r?.snippet) continue;
+    const sub = r.subreddit ? `r/${r.subreddit}` : "reddit";
+    const entry = `[R${i + 1} ${sub}] ${r.title ? r.title + " — " : ""}${r.snippet}`;
+    if (total + entry.length > 3000) break;
+    lines.push(entry);
+    total += entry.length;
+  }
+  if (lines.length === 0 && !wr.answer) return null;
+  if (lines.length > 0) parts.push("", ...lines);
+  return parts.join("\n");
+}
+
+// Structured signals = curated categorical facts (Yelp listing membership).
+// These confirm existence, not quality. The LLM is instructed in the
+// system prompt to use yelp_free_wifi as a floor (wifi ≥ slow) without
+// inferring speed from it.
+function buildStructuredSignalsBlock(cafe) {
+  const lines = [];
+  if (cafe.yelp_free_wifi === true) {
+    lines.push("- Yelp lists this cafe in their 'free wifi' category (confirms wifi exists, says nothing about speed).");
+  } else if (cafe.yelp_free_wifi === false) {
+    lines.push("- Yelp does NOT list this cafe under 'free wifi' (suggestive but not conclusive — they may simply not be categorized).");
+  }
+  if (lines.length === 0) return null;
+  return ["STRUCTURED SIGNALS:", ...lines].join("\n");
+}
+
 async function callGeminiWithTool(systemPrompt, userText, tool) {
   const response = await gemini.models.generateContent({
     model: GEMINI_MODEL,
@@ -292,13 +346,18 @@ async function extractAttributes(state) {
     };
   }
 
-  const summaryBlock = buildSummaryBlock(cafe);
+  const summaryBlock     = buildSummaryBlock(cafe);
+  const webResearchBlock = buildWebResearchBlock(cafe);
+  const signalsBlock     = buildStructuredSignalsBlock(cafe);
   const userText = [
     `Cafe: ${cafe.name}${cafe.neighborhood ? ` (${cafe.neighborhood})` : ""}`,
     "",
-    ...(summaryBlock ? [summaryBlock, ""] : []),
     "INDIVIDUAL REVIEWS:",
     buildReviewBlock(reviews),
+    "",
+    ...(summaryBlock     ? [summaryBlock, ""]     : []),
+    ...(webResearchBlock ? [webResearchBlock, ""] : []),
+    ...(signalsBlock     ? [signalsBlock, ""]     : []),
   ].join("\n");
 
   try {
@@ -330,14 +389,16 @@ async function extractEvidenceQuotes(state) {
 
   const tagsSummary = Object.entries(rawAttributes)
     .map(([k, v]) => `- ${k}: ${v?.value} (confidence ${v?.confidence})`).join("\n");
+  const webBlock = buildWebResearchBlock(cafe);
   const userText = [
     `Cafe: ${cafe.name}${cafe.neighborhood ? ` (${cafe.neighborhood})` : ""}`,
     "",
     "TAGS ALREADY ASSIGNED:",
     tagsSummary,
     "",
-    "REVIEWS:",
+    "INDIVIDUAL REVIEWS (quote these with [G] prefix):",
     buildReviewBlock(reviews),
+    ...(webBlock ? ["", "WEB RESEARCH SNIPPETS (quote these with [R] prefix):", webBlock] : []),
   ].join("\n");
 
   try {
@@ -482,7 +543,7 @@ async function main() {
 
   let q = supabase
     .from("cafes")
-    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, google_review_summary, google_editorial_summary")
+    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, google_review_summary, google_editorial_summary, web_research_snippets, yelp_free_wifi")
     .order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
   if (!FORCE_RETAG && !FILTER_CAFE) q = q.is("llm_tagged_at", null);
