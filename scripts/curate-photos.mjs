@@ -48,7 +48,7 @@ const env = Object.fromEntries(
 
 const supabase    = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 const gemini      = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
-const GOOGLE_KEY  = env.GOOGLE_PLACES_API_KEY;
+const GOOGLE_KEY  = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY; // server key first; API_KEY is the browser Maps key (referrer-locked, 403s from Node)
 const BUCKET      = "cafe-photos";
 const VISION_MODEL = "gemini-2.5-flash";
 const MAX_PHOTOS  = 5;        // candidates per cafe (cost-controlled)

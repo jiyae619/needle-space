@@ -41,7 +41,7 @@ const env = Object.fromEntries(
     .map((line) => line.split("=").map((s) => s.trim()))
 );
 
-const GOOGLE_KEY = env.GOOGLE_PLACES_API_KEY;
+const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY; // server key first; API_KEY is the browser Maps key (referrer-locked, 403s from Node)
 const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
 // Use service role key for writes — bypasses RLS, never used client-side
 const SUPABASE_SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
