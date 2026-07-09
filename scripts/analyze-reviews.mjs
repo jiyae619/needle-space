@@ -11,6 +11,10 @@
  *
  * Usage:
  *   node scripts/analyze-reviews.mjs                        ← run all, write to Supabase
+ *   node scripts/analyze-reviews.mjs --new-only            ← ONLY cafes with no stored reviews yet
+ *                                                            (skips the 2 paid Google calls/cafe for
+ *                                                             cafes already fetched — run this after
+ *                                                             fetch-cafes to keep the bill minimal)
  *   node scripts/analyze-reviews.mjs --dry-run              ← preview only, no writes
  *   node scripts/analyze-reviews.mjs --cafe "Victrola"      ← test one cafe by name
  *   node scripts/analyze-reviews.mjs --dry-run --cafe "Elm" ← test + preview
@@ -46,8 +50,26 @@ const supabase   = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVI
 // CLI flags
 // ---------------------------------------------------------------------------
 const DRY_RUN    = process.argv.includes("--dry-run");
+const NEW_ONLY   = process.argv.includes("--new-only");
 const cafeFlag   = process.argv.indexOf("--cafe");
 const FILTER_CAFE = cafeFlag !== -1 ? process.argv[cafeFlag + 1]?.toLowerCase() : null;
+
+// Distinct google_place_ids that already have stored reviews. Paginated so it
+// is correct past PostgREST's 1000-row default (cafe_reviews has ~10 rows/cafe).
+async function placesWithStoredReviews() {
+  const ids = new Set();
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("cafe_reviews")
+      .select("google_place_id")
+      .range(from, from + PAGE - 1);
+    if (error) { console.error("❌ cafe_reviews read:", error.message); process.exit(1); }
+    for (const r of data ?? []) ids.add(r.google_place_id);
+    if (!data || data.length < PAGE) break;
+  }
+  return ids;
+}
 
 // ---------------------------------------------------------------------------
 // ✏️  KEYWORD SCORING ENGINE — edit this to tune signal detection
@@ -468,9 +490,18 @@ async function main() {
     query = query.ilike("name", `%${FILTER_CAFE}%`);
   }
 
-  const { data: cafes, error } = await query;
+  const { data: loadedCafes, error } = await query;
   if (error) { console.error("❌ Supabase error:", error.message); process.exit(1); }
-  if (cafes.length === 0) { console.log("No cafes found matching that filter."); return; }
+  if (loadedCafes.length === 0) { console.log("No cafes found matching that filter."); return; }
+
+  let cafes = loadedCafes;
+  if (NEW_ONLY) {
+    const have = await placesWithStoredReviews();
+    const before = cafes.length;
+    cafes = cafes.filter(c => !have.has(c.google_place_id));
+    console.log(`   --new-only: ${before - cafes.length} cafes already have stored reviews (skipped, no Google calls), ${cafes.length} to fetch.`);
+    if (cafes.length === 0) { console.log("\nNothing new to analyze. Done."); return; }
+  }
 
   console.log(`📋 Analyzing ${cafes.length} cafe${cafes.length > 1 ? "s" : ""}...\n`);
 

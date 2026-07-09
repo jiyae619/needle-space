@@ -19,8 +19,8 @@
  *   node scripts/fetch-cafes.mjs              # insert new cafes
  *
  * New cafes start untagged (score null). To tag + score them afterwards:
- *   node scripts/analyze-reviews.mjs          # fetch Google reviews → cafe_reviews + regex baseline
- *   npm run pipeline                          # research → LLM tag → vision → finalize (skips existing)
+ *   node scripts/analyze-reviews.mjs --new-only  # reviews → cafe_reviews (only the new cafes; minimal Google spend)
+ *   npm run pipeline                             # research → LLM tag → vision → finalize (skips existing)
  *
  * Requirements:
  *   - .env.local: GOOGLE_PLACES_API_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -266,8 +266,8 @@ async function main() {
 
   console.log(`\n🎉 Inserted ${inserted} new cafes (existing rows untouched).`);
   console.log("   They start untagged (score null). To tag + score them:");
-  console.log("   1) node scripts/analyze-reviews.mjs   # Google reviews → cafe_reviews + regex baseline");
-  console.log("   2) npm run pipeline                    # research → LLM tag → vision → finalize");
+  console.log("   1) node scripts/analyze-reviews.mjs --new-only   # reviews for the new cafes only (minimal Google spend)");
+  console.log("   2) npm run pipeline                              # research → LLM tag → vision → finalize");
 }
 
 main().catch(console.error);
