@@ -1,15 +1,29 @@
 /**
- * Needle Space — Google Places Batch Script
+ * Needle Space — Google Places seed / coverage fetch (INSERT-ONLY).
  *
- * Pulls cafe data from Google Places API and upserts into Supabase.
- * Run once to seed, then monthly to refresh.
+ * Adds NEW cafes to Supabase from the Google Places API. It NEVER updates
+ * existing rows — enriched columns (productivity_score, *_llm tags, embeddings,
+ * verified, cached photo_url) are left untouched. Safe to re-run.
+ *
+ * Coverage: Google's searchNearby returns AT MOST 20 results per call (hard cap
+ * — you cannot ask for 50). To get well past 20 per neighborhood we tile each
+ * area into a grid of smaller searches (SEARCH_RADIUS_M / GRID_OFFSETS) and
+ * dedupe by place id.
+ *
+ * ⚠️ Uses the PAID Google Places API. The script prints an estimated cost;
+ * run --plan first to see the plan and spend nothing.
  *
  * Usage:
- *   node scripts/fetch-cafes.mjs
+ *   node scripts/fetch-cafes.mjs --plan       # print search count + cost estimate, NO API calls
+ *   node scripts/fetch-cafes.mjs --dry-run    # run the searches, list NEW cafes, no DB writes
+ *   node scripts/fetch-cafes.mjs              # insert new cafes
+ *
+ * New cafes start untagged (score null). To tag + score them afterwards:
+ *   node scripts/analyze-reviews.mjs          # fetch Google reviews → cafe_reviews + regex baseline
+ *   npm run pipeline                          # research → LLM tag → vision → finalize (skips existing)
  *
  * Requirements:
- *   - .env.local must have GOOGLE_PLACES_API_KEY and NEXT_PUBLIC_SUPABASE_* set
- *   - Run: npm install @supabase/supabase-js dotenv (already installed)
+ *   - .env.local: GOOGLE_PLACES_API_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -38,6 +52,10 @@ if (!GOOGLE_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
+const argv = process.argv.slice(2);
+const DRY_RUN = argv.includes("--dry-run");
+const PLAN    = argv.includes("--plan");
+
 // Search areas covering Seattle + Eastside
 const SEARCH_AREAS = [
   { name: "Downtown Seattle", lat: 47.6062, lng: -122.3321 },
@@ -56,6 +74,21 @@ const SEARCH_AREAS = [
   { name: "Redmond", lat: 47.6740, lng: -122.1215 },
   { name: "Kirkland", lat: 47.6815, lng: -122.2087 },
 ];
+
+// Google's searchNearby returns AT MOST 20 results per call. To cover a dense
+// neighborhood we tile it into a grid of smaller searches and dedupe by place
+// id — that's how we get well past 20 cafes per area. Set GRID_OFFSETS to [0]
+// to reproduce the original single-search-per-area behaviour.
+const SEARCH_RADIUS_M = 900;                  // per sub-search (was a single 1500m circle)
+const GRID_OFFSETS    = [-0.009, 0, 0.009];   // 3×3 grid (~1km spacing) around each area centre
+
+function subPoints(area) {
+  const pts = [];
+  for (const dLat of GRID_OFFSETS)
+    for (const dLng of GRID_OFFSETS)
+      pts.push({ lat: area.lat + dLat, lng: area.lng + dLng });
+  return pts;
+}
 
 // Keyword scan — if any of these appear in reviews/name, cafe is likely laptop-friendly
 const LAPTOP_FRIENDLY_KEYWORDS = [
@@ -78,7 +111,7 @@ async function searchNearby(lat, lng, areaName) {
     locationRestriction: {
       circle: {
         center: { latitude: lat, longitude: lng },
-        radius: 1500, // 1.5km radius per area
+        radius: SEARCH_RADIUS_M,
       },
     },
   };
@@ -175,50 +208,66 @@ async function processCafe(place, areaName) {
 }
 
 async function main() {
-  console.log("🚀 Needle Space — Cafe Data Fetch\n");
-  console.log(`📍 Searching ${SEARCH_AREAS.length} areas...\n`);
+  console.log("🚀 Needle Space — Cafe fetch (insert-only)\n");
 
-  const allCafes = new Map(); // deduplicate by place_id
+  const searchesPerArea = GRID_OFFSETS.length ** 2;
+  const totalSearches = SEARCH_AREAS.length * searchesPerArea;
+  const estCost = (totalSearches * 0.04).toFixed(2); // ~$0.04/searchNearby (rough)
+  console.log(`📍 ${SEARCH_AREAS.length} areas × ${searchesPerArea} sub-searches = ${totalSearches} Places calls @ ${SEARCH_RADIUS_M}m radius`);
+  console.log(`   Est. Google Places cost ~$${estCost} (rough)`);
+  console.log(`   Mode: ${PLAN ? "PLAN — no API calls" : DRY_RUN ? "DRY RUN — searches, no DB writes" : "LIVE — insert new cafes"}\n`);
+  if (PLAN) { console.log("(--plan: nothing was searched or written.)"); return; }
 
+  // --- search every sub-point, dedupe by place id ---
+  const allCafes = new Map(); // key: google_place_id
   for (const area of SEARCH_AREAS) {
-    process.stdout.write(`  Searching ${area.name}... `);
-    const places = await searchNearby(area.lat, area.lng, area.name);
-
-    for (const place of places) {
-      if (!allCafes.has(place.id)) {
-        const cafe = await processCafe(place, area.name);
-        allCafes.set(place.id, cafe);
+    const before = allCafes.size;
+    process.stdout.write(`  ${area.name}... `);
+    for (const pt of subPoints(area)) {
+      const places = await searchNearby(pt.lat, pt.lng, area.name);
+      for (const place of places) {
+        if (!allCafes.has(place.id)) allCafes.set(place.id, await processCafe(place, area.name));
       }
+      await new Promise((r) => setTimeout(r, 100)); // pace the paid API
     }
+    console.log(`${allCafes.size - before} new unique (running total ${allCafes.size})`);
+  }
+  console.log(`\n✅ ${allCafes.size} unique cafes found across all areas`);
 
-    console.log(`${places.length} cafes found`);
+  // --- insert-only: drop anything already in the DB; never update existing ---
+  const existing = new Set();
+  const { data: existingRows, error: exErr } = await supabase.from("cafes").select("google_place_id");
+  if (exErr) { console.error("❌ couldn't read existing cafes:", exErr.message); process.exit(1); }
+  for (const r of existingRows ?? []) existing.add(r.google_place_id);
 
-    // Rate limit: 100ms between requests to be safe
-    await new Promise((r) => setTimeout(r, 100));
+  const newCafes = [...allCafes.values()].filter((c) => !existing.has(c.google_place_id));
+  console.log(`   ${existing.size} already in DB · ${newCafes.length} NEW to add\n`);
+
+  if (newCafes.length === 0) { console.log("Nothing new to insert. Done."); return; }
+
+  if (DRY_RUN) {
+    console.log("New cafes that WOULD be inserted (dry-run):");
+    newCafes.forEach((c) => console.log(`   + ${c.name} — ${c.neighborhood}`));
+    console.log(`\n(dry-run: ${newCafes.length} not written)`);
+    return;
   }
 
-  console.log(`\n✅ Total unique cafes: ${allCafes.size}`);
-  console.log("📤 Upserting to Supabase...\n");
-
-  const cafes = Array.from(allCafes.values());
+  // ignoreDuplicates → ON CONFLICT DO NOTHING: existing rows are never modified.
   const BATCH_SIZE = 50;
-
-  for (let i = 0; i < cafes.length; i += BATCH_SIZE) {
-    const batch = cafes.slice(i, i + BATCH_SIZE);
+  let inserted = 0;
+  for (let i = 0; i < newCafes.length; i += BATCH_SIZE) {
+    const batch = newCafes.slice(i, i + BATCH_SIZE);
     const { error } = await supabase
       .from("cafes")
-      .upsert(batch, { onConflict: "google_place_id" });
-
-    if (error) {
-      console.error(`  ❌ Supabase error on batch ${i / BATCH_SIZE + 1}:`, error.message);
-    } else {
-      console.log(`  ✓ Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batch.length} cafes saved`);
-    }
+      .upsert(batch, { onConflict: "google_place_id", ignoreDuplicates: true });
+    if (error) console.error(`  ❌ batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`);
+    else { inserted += batch.length; console.log(`  ✓ inserted ${batch.length}`); }
   }
 
-  console.log("\n🎉 Done! Your cafe database is ready.");
-  console.log("   Next step: manually verify and enrich your top cafes in Supabase.");
-  console.log("   Dashboard: https://supabase.com/dashboard");
+  console.log(`\n🎉 Inserted ${inserted} new cafes (existing rows untouched).`);
+  console.log("   They start untagged (score null). To tag + score them:");
+  console.log("   1) node scripts/analyze-reviews.mjs   # Google reviews → cafe_reviews + regex baseline");
+  console.log("   2) npm run pipeline                    # research → LLM tag → vision → finalize");
 }
 
 main().catch(console.error);
