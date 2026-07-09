@@ -9,26 +9,28 @@
  * re-running the whole pipeline is cheap and safe.
  *
  * Order (each stage feeds the next):
- *   1. research-cafes         Reddit/Yelp evidence  → web_research_snippets, yelp_free_wifi
- *   2. analyze-reviews-llm     text tags + embedding → *_llm, tagging_confidence, cafe_embedding
- *   3. visual-tag-cafes        fill gaps from photos → *_llm (outlets/seating/laptop)
- *   4. recompute-merged-scores Strategy-C score      → productivity_score
+ *   1. research-cafes      Reddit/Yelp evidence  → web_research_snippets, yelp_free_wifi
+ *   2. analyze-reviews-llm  text tags + embedding → *_llm, tagging_confidence, cafe_embedding
+ *   3. visual-tag-cafes     fill gaps from photos → *_llm (outlets/seating/laptop)
+ *   4. finalize-cafes       re-embed + re-score from the MERGED tags
+ *                            → cafe_embedding, productivity_score, finalized_at
+ *
+ * Stage 4 (finalize) closes the gap where stage 3 changes tags after stage 2 built
+ * the embedding: it rebuilds the embedding + score from the final merged tags for
+ * cafes that changed since their last finalize. (scripts/recompute-merged-scores.mjs
+ * still exists standalone for the human-readable SCORE-UPDATE.md report.)
  *
  * Flags are forwarded to every stage (each ignores the ones it doesn't use):
  *   --dry-run              preview; no writes anywhere
- *   --limit N              cap stages 1–3 to N cafes (stage 4 always scores all)
- *   --cafe "Name"          single-cafe run through stages 1–3
+ *   --limit N              cap each stage to N cafes
+ *   --cafe "Name"          single-cafe run
  *   --force                re-do work even if freshness markers say to skip
- *   --delay-ms N           pacing for stage 2 (default paces for the Voyage free tier)
+ *                          (bumps llm_tagged_at, so finalize refreshes those too)
+ *   --delay-ms N           pacing for stages 2 & 4 (default paces for the Voyage free tier)
  *
  * Orchestrator-only flags (NOT forwarded to stages):
  *   --plan                 print the ordered plan and exit without running anything
  *   --continue-on-error    keep going if a stage fails (default: stop at the failure)
- *
- * KNOWN GAP (finding #9): stage 3 fills tags from photos AFTER stage 2 built the
- * embedding, so cafe_embedding does not yet reflect vision fills. A dedicated
- * finalize stage (re-embed + re-score, gated by a finalized_at marker) is the
- * next step; until then semantic search ranks on the text-only tag summary.
  *
  * Usage:
  *   node scripts/run-pipeline.mjs --plan
@@ -45,10 +47,10 @@ const CONTINUE  = argv.includes("--continue-on-error");
 const forwarded = argv.filter(a => !ORCHESTRATOR_FLAGS.has(a));
 
 const STAGES = [
-  { key: "research", label: "1/4  Web research (Reddit + Yelp)", script: "scripts/research-cafes.mjs" },
-  { key: "tag",      label: "2/4  Review tagging + embedding",   script: "scripts/analyze-reviews-llm.mjs" },
-  { key: "vision",   label: "3/4  Vision gap-fill",              script: "scripts/visual-tag-cafes.mjs" },
-  { key: "score",    label: "4/4  Score recompute",              script: "scripts/recompute-merged-scores.mjs" },
+  { key: "research", label: "1/4  Web research (Reddit + Yelp)",    script: "scripts/research-cafes.mjs" },
+  { key: "tag",      label: "2/4  Review tagging + embedding",      script: "scripts/analyze-reviews-llm.mjs" },
+  { key: "vision",   label: "3/4  Vision gap-fill",                 script: "scripts/visual-tag-cafes.mjs" },
+  { key: "finalize", label: "4/4  Finalize (re-embed + re-score)",  script: "scripts/finalize-cafes.mjs" },
 ];
 
 console.log("🚚 Needle Space — pipeline orchestrator");

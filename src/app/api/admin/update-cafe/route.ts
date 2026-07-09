@@ -22,6 +22,18 @@ const EDITABLE_FIELDS = new Set([
   "verified",
 ]);
 
+// The attribute fields whose value feeds the embedding + productivity score.
+// Editing any of them invalidates cafes.finalized_at (below) so the finalize
+// pipeline stage re-embeds + re-scores this cafe on its next run. Editing only
+// `verified` does not, since that doesn't affect the embedding or score.
+const ATTR_FIELDS = new Set([
+  "wifi_quality_llm",
+  "outlet_availability_llm",
+  "noise_level_llm",
+  "laptop_policy_llm",
+  "seating_availability_llm",
+]);
+
 export async function POST(req: Request) {
   let body: { id?: string; updates?: Record<string, unknown> };
   try { body = await req.json(); }
@@ -34,6 +46,12 @@ export async function POST(req: Request) {
   );
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "no editable fields" }, { status: 400 });
+  }
+
+  // If an attribute (not just `verified`) changed, invalidate the finalize
+  // bookmark so scripts/finalize-cafes.mjs rebuilds this cafe's embedding + score.
+  if (Object.keys(updates).some((k) => ATTR_FIELDS.has(k))) {
+    updates.finalized_at = null;
   }
 
   const { data, error } = await supabase
