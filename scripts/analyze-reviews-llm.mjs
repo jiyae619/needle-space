@@ -11,10 +11,17 @@
  * 500-cafe backfill if paced. Pass --mock to skip Gemini and use Day-2
  * hardcoded JSON for offline graph debugging.
  *
+ * v2 (web research): extractAttributes now also reads two evidence columns
+ * off the cafe row — web_research_snippets (Reddit threads via Tavily) and
+ * yelp_free_wifi (Yelp free-WiFi listing boolean), both populated by
+ * scripts/research-cafes.mjs. Google reviewers rarely grade WiFi/outlets;
+ * these sources do. Apply the v2 migrations + run research-cafes.mjs first,
+ * else the columns are null and the tagger falls back to reviews only.
+ *
  * Topology:
  *   START
  *     → fetchReviewCorpus       (Supabase: cafe_reviews + reviewSummary fallback)
- *     → extractAttributes       (LLM mock: 5 enums + per-attr confidence)
+ *     → extractAttributes       (LLM mock: 5 enums + confidence; sees reviews + v2 web research)
  *     → extractEvidenceQuotes   (LLM mock: 1-2 short quotes per attr)
  *     → validate                (Zod + confidence >= 0.5)
  *         ├─ ok       → embedCafe → writeToSupabase → END
@@ -163,7 +170,13 @@ GUIDELINES
 - Low (<0.5) when only weak / indirect signals exist.
 - Outcome signals beat direct descriptors. "I worked here for 4 hours" is stronger evidence of laptop_policy=welcome than the literal phrase "laptop friendly".
 - Negative signals override positive ones at equal weight. "Asked to leave after one drink" outweighs two casual "good for studying" mentions.
-- Never invent signals. If the reviews don't say it, it isn't there.
+- Never invent signals. If no source says it, it isn't there.
+
+EVIDENCE SOURCES
+- REVIEWS come from Google. You may also get a WEB RESEARCH block: Reddit threads where locals discuss working from Seattle cafes, plus a Yelp free-WiFi signal.
+- Reddit "best cafes to work from" mentions are strong signals for laptop_policy and seating, and are often the ONLY source for wifi_quality and outlet_availability — Google reviewers rarely grade WiFi or outlets, but Reddit threads do.
+- A Yelp free-WiFi listing means WiFi is present, so wifi_quality is not "none"; it does NOT reveal speed. Prefer "moderate" at modest confidence (~0.55) unless a source indicates fast or slow.
+- Weigh all sources together under the confidence rules above. The same bar applies: still never invent signals absent from every source.
 
 ATTRIBUTE DEFINITIONS
 - wifi_quality: fast (strong / fast WiFi mentioned), moderate (works fine, no complaints), slow (buffering, dropouts), none (no WiFi).
@@ -229,6 +242,37 @@ function buildReviewBlock(reviews) {
   return lines.join("\n\n") || "(no reviews available)";
 }
 
+// Formats the v2 web-research evidence collected by scripts/research-cafes.mjs
+// (web_research_snippets JSONB + yelp_free_wifi boolean, both columns on the
+// cafe row) into a prompt block. Returns an explicit "none yet" note when a
+// cafe hasn't been researched, so the model reads absence as missing data —
+// not as a negative signal.
+function buildWebBlock(cafe) {
+  const lines = [];
+
+  if (cafe?.yelp_free_wifi === true) {
+    lines.push('- Yelp lists this cafe under a "free WiFi" category → WiFi is present on-site (confirms WiFi exists; says nothing about speed).');
+  }
+
+  const snippets = cafe?.web_research_snippets;
+  if (snippets?.answer) {
+    lines.push(`- Web summary: ${snippets.answer.trim().slice(0, 500)}`);
+  }
+  // Cap reddit snippets at ~3K chars to keep per-call cost bounded, same
+  // spirit as buildReviewBlock's 6K review cap.
+  let total = 0;
+  for (const r of snippets?.results ?? []) {
+    const snip = (r?.snippet || "").trim();
+    if (!snip) continue;
+    if (total + snip.length > 3000) break;
+    lines.push(`- [r/${r.subreddit}] "${snip}"`);
+    total += snip.length;
+  }
+
+  if (lines.length === 0) return "WEB RESEARCH:\n(no usable web-research signal for this cafe)";
+  return "WEB RESEARCH (Reddit threads + Yelp signal — evidence beyond Google reviews):\n" + lines.join("\n");
+}
+
 async function callGeminiWithTool(systemPrompt, userText, tool) {
   const response = await gemini.models.generateContent({
     model: GEMINI_MODEL,
@@ -276,6 +320,8 @@ async function extractAttributes(state) {
     "",
     "REVIEWS:",
     buildReviewBlock(reviews),
+    "",
+    buildWebBlock(cafe),
   ].join("\n");
 
   try {
@@ -459,7 +505,7 @@ async function main() {
 
   let q = supabase
     .from("cafes")
-    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at")
+    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, web_research_snippets, yelp_free_wifi")
     .order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
   if (!FORCE_RETAG && !FILTER_CAFE) q = q.is("llm_tagged_at", null);
