@@ -175,17 +175,21 @@ async function main() {
     .select("id, name, neighborhood, web_research_at")
     .order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
-  if (LIMIT) q = q.limit(LIMIT);
+  // NOTE: LIMIT is applied AFTER the staleness filter below, not here. Applying
+  // it at the query level would take the first N cafes alphabetically and then
+  // drop the fresh ones — so `--limit 5` could research 0 cafes and always the
+  // same alphabetical head.
 
   const { data: cafes, error } = await q;
   if (error) { console.error("❌", error.message); process.exit(1); }
   if (!cafes?.length) { console.log("No cafes match."); return; }
 
   const now = Date.now();
-  const targets = FORCE
+  let targets = FORCE
     ? cafes
     : cafes.filter(c => !c.web_research_at || (now - new Date(c.web_research_at).getTime()) > STALE_MS);
   const skipped = cafes.length - targets.length;
+  if (LIMIT) targets = targets.slice(0, LIMIT);  // cap AFTER staleness → N cafes that actually need research
   console.log(`📋 ${targets.length} cafe${targets.length > 1 ? "s" : ""} to research` +
               (skipped > 0 ? ` (${skipped} skipped — fresh within ${STALE_DAYS} days)` : "") +
               "\n");
