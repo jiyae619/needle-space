@@ -1,0 +1,66 @@
+name: Monthly data pipeline
+
+# Refreshes the cafe dataset on a schedule so it doesn't go stale between manual
+# runs. Runs scripts/run-pipeline.mjs (research → tag → vision → score) on the
+# GitHub Actions free tier. Costs stay on free tiers — Tavily, Gemini, Voyage —
+# and NO Google Places API is touched (photos come from the cached photo_url),
+# so this cannot repeat the Google Maps billing incident.
+
+on:
+  schedule:
+    # 09:00 UTC on the 1st of every month (~1–2am Pacific, low-traffic).
+    - cron: "0 9 1 * *"
+  workflow_dispatch:
+    inputs:
+      args:
+        description: 'Extra pipeline args, e.g. "--force" for a full re-tag, or "--limit 5" to smoke-test'
+        required: false
+        default: ""
+
+# Never let two pipeline runs write to the DB at once.
+concurrency:
+  group: data-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Recreate .env.local from repo secrets — the scripts read keys from this
+      # file. Values come in via env (masked in logs), not inline interpolation.
+      - name: Write .env.local from secrets
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: |
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
+            echo "VOYAGE_API_KEY=$VOYAGE_API_KEY"
+            echo "GEMINI_API_KEY=$GEMINI_API_KEY"
+            echo "TAVILY_API_KEY=$TAVILY_API_KEY"
+          } > .env.local
+
+      # Scheduled runs get no extra args → incremental & safe-paced: research
+      # refreshes on its 30-day cadence, only NEW cafes get tagged, scores
+      # recompute. A full re-tag is an explicit manual dispatch with --force.
+      - name: Run pipeline
+        env:
+          EXTRA_ARGS: ${{ github.event.inputs.args }}
+        run: npm run pipeline -- $EXTRA_ARGS
