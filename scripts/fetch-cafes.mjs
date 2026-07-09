@@ -6,9 +6,10 @@
  * verified, cached photo_url) are left untouched. Safe to re-run.
  *
  * Coverage: Google's searchNearby returns AT MOST 20 results per call (hard cap
- * — you cannot ask for 50). To get well past 20 per neighborhood we tile each
- * area into a grid of smaller searches (SEARCH_RADIUS_M / GRID_OFFSETS) and
- * dedupe by place id.
+ * — you cannot ask for 50). To get past 20 per neighborhood we tile each area
+ * into a grid of smaller searches and dedupe by place id. Each area carries a
+ * tier (dense=3×3, medium=2×2, light=single search) so searches concentrate
+ * where cafes are actually dense — see SEARCH_AREAS / GRID_BY_TIER.
  *
  * ⚠️ Uses the PAID Google Places API. The script prints an estimated cost;
  * run --plan first to see the plan and spend nothing.
@@ -58,34 +59,48 @@ const PLAN    = argv.includes("--plan");
 
 // Search areas covering Seattle + Eastside
 const SEARCH_AREAS = [
-  { name: "Downtown Seattle", lat: 47.6062, lng: -122.3321 },
-  { name: "Capitol Hill", lat: 47.6254, lng: -122.3222 },
-  { name: "Fremont", lat: 47.6509, lng: -122.3502 },
-  { name: "Ballard", lat: 47.6677, lng: -122.3836 },
-  { name: "University District", lat: 47.6588, lng: -122.3143 },
-  { name: "Pioneer Square", lat: 47.5997, lng: -122.3321 },
-  { name: "South Lake Union", lat: 47.6254, lng: -122.3381 },
-  { name: "Queen Anne", lat: 47.6356, lng: -122.3568 },
-  { name: "Columbia City", lat: 47.5593, lng: -122.2892 },
-  { name: "Central District", lat: 47.6072, lng: -122.3009 },
-  { name: "Greenwood", lat: 47.6879, lng: -122.3545 },
-  { name: "West Seattle", lat: 47.5622, lng: -122.3859 },
-  { name: "Bellevue", lat: 47.6101, lng: -122.2015 },
-  { name: "Redmond", lat: 47.6740, lng: -122.1215 },
-  { name: "Kirkland", lat: 47.6815, lng: -122.2087 },
+  // Dense (3×3 grid) — cafe-saturated cores that blow past the 20-per-search cap.
+  { name: "Downtown Seattle", lat: 47.6062, lng: -122.3321, tier: "dense" },
+  { name: "Capitol Hill",     lat: 47.6254, lng: -122.3222, tier: "dense" },
+  // Medium (2×2 grid) — strong secondary coffee neighborhoods.
+  { name: "Ballard",          lat: 47.6677, lng: -122.3836, tier: "medium" },
+  { name: "Fremont",          lat: 47.6509, lng: -122.3502, tier: "medium" },
+  { name: "South Lake Union", lat: 47.6254, lng: -122.3381, tier: "medium" },
+  { name: "Bellevue",         lat: 47.6101, lng: -122.2015, tier: "medium" },
+  { name: "Belltown",         lat: 47.6140, lng: -122.3460, tier: "medium" },
+  // Light (single search) — moderate density, or already flanked by other areas.
+  { name: "University District", lat: 47.6588, lng: -122.3143, tier: "light" },
+  { name: "Pioneer Square",      lat: 47.5997, lng: -122.3321, tier: "light" },
+  { name: "Queen Anne",          lat: 47.6356, lng: -122.3568, tier: "light" },
+  { name: "Columbia City",       lat: 47.5593, lng: -122.2892, tier: "light" },
+  { name: "Central District",    lat: 47.6072, lng: -122.3009, tier: "light" },
+  { name: "Greenwood",           lat: 47.6879, lng: -122.3545, tier: "light" },
+  { name: "West Seattle",        lat: 47.5622, lng: -122.3859, tier: "light" },
+  { name: "Wallingford",         lat: 47.6615, lng: -122.3341, tier: "light" },
+  { name: "Redmond",             lat: 47.6740, lng: -122.1215, tier: "light" },
+  { name: "Kirkland",            lat: 47.6815, lng: -122.2087, tier: "light" },
 ];
 
 // Google's searchNearby returns AT MOST 20 results per call. To cover a dense
 // neighborhood we tile it into a grid of smaller searches and dedupe by place
-// id — that's how we get well past 20 cafes per area. Set GRID_OFFSETS to [0]
-// to reproduce the original single-search-per-area behaviour.
-const SEARCH_RADIUS_M = 900;                  // per sub-search (was a single 1500m circle)
-const GRID_OFFSETS    = [-0.009, 0, 0.009];   // 3×3 grid (~1km spacing) around each area centre
+// id. Tiling only pays off where density > 20/search, so each area's `tier`
+// picks the grid: dense cores get 3×3, secondary areas 2×2, sparse areas a
+// single search (extra searches there would just re-scan the same <20 cafes).
+const SEARCH_RADIUS_M = 900;   // per sub-search (was a single 1500m circle)
+const GRID_BY_TIER = {
+  dense:  [-0.009, 0, 0.009],  // 3×3 = 9 searches (~1km spacing)
+  medium: [-0.006, 0.006],     // 2×2 = 4 searches
+  light:  [0],                 // 1 search
+};
 
+function offsetsFor(area) {
+  return GRID_BY_TIER[area.tier] ?? GRID_BY_TIER.medium;
+}
 function subPoints(area) {
+  const offs = offsetsFor(area);
   const pts = [];
-  for (const dLat of GRID_OFFSETS)
-    for (const dLng of GRID_OFFSETS)
+  for (const dLat of offs)
+    for (const dLng of offs)
       pts.push({ lat: area.lat + dLat, lng: area.lng + dLng });
   return pts;
 }
@@ -210,10 +225,11 @@ async function processCafe(place, areaName) {
 async function main() {
   console.log("🚀 Needle Space — Cafe fetch (insert-only)\n");
 
-  const searchesPerArea = GRID_OFFSETS.length ** 2;
-  const totalSearches = SEARCH_AREAS.length * searchesPerArea;
+  const tierCount = { dense: 0, medium: 0, light: 0 };
+  for (const a of SEARCH_AREAS) tierCount[a.tier ?? "medium"]++;
+  const totalSearches = SEARCH_AREAS.reduce((n, a) => n + offsetsFor(a).length ** 2, 0);
   const estCost = (totalSearches * 0.04).toFixed(2); // ~$0.04/searchNearby (rough)
-  console.log(`📍 ${SEARCH_AREAS.length} areas × ${searchesPerArea} sub-searches = ${totalSearches} Places calls @ ${SEARCH_RADIUS_M}m radius`);
+  console.log(`📍 ${SEARCH_AREAS.length} areas (${tierCount.dense} dense·9 + ${tierCount.medium} medium·4 + ${tierCount.light} light·1) = ${totalSearches} Places calls @ ${SEARCH_RADIUS_M}m radius`);
   console.log(`   Est. Google Places cost ~$${estCost} (rough)`);
   console.log(`   Mode: ${PLAN ? "PLAN — no API calls" : DRY_RUN ? "DRY RUN — searches, no DB writes" : "LIVE — insert new cafes"}\n`);
   if (PLAN) { console.log("(--plan: nothing was searched or written.)"); return; }
@@ -222,7 +238,7 @@ async function main() {
   const allCafes = new Map(); // key: google_place_id
   for (const area of SEARCH_AREAS) {
     const before = allCafes.size;
-    process.stdout.write(`  ${area.name}... `);
+    process.stdout.write(`  ${area.name} [${area.tier ?? "medium"}]... `);
     for (const pt of subPoints(area)) {
       const places = await searchNearby(pt.lat, pt.lng, area.name);
       for (const place of places) {
