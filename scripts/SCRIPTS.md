@@ -11,6 +11,7 @@ This directory contains three scripts for building and maintaining Needle Space'
 | `fetch-cafes.mjs` | Pulls cafe listings from Google Places API | Yes |
 | `analyze-reviews.mjs` | Tags each cafe with workspace attributes | Yes (unless `--dry-run`) |
 | `discover-keywords.mjs` | Surfaces new phrases to improve the tagger | Never — read-only |
+| `evaluate-retrieval.mjs` | Scores NL search quality against `golden-queries.json` (Recall@k, MRR) | Never — read-only |
 
 ---
 

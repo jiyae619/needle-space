@@ -1,0 +1,21 @@
+# Runs the unit test suite + linter on every push and PR.
+# No secrets needed — tests are pure-logic (no Supabase / Voyage calls).
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # `npm run lint` currently fails on 4 pre-existing errors in
+      # layout.tsx / FilterChip.tsx / MapView.tsx — add it here once fixed.
