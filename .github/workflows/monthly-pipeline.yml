@@ -5,6 +5,8 @@ name: Monthly data pipeline
 # GitHub Actions free tier. Costs stay on free tiers — Tavily, Gemini, Voyage —
 # and NO Google Places API is touched (photos come from the cached photo_url),
 # so this cannot repeat the Google Maps billing incident.
+#
+# The run then gates on tagging quality — see the "Quality gate" step below.
 
 on:
   schedule:
@@ -39,28 +41,41 @@ jobs:
 
       - run: npm ci
 
-      # Recreate .env.local from repo secrets — the scripts read keys from this
-      # file. Values come in via env (masked in logs), not inline interpolation.
-      - name: Write .env.local from secrets
+      # Scheduled runs get no extra args → incremental & safe-paced: research
+      # refreshes on its 30-day cadence, only NEW cafes get tagged, scores
+      # recompute. A full re-tag is an explicit manual dispatch with --force.
+      #
+      # Secrets arrive as environment variables. The scripts read process.env
+      # first and fall back to .env.local, so nothing has to be written to disk
+      # on the runner.
+      - name: Run pipeline
         env:
+          EXTRA_ARGS: ${{ github.event.inputs.args }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-        run: |
-          {
-            echo "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL"
-            echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
-            echo "VOYAGE_API_KEY=$VOYAGE_API_KEY"
-            echo "GEMINI_API_KEY=$GEMINI_API_KEY"
-            echo "TAVILY_API_KEY=$TAVILY_API_KEY"
-          } > .env.local
-
-      # Scheduled runs get no extra args → incremental & safe-paced: research
-      # refreshes on its 30-day cadence, only NEW cafes get tagged, scores
-      # recompute. A full re-tag is an explicit manual dispatch with --force.
-      - name: Run pipeline
-        env:
-          EXTRA_ARGS: ${{ github.event.inputs.args }}
         run: npm run pipeline -- $EXTRA_ARGS
+
+      # Did this run leave the tagging worse than the last run you approved?
+      # Prints the per-attribute table, then fails the job if coverage or
+      # evidence dropped — so a quality regression emails you instead of
+      # sitting in the database unnoticed.
+      #
+      # Tolerance is 5 points rather than the script's 2-point default: every
+      # run also adds new cafes, and a batch of thin-review ones can move a
+      # rate a couple of points without the tagger itself getting worse.
+      # Tighten it once a few runs show how much the numbers normally drift.
+      #
+      # The baseline does NOT update itself. After a run you're happy with:
+      #   node scripts/quality-metrics.mjs --write-baseline docs/quality-baseline.json
+      # then commit it. That is the ratchet — the bar moves only when you say so.
+      - name: Quality gate
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node scripts/quality-metrics.mjs \
+            --baseline docs/quality-baseline.json \
+            --tolerance 0.05
