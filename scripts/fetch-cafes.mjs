@@ -28,18 +28,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "fs";
-import { resolve } from "path";
-
-// Load env from .env.local manually (dotenv alternative)
-const envPath = resolve(process.cwd(), ".env.local");
-const envContent = readFileSync(envPath, "utf-8");
-const env = Object.fromEntries(
-  envContent
-    .split("\n")
-    .filter((line) => line.trim() && !line.startsWith("#"))
-    .map((line) => line.split("=").map((s) => s.trim()))
-);
+import { env } from "./_env.mjs";
 
 const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY; // server key first; API_KEY is the browser Maps key (referrer-locked, 403s from Node)
 const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
