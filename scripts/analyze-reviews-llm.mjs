@@ -455,7 +455,10 @@ async function failValidation(state) {
 
 async function embedCafe(state) {
   const { cafe, validatedTags, reviews } = state;
-  const corpusSnippet = (reviews ?? []).slice(0, 5).join(" ").slice(0, 800);
+  // Slice by code points, not UTF-16 units: a plain .slice(0, 800) can cut an
+  // emoji in half and leave a lone surrogate, which is not valid UTF-8 and
+  // makes Voyage reject the whole request with a 400.
+  const corpusSnippet = Array.from((reviews ?? []).slice(0, 5).join(" ")).slice(0, 800).join("");
   const tagSummary = Object.entries(validatedTags ?? {})
     .map(([k, v]) => `${k}=${v.value}`).join(", ");
   const text = [
