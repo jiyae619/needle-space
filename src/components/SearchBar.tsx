@@ -14,6 +14,9 @@ interface SearchBarProps {
   onChange: (next: string) => void;
   isSearching?: boolean;
   debounceMs?: number;
+  // Used to populate the sr-only "Search complete — N results" announcement
+  // when a search finishes. Optional so unrelated callers don't have to wire it.
+  resultsCount?: number;
 }
 
 /**
@@ -25,7 +28,7 @@ interface SearchBarProps {
  *   - success: check    (briefly flashes after isSearching flips false)
  */
 export default function SearchBar({
-  value, onChange, isSearching, debounceMs = 300,
+  value, onChange, isSearching, debounceMs = 300, resultsCount,
 }: SearchBarProps) {
   const [local, setLocal] = useState(value);
   const [showInfo, setShowInfo] = useState(false);
@@ -84,6 +87,23 @@ export default function SearchBar({
 
   return (
     <div className="px-4 pt-4">
+      {/* SR-only live region — announces "Search complete — N results" when
+          isSearching flips false. Sighted users get the icon transition;
+          this gives SR users equivalent feedback. */}
+      <span
+        aria-live="polite"
+        aria-atomic="true"
+        style={{
+          position: "absolute", width: 1, height: 1, padding: 0,
+          margin: -1, overflow: "hidden", clip: "rect(0 0 0 0)",
+          whiteSpace: "nowrap", border: 0,
+        }}
+      >
+        {justFinished && resultsCount != null
+          ? `Search complete — ${resultsCount} result${resultsCount === 1 ? "" : "s"}`
+          : ""}
+      </span>
+
       {/* Eyebrow + AI explainer popover */}
       <div ref={infoWrapRef} className="relative mb-1.5 flex items-center gap-1">
         <span
@@ -97,6 +117,7 @@ export default function SearchBar({
           onClick={() => setShowInfo(s => !s)}
           aria-label="About AI search"
           aria-expanded={showInfo}
+          aria-describedby={showInfo ? "ai-search-info" : undefined}
           /* p-2 -m-2 extends the hit area to ~28×28 without affecting layout
              — the eyebrow is too small to deserve a full 40×40, but a 12×12
              hit target was effectively unhittable on touch. */
@@ -107,8 +128,8 @@ export default function SearchBar({
         </button>
         {showInfo && (
           <div
-            role="dialog"
-            aria-label="About AI search"
+            id="ai-search-info"
+            role="tooltip"
             className="gs-popover gs-tooltip absolute left-0 top-full mt-1 z-30"
           >
             Search understands meaning, not just keywords. Try natural phrases

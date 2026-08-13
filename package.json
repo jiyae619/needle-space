@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "pipeline": "node scripts/run-pipeline.mjs",
+    "sync": "node scripts/sync-cafes.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

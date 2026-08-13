@@ -35,20 +35,13 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "fs";
-import { resolve } from "path";
 import { GoogleGenAI } from "@google/genai";
+import { z } from "zod";
+import { env } from "./_env.mjs";
 
 // ---------------------------------------------------------------------------
 // env
 // ---------------------------------------------------------------------------
-const envContent = readFileSync(resolve(process.cwd(), ".env.local"), "utf-8");
-const env = Object.fromEntries(
-  envContent.split("\n")
-    .filter(l => l.trim() && !l.startsWith("#"))
-    .map(l => { const [k, ...v] = l.split("="); return [k.trim(), v.join("=").trim()]; })
-);
-
 const supabase    = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 const gemini      = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 const MODEL       = "gemini-2.5-flash";
@@ -94,6 +87,20 @@ Return ONLY this JSON:
   "laptop_scene": { "value": "...", "confidence": 0.X, "reason": "<=10 words" }
 }`;
 
+// Contract the vision JSON must satisfy. Matches the review tagger's bar: parse,
+// then validate, so a drifted/malformed response fails loudly per cafe instead
+// of writing a garbage tag.
+const VisionAttr = (vals) => z.object({
+  value:      z.enum(vals),
+  confidence: z.number().min(0).max(1),
+  reason:     z.string().optional(),
+});
+const VisionSchema = z.object({
+  outlets:      VisionAttr(["every_table", "most", "limited", "none", "not_visible"]),
+  seating:      VisionAttr(["ample", "adequate", "limited", "none", "not_visible"]),
+  laptop_scene: VisionAttr(["welcome", "limited", "not_allowed", "not_visible"]),
+});
+
 async function fetchImageBytes(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url.slice(0, 60)}…`);
@@ -116,8 +123,11 @@ async function visionTag(photoUrl) {
     config: { responseMimeType: "application/json" },
   });
   const text = res.text ?? res.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-  const parsed = JSON.parse(text);
-  return parsed;
+  const parsed = VisionSchema.safeParse(JSON.parse(text));
+  if (!parsed.success) {
+    throw new Error(`vision schema invalid: ${parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ").slice(0, 200)}`);
+  }
+  return parsed.data;
 }
 
 // ---------------------------------------------------------------------------
@@ -215,8 +225,22 @@ async function main() {
 
       if (DRY_RUN) { counts.tagged++; continue; }
 
-      // Merge vision_evidence into existing tagging_confidence under a top-level _vision key.
-      const tc = { ...(cafe.tagging_confidence ?? {}), _vision: visionEvidence };
+      // Write vision provenance into the SAME per-attribute slot the review
+      // tagger uses, tagged source:"vision" so a later text re-tag preserves it
+      // instead of clobbering it (see analyze-reviews-llm.mjs:visionEntryFor).
+      // The model's reason is kept OUT of `evidence` — that array is reserved
+      // for verbatim review/Reddit quotes surfaced by pickGlanceQuote — and is
+      // stored under `reason` instead.
+      const tc = { ...(cafe.tagging_confidence ?? {}) };
+      delete tc._vision;  // retire the legacy blob now that entries are per-attr
+      for (const [attr, payload] of Object.entries(visionEvidence)) {
+        tc[attr] = {
+          confidence: payload.confidence,
+          evidence:   [],
+          reason:     payload.reason ?? null,
+          source:     "vision",
+        };
+      }
 
       const writePayload = {
         ...updates,

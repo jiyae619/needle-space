@@ -34,7 +34,7 @@ function merge(cafe: Cafe, key: AttrKey): string {
 function Row({ label, valueLabel, known }: { label: string; valueLabel: string; known: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 py-2.5">
-      <span className="text-xs tracking-widest uppercase font-semibold" style={{ color: "var(--gs-kraft)" }}>
+      <span className="gs-kraft text-xs tracking-widest uppercase font-semibold">
         {label}
       </span>
       <span
@@ -64,7 +64,7 @@ export default function ScoreBreakdown({ cafe }: { cafe: Cafe }) {
         {score !== null && (
           <div>
             <span className="gs-score">{score.toFixed(1)}</span>
-            <span className="gs-score-denom"> / 5</span>
+            <span className="gs-score-denom gs-kraft"> / 5</span>
           </div>
         )}
       </div>
