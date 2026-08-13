@@ -25,3 +25,6 @@ data/
 
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
+
+# Local DB snapshots taken before bulk re-tags — not repo content
+docs/backups/
