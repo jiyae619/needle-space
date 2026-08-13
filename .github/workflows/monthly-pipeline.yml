@@ -41,6 +41,12 @@ jobs:
 
       - run: npm ci
 
+      # Stamp the moment the run begins. The quality gate uses it to measure
+      # only the cafes this run actually re-tagged, rather than the whole table.
+      - name: Mark run start
+        id: run_start
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       # Scheduled runs get no extra args → incremental & safe-paced: research
       # refreshes on its 30-day cadence, only NEW cafes get tagged, scores
       # recompute. A full re-tag is an explicit manual dispatch with --force.
@@ -58,15 +64,20 @@ jobs:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: npm run pipeline -- $EXTRA_ARGS
 
-      # Did this run leave the tagging worse than the last run you approved?
-      # Prints the per-attribute table, then fails the job if coverage or
-      # evidence dropped — so a quality regression emails you instead of
-      # sitting in the database unnoticed.
+      # Were the cafes THIS run re-tagged as good as the corpus we already
+      # trust? --since scopes the measurement to just this run's work; without
+      # it, a run that botched 20 of ~480 cafes would move the corpus-wide
+      # rates too little to trip any sane tolerance, and sail through green.
       #
-      # Tolerance is 5 points rather than the script's 2-point default: every
-      # run also adds new cafes, and a batch of thin-review ones can move a
-      # rate a couple of points without the tagger itself getting worse.
-      # Tighten it once a few runs show how much the numbers normally drift.
+      # The baseline stays corpus-wide on purpose — it is the bar being
+      # cleared, not the thing being measured.
+      #
+      # Tolerance is 5 points rather than the script's 2-point default. A run's
+      # cohort is mostly newly-added cafes, which carry fewer reviews than the
+      # established corpus and so score a little worse for reasons that have
+      # nothing to do with the tagger. Tighten it once a few runs show how much
+      # the numbers normally drift. Under 25 cafes the gate reports and passes
+      # rather than reading noise as a regression.
       #
       # The baseline does NOT update itself. After a run you're happy with:
       #   node scripts/quality-metrics.mjs --write-baseline docs/quality-baseline.json
@@ -78,4 +89,6 @@ jobs:
         run: |
           node scripts/quality-metrics.mjs \
             --baseline docs/quality-baseline.json \
+            --since "${{ steps.run_start.outputs.at }}" \
+            --min-sample 25 \
             --tolerance 0.05
