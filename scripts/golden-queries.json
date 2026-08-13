@@ -9,21 +9,158 @@
     "  notes    — optional, why these cafes are the right answer.",
     "Entries with an empty `expected` run in TRIAGE mode: the script prints",
     "their top-5 results so you can inspect them and fill in `expected`.",
-    "Seed queries below came from docs/PRD.md use cases; grow this list from",
-    "real searches in the nl_query_log table (aim for 30-50 labeled queries)."
+    "Labels drafted from DB tags + LLM evidence quotes, then human-reviewed.",
+    "Grow this list from real searches in the nl_query_log table (aim for 30-50)."
   ],
   "queries": [
-    { "query": "quiet cafe to write my thesis", "expected": [] },
-    { "query": "coffee shop with outlets at every table", "expected": [] },
-    { "query": "laptop friendly spot in Capitol Hill", "expected": [] },
-    { "query": "fast wifi for video calls", "expected": [] },
-    { "query": "cozy place to work in Ballard", "expected": [] },
-    { "query": "study spot with lots of seating near UW", "expected": [] },
-    { "query": "good pastries and space to work on my laptop", "expected": [] },
-    { "query": "quiet spot in Bellevue for deep work", "expected": [] },
-    { "query": "cafe open late for working in the evening", "expected": [] },
-    { "query": "lively coffee shop where I can take meetings", "expected": [] },
-    { "query": "somewhere in Fremont to grind on my laptop all afternoon", "expected": [] },
-    { "query": "calm minimal cafe with good espresso in Redmond", "expected": [] }
+    {
+      "query": "quiet cafe to write my thesis",
+      "expected": [
+        "DORDLOFVA",
+        "Thruline Coffee Co.",
+        "SEAFAB CAFE",
+        "Capital One Café",
+        "The Shop by Porter",
+        "Chocolati Café",
+        "Caffe Appassionato Coffee Roastery and Tasting Bar",
+        "Konvene Coffee"
+      ],
+      "notes": "noise=quiet, laptop not banned"
+    },
+    {
+      "query": "coffee shop with outlets at every table",
+      "expected": [
+        "The Shop by Porter",
+        "Capital One Café",
+        "Capital One Café",
+        "Cafe Calaveras"
+      ],
+      "notes": "outlets=every_table (most = partial)"
+    },
+    {
+      "query": "laptop friendly spot in Capitol Hill",
+      "expected": [
+        "Seasmith",
+        "Caffe Ladro - Capitol Hill",
+        "Espresso Vivace South Lake Union",
+        "Bean Espresso",
+        "Capital One Café",
+        "Analog Coffee"
+      ],
+      "notes": "neighborhood=Capitol Hill + laptop=welcome"
+    },
+    {
+      "query": "fast wifi for video calls",
+      "expected": [
+        "Caffe Vita",
+        "Chocolati Cafe Wallingford",
+        "Capital One Café",
+        "The Shop by Porter",
+        "Chocolati Café",
+        "Starbucks Coffee Company",
+        "Caffe Ladro - Ballard"
+      ],
+      "notes": "wifi=fast"
+    },
+    {
+      "query": "cozy place to work in Ballard",
+      "expected": [
+        "Caffe Ladro - Ballard",
+        "Anchored Ship Coffee Bar",
+        "Caffe Appassionato Coffee Roastery and Tasting Bar",
+        "Woodland Coffee",
+        "Cardoon"
+      ],
+      "notes": "neighborhood=Ballard, workable"
+    },
+    {
+      "query": "study spot with lots of seating near UW",
+      "expected": [
+        "Bulldog News",
+        "Cafe Solstice",
+        "Lune Cafe - U District",
+        "TOASTED Bagels & Coffee",
+        "Zoka Coffee Roaster & Tea Co",
+        "Cafe Allegro",
+        "Tea Republik",
+        "SEAFAB CAFE"
+      ],
+      "notes": "neighborhood=University District + seating=ample"
+    },
+    {
+      "query": "good pastries and space to work on my laptop",
+      "expected": [
+        "Petit Pierre Bakery",
+        "Mon Chou",
+        "Panera Bread",
+        "Golden Wheat Bakery"
+      ],
+      "notes": "pastry-ish + laptop workable"
+    },
+    {
+      "query": "quiet spot in Bellevue for deep work",
+      "expected": [
+        "T'Latte",
+        "North of Main Cafe",
+        "Starbucks Coffee Company",
+        "Starbucks Coffee Company",
+        "Starbucks Coffee Company",
+        "Woods Coffee"
+      ],
+      "notes": "neighborhood=Bellevue + noise=quiet"
+    },
+    {
+      "query": "cafe open late for working in the evening",
+      "expected": [
+        "The Screaming Parrots Cafe: Desserts + Tea + Bites",
+        "Mr West Cafe Bar",
+        "Valentinas Cafe",
+        "PLUS84",
+        "Seasmith",
+        "Thruline Coffee Co.",
+        "Panera Bread"
+      ],
+      "notes": "closes >= 8 PM (Wed)"
+    },
+    {
+      "query": "lively coffee shop where I can take meetings",
+      "expected": [
+        "Coffee TAB",
+        "Caffe Vita",
+        "The Shop by Porter",
+        "Vita at KEXP",
+        "Starbucks Coffee Company",
+        "Caffe Ladro - Ballard",
+        "Capital One Café",
+        "The Station Columbia City"
+      ],
+      "notes": "noise=moderate/loud, wifi present"
+    },
+    {
+      "query": "somewhere in Fremont to grind on my laptop all afternoon",
+      "expected": [
+        "Fremont Coffee Company",
+        "Milstead & Co.",
+        "Feva Coffee Company- Café Feva",
+        "Sundays Coffee",
+        "Two Kick Coffee",
+        "Caffe Ladro Upper Queen Anne",
+        "Grand Central Bakery - Wallingford cafe"
+      ],
+      "notes": "neighborhood=Fremont + laptop=welcome"
+    },
+    {
+      "query": "calm minimal cafe with good espresso in Redmond",
+      "expected": [
+        "Victor's Celtic Coffee & Roasters",
+        "Sunrise Donuts & Espresso",
+        "Doppio Cafe and Creperie",
+        "SoulFood CoffeeHouse and Fair Trade Emporium",
+        "Panera Bread",
+        "Mercurys Coffee Co. - Pure",
+        "River Trail Roasters"
+      ],
+      "notes": "neighborhood=Redmond + noise=quiet"
+    }
   ]
 }
