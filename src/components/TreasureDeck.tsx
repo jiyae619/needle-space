@@ -15,8 +15,12 @@ interface Props {
   initialDeck: Cafe[];
 }
 
-const SWIPE_THRESHOLD = 90;
+const SWIPE_THRESHOLD = 72;
 const DECK_SIZE = 5;
+// Custom easing — `ease-out` feels generic for gestures; this is a quart curve
+// that snaps fast then settles, matching the iOS-style swipe deck feel.
+const SWIPE_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+const SETTLE_MS = 180;
 
 // Pull a fresh deck excluding cafes the user has already seen this session.
 // When fewer than DECK_SIZE unseen remain, reset (treat the next round as
@@ -65,7 +69,7 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
       setIndex((i) => i + 1);
       setDrag(null);
       setExiting(null);
-    }, 220);
+    }, SETTLE_MS);
   }
 
   function handleNo() {
@@ -75,7 +79,7 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
       setIndex((i) => i + 1);
       setDrag(null);
       setExiting(null);
-    }, 220);
+    }, SETTLE_MS);
   }
 
   function reroll() {
@@ -208,11 +212,20 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
         </p>
       </div>
 
-      {/* Progress dots */}
-      <div className="flex gap-1.5 mb-5">
+      {/* Progress dots — wrapped in a progressbar so screen readers know where
+          the user is in the deck. */}
+      <div
+        className="flex gap-1.5 mb-5"
+        role="progressbar"
+        aria-valuenow={index + 1}
+        aria-valuemin={1}
+        aria-valuemax={deck.length}
+        aria-label={`Card ${index + 1} of ${deck.length}`}
+      >
         {deck.map((_, i) => (
           <span
             key={i}
+            aria-hidden
             className="h-1 flex-1 rounded-full"
             style={{ backgroundColor: i < index ? "var(--gs-espresso)" : "var(--gs-rule)" }}
           />
@@ -230,7 +243,10 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
         style={{
           transform: `translateX(${totalDx}px) rotate(${rotation}deg)`,
           opacity,
-          transition: drag && !exiting ? "none" : "transform 0.22s ease-out, opacity 0.22s ease-out",
+          transition: drag && !exiting
+            ? "none"
+            : `transform ${SETTLE_MS}ms ${SWIPE_EASE}, opacity ${SETTLE_MS}ms ${SWIPE_EASE}`,
+          willChange: drag || exiting ? "transform, opacity" : undefined,
         }}
       >
         {(() => {
@@ -274,9 +290,10 @@ export default function TreasureDeck({ pool, initialDeck }: Props) {
           />
         )}
 
-        {/* KEEP / SKIP stamp — always above photo, on every card */}
-        {yesHint && <div className="gs-treasure-stamp gs-treasure-yes">KEEP</div>}
-        {noHint  && <div className="gs-treasure-stamp gs-treasure-no">SKIP</div>}
+        {/* KEEP / SKIP stamp — aria-live announces drag-direction feedback to
+            screen-reader users, who don't see the visual stamp. */}
+        {yesHint && <div className="gs-treasure-stamp gs-treasure-yes" aria-live="polite">KEEP</div>}
+        {noHint  && <div className="gs-treasure-stamp gs-treasure-no"  aria-live="polite">SKIP</div>}
 
         <div className="gs-postcard-body flex flex-col">
           <p className="gs-postcard-eyebrow">{current.neighborhood}</p>

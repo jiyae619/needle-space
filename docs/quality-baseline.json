@@ -1,0 +1,36 @@
+{
+  "measured_at": "2026-08-12T19:41:47.238Z",
+  "sample_size": 463,
+  "attributes": {
+    "wifi_quality": {
+      "unknown_rate": 0.505,
+      "evidence_backed_rate": 0.179,
+      "silent_rate": 0.495,
+      "mean_confidence": 0.473
+    },
+    "outlet_availability": {
+      "unknown_rate": 0.676,
+      "evidence_backed_rate": 0.164,
+      "silent_rate": 0.672,
+      "mean_confidence": 0.425
+    },
+    "noise_level": {
+      "unknown_rate": 0.194,
+      "evidence_backed_rate": 0.719,
+      "silent_rate": 0.162,
+      "mean_confidence": 0.622
+    },
+    "laptop_policy": {
+      "unknown_rate": 0.326,
+      "evidence_backed_rate": 0.523,
+      "silent_rate": 0.32,
+      "mean_confidence": 0.631
+    },
+    "seating_availability": {
+      "unknown_rate": 0.14,
+      "evidence_backed_rate": 0.78,
+      "silent_rate": 0.127,
+      "mean_confidence": 0.693
+    }
+  }
+}

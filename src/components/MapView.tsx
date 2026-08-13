@@ -8,6 +8,8 @@ interface MapViewProps {
   cafes: Cafe[];
   selectedCafeId: string | null;
   onSelectCafe: (id: string) => void;
+  hoveredCafeId?: string | null;
+  onHoverCafe?: (id: string | null) => void;
 }
 
 // Track global load state outside the component so it persists across re-renders
@@ -15,59 +17,20 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 let globalLoadState: LoadState = "idle";
 const listeners: Array<(state: LoadState) => void> = [];
 
-function sendDebugLog(
-  runId: string,
-  hypothesisId: string,
-  location: string,
-  message: string,
-  data: Record<string, unknown>,
-) {
-  // #region agent log
-  fetch("http://127.0.0.1:7486/ingest/b61bbbb1-b81f-441d-adcc-7e6f0e37fc9f", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "c7cf94",
-    },
-    body: JSON.stringify({
-      sessionId: "c7cf94",
-      runId,
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-}
-
 function notifyListeners(state: LoadState) {
   globalLoadState = state;
   listeners.forEach((fn) => fn(state));
 }
 
 function loadGoogleMaps(apiKey: string) {
-  sendDebugLog("initial", "H3", "MapView.tsx:47", "loadGoogleMaps called", {
-    globalLoadState,
-    existingScriptCount: document.querySelectorAll('script[src*="maps.googleapis.com/maps/api/js"]').length,
-  });
   if (globalLoadState !== "idle") return;
   globalLoadState = "loading";
 
   // Google calls this function when the script finishes loading
   (window as unknown as Record<string, unknown>).__needlespace_maps_ready = () => {
-    sendDebugLog("initial", "H1", "MapView.tsx:58", "google maps callback fired", {
-      globalLoadState,
-      origin: window.location.origin,
-    });
     notifyListeners("ready");
   };
   (window as unknown as Record<string, unknown>).gm_authFailure = () => {
-    sendDebugLog("initial", "H5", "MapView.tsx:64", "google maps auth failure callback", {
-      origin: window.location.origin,
-      globalLoadState,
-    });
     notifyListeners("error");
   };
 
@@ -75,37 +38,39 @@ function loadGoogleMaps(apiKey: string) {
   script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=weekly&callback=__needlespace_maps_ready`;
   script.async = true;
   script.defer = true;
-  script.onerror = () => {
-    sendDebugLog("initial", "H2", "MapView.tsx:70", "google maps script onerror", {
-      origin: window.location.origin,
-      scriptHost: "maps.googleapis.com",
-    });
-    notifyListeners("error");
-  };
-  sendDebugLog("initial", "H4", "MapView.tsx:80", "google script appended", {
-    scriptIncludesEnvKey: script.src.includes(apiKey),
-    scriptHasCallback: script.src.includes("__needlespace_maps_ready"),
-    scriptCountBeforeAppend: document.querySelectorAll('script[src*="maps.googleapis.com/maps/api/js"]').length,
-  });
+  script.onerror = () => notifyListeners("error");
   document.head.appendChild(script);
 }
 
-export default function MapView({ cafes, selectedCafeId, onSelectCafe }: MapViewProps) {
+// Marker icon factory — pure, derived from the per-cafe state flags. Keeping
+// this outside the component means the two effects below can call it
+// identically and stay in sync.
+function buildIcon(isSelected: boolean, isHovered: boolean, isWelcome: boolean): google.maps.Symbol {
+  return {
+    path: google.maps.SymbolPath.CIRCLE,
+    scale: isSelected ? 9 : isHovered ? 10 : 7,
+    fillColor: isSelected ? "#E8521C" : "#292524",
+    fillOpacity: isSelected || isHovered ? 1 : isWelcome ? 1 : 0.4,
+    strokeColor: "#ffffff",
+    strokeWeight: isHovered ? 3.5 : 2.5,
+  };
+}
+
+export default function MapView({ cafes, selectedCafeId, onSelectCafe, hoveredCafeId, onHoverCafe }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  // Markers keyed by cafe id so the hover/select effect can mutate the
+  // specific marker's icon without rebuilding every marker on the map.
+  const markersByIdRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const [loadState, setLoadState] = useState<LoadState>(globalLoadState);
 
   // Load Google Maps script once
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    sendDebugLog("initial", "H1", "MapView.tsx:84", "map useEffect env check", {
-      hasApiKey: Boolean(apiKey),
-      apiKeyLength: apiKey?.length ?? 0,
-      globalLoadState,
-      origin: window.location.origin,
-    });
     if (!apiKey) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[MapView] Missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in .env.local");
+      }
       setLoadState("error");
       return;
     }
@@ -126,7 +91,9 @@ export default function MapView({ cafes, selectedCafeId, onSelectCafe }: MapView
     };
   }, []);
 
-  // Initialize map and markers once Google is ready
+  // Effect A — build the map and add/remove markers when the cafe set changes.
+  // Does NOT depend on hover/selection state, so hovering a card doesn't
+  // tear down and rebuild every marker. Effect B (below) handles visual updates.
   useEffect(() => {
     if (loadState !== "ready" || !mapRef.current) return;
 
@@ -140,53 +107,69 @@ export default function MapView({ cafes, selectedCafeId, onSelectCafe }: MapView
           mapTypeControl: false,
           fullscreenControl: false,
         });
-        sendDebugLog("initial", "H6", "MapView.tsx:124", "google map instance created", {
-          cafeCount: cafes.length,
-        });
-      } catch (error) {
-        sendDebugLog("initial", "H6", "MapView.tsx:128", "google map constructor threw", {
-          errorMessage: error instanceof Error ? error.message : "unknown",
-          errorType: error instanceof Error ? error.name : typeof error,
-        });
+      } catch {
         setLoadState("error");
         return;
       }
     }
 
-    // Clear old markers
-    markersRef.current.forEach((m) => m.setMap(null));
-    markersRef.current = [];
+    const existing = markersByIdRef.current;
+    const nextIds = new Set(cafes.map((c) => c.id));
 
+    // Remove markers for cafes no longer present
+    existing.forEach((marker, id) => {
+      if (!nextIds.has(id)) {
+        marker.setMap(null);
+        existing.delete(id);
+      }
+    });
+
+    // Add markers for cafes that are new in this render
     cafes.forEach((cafe) => {
-      const isSelected = cafe.id === selectedCafeId;
-      const isWelcome  = cafe.laptop_policy === "welcome";
-
+      if (existing.has(cafe.id)) return;
+      const isWelcome = cafe.laptop_policy === "welcome";
       const marker = new google.maps.Marker({
         map: mapInstanceRef.current!,
         position: { lat: cafe.lat, lng: cafe.lng },
         title: cafe.name,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: isSelected ? 9 : 7,
-          fillColor: isSelected ? "#E8521C" : "#292524",
-          fillOpacity: isSelected ? 1 : isWelcome ? 1 : 0.4,
-          strokeColor: "#ffffff",
-          strokeWeight: 2.5,
-        },
+        icon: buildIcon(false, false, isWelcome),
+        zIndex: 10,
       });
-
       marker.addListener("click", () => onSelectCafe(cafe.id));
-      markersRef.current.push(marker);
+      if (onHoverCafe) {
+        marker.addListener("mouseover", () => onHoverCafe(cafe.id));
+        marker.addListener("mouseout",  () => onHoverCafe(null));
+      }
+      existing.set(cafe.id, marker);
     });
-  }, [loadState, cafes, selectedCafeId, onSelectCafe]);
+  }, [loadState, cafes, onSelectCafe, onHoverCafe]);
+
+  // Effect B — mutate marker visuals when selection/hover state changes.
+  // Cheap: just setIcon + setZIndex on the affected markers, no construction.
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    const cafeById = new Map(cafes.map((c) => [c.id, c]));
+    markersByIdRef.current.forEach((marker, id) => {
+      const cafe = cafeById.get(id);
+      if (!cafe) return;
+      const isSelected = id === selectedCafeId;
+      const isHovered  = id === hoveredCafeId;
+      const isWelcome  = cafe.laptop_policy === "welcome";
+      marker.setIcon(buildIcon(isSelected, isHovered, isWelcome));
+      marker.setZIndex(isSelected ? 30 : isHovered ? 20 : 10);
+    });
+  }, [loadState, cafes, selectedCafeId, hoveredCafeId]);
 
   if (loadState === "error") {
     return (
-      <div className="w-full h-full bg-stone-100 flex items-center justify-center text-stone-500 text-sm">
+      <div
+        role="alert"
+        className="w-full h-full bg-stone-100 flex items-center justify-center text-stone-500 text-sm"
+      >
         <div className="text-center p-6 flex flex-col items-center">
           <MapTrifold size={28} weight="regular" className="mb-2 text-stone-400" aria-hidden />
           <p className="font-medium">Map unavailable</p>
-          <p className="text-xs mt-1 text-stone-400">Check NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in .env.local</p>
+          <p className="text-xs mt-1 text-stone-400">Map service is temporarily unavailable.</p>
         </div>
       </div>
     );
@@ -194,11 +177,22 @@ export default function MapView({ cafes, selectedCafeId, onSelectCafe }: MapView
 
   if (loadState !== "ready") {
     return (
-      <div className="w-full h-full bg-stone-100 flex items-center justify-center text-stone-400 text-sm">
-        Loading map...
+      <div
+        role="status"
+        aria-live="polite"
+        className="w-full h-full bg-stone-100 flex items-center justify-center text-stone-400 text-sm"
+      >
+        Loading map…
       </div>
     );
   }
 
-  return <div ref={mapRef} className="w-full h-full" />;
+  return (
+    <div
+      ref={mapRef}
+      role="application"
+      aria-label="Map of Seattle-area cafes"
+      className="w-full h-full"
+    />
+  );
 }

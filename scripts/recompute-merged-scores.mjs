@@ -15,20 +15,12 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
-
-// Match the env-loading style used by the other scripts (visual-tag-cafes,
-// analyze-reviews-llm, etc.) so we don't depend on the dotenv package.
-const envContent = readFileSync(resolve(process.cwd(), ".env.local"), "utf-8");
-const env = Object.fromEntries(
-  envContent.split("\n")
-    .filter(l => l.trim() && !l.startsWith("#"))
-    .map(l => { const [k, ...v] = l.split("="); return [k.trim(), v.join("=").trim()]; })
-);
+import { env } from "./_env.mjs";
 
 if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local");
+  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (set them in the environment or .env.local)");
   process.exit(1);
 }
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);

@@ -20,17 +20,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import { env } from "./_env.mjs";
 
 // ---------------------------------------------------------------------------
 // Load env
 // ---------------------------------------------------------------------------
-const envContent = readFileSync(resolve(process.cwd(), ".env.local"), "utf-8");
-const env = Object.fromEntries(
-  envContent.split("\n")
-    .filter(l => l.trim() && !l.startsWith("#"))
-    .map(l => { const [k, ...v] = l.split("="); return [k.trim(), v.join("=").trim()]; })
-);
-
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
 // ---------------------------------------------------------------------------

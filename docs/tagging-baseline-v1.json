@@ -1,0 +1,46 @@
+{
+  "scope": "all LLM-tagged",
+  "sample_size": 255,
+  "results": [
+    {
+      "attribute": "wifi_quality",
+      "n": 255,
+      "agreement": 0.8627450980392157,
+      "kappa": 0.17123224069087237,
+      "regex_unknown_rate": 0.984313725490196,
+      "llm_unknown_rate": 0.8470588235294118
+    },
+    {
+      "attribute": "outlet_availability",
+      "n": 255,
+      "agreement": 0.9019607843137255,
+      "kappa": 0.5175571363705163,
+      "regex_unknown_rate": 0.8980392156862745,
+      "llm_unknown_rate": 0.8823529411764706
+    },
+    {
+      "attribute": "noise_level",
+      "n": 255,
+      "agreement": 0.2549019607843137,
+      "kappa": 0.11544008909499202,
+      "regex_unknown_rate": 0.3058823529411765,
+      "llm_unknown_rate": 0.20784313725490197
+    },
+    {
+      "attribute": "laptop_policy",
+      "n": 255,
+      "agreement": 0.4470588235294118,
+      "kappa": -0.0031807148238050605,
+      "regex_unknown_rate": 0.8274509803921568,
+      "llm_unknown_rate": 0.4549019607843137
+    },
+    {
+      "attribute": "seating_availability",
+      "n": 255,
+      "agreement": 0.3803921568627451,
+      "kappa": 0.22903231979180613,
+      "regex_unknown_rate": 0.6549019607843137,
+      "llm_unknown_rate": 0.17254901960784313
+    }
+  ]
+}
