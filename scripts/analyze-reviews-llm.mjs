@@ -41,11 +41,16 @@
  * leave a half-tagged row.
  *
  * Which cafes get tagged: those never tagged, PLUS those whose web research
- * landed AFTER their last tag. That second group matters — research-cafes.mjs
- * refreshes evidence on its own 30-day cadence, and a tag written before that
- * evidence arrived never read it. Skipping on "has a tag at all" stranded 255
- * of 464 cafes holding research the tagger had never seen, which is most of
- * why wifi/outlets read 'unknown' so often. --force still re-tags everything.
+ * landed AFTER their last tag AND actually found something. That second group
+ * matters — research-cafes.mjs refreshes on its own 30-day cadence, and a tag
+ * written before that evidence arrived never read it. Skipping on "has a tag at
+ * all" stranded 255 of 464 cafes holding research the tagger had never seen.
+ *
+ * Both halves of the test earn their keep. Re-tagging cafes that DO hold unread
+ * evidence gained 0.59 tags each in the 2026-08-13 backfill; re-tagging cafes
+ * whose research came back empty LOST 0.35 each, because the LLM jitters around
+ * the 0.5 confidence floor and marginal values flip to 'unknown'. Reading
+ * nothing twice costs coverage. --force still re-tags everything.
  *
  * Usage:
  *   node scripts/analyze-reviews-llm.mjs --dry-run                      ← preview, no writes
@@ -613,10 +618,23 @@ async function main() {
   const { data: rows, error } = await q;
   if (error) { console.error("❌", error.message); process.exit(1); }
 
-  // Stale = the cafe's web research landed after its last tag, so the tagger
-  // wrote those tags without ever seeing that evidence.
+  // Stale = research landed after the last tag AND that research actually found
+  // something, so there is genuinely new evidence to read.
+  //
+  // The evidence half of that test is not a nicety. research-cafes.mjs stamps
+  // web_research_at even when Reddit and Yelp turn up nothing, so "research is
+  // newer" alone also selects cafes with nothing new to say. Re-tagging those
+  // measurably LOSES information: across the 2026-08-13 backfill, cafes holding
+  // unread evidence gained 0.59 tags each, while cafes without it lost 0.35 —
+  // the LLM jitters around the 0.5 confidence floor and marginal values flip to
+  // 'unknown'. Reading nothing twice is not free.
+  const hasEvidence = (c) => {
+    const s = c.web_research_snippets;
+    return (Array.isArray(s) ? s.length > 0 : !!(s && Object.keys(s).length > 0)) ||
+           c.yelp_free_wifi === true;
+  };
   const isStale = (c) => !!c.llm_tagged_at && !!c.web_research_at &&
-    new Date(c.web_research_at) > new Date(c.llm_tagged_at);
+    new Date(c.web_research_at) > new Date(c.llm_tagged_at) && hasEvidence(c);
   const untagged = (rows ?? []).filter(c => !c.llm_tagged_at);
   const stale    = (rows ?? []).filter(isStale);
 
