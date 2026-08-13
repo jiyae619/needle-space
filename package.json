@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "pipeline": "node scripts/run-pipeline.mjs",
+    "sync": "node scripts/sync-cafes.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "pipeline": "node scripts/run-pipeline.mjs",
-    "sync": "node scripts/sync-cafes.mjs"
+    "lint": "eslint"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
