@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { embedQuery } from "@/lib/embeddings";
 import { isOpenNow } from "@/lib/open-now";
+import { extractLocation } from "@/lib/query-location";
 import type { Filters, Cafe } from "@/lib/types";
 
 export const runtime = "nodejs";  // Voyage SDK uses Node APIs
@@ -70,14 +71,20 @@ export async function POST(req: Request) {
 
   const openNowActive = filters.open_now === "open_now";
 
+  // A location named in the query is a fact, not a vibe — filter on it in SQL
+  // and embed only the remaining intent. See src/lib/query-location.ts.
+  const loc = extractLocation(query);
+
   if (query) {
     try {
-      const vector = await embedQuery(query);
+      const vector = await embedQuery(loc.text || query);
       const { data, error } = await supabase.rpc("match_cafes", {
         query_embedding: vector,
         // Pull a larger candidate pool when open_now will throw rows away.
         match_count: openNowActive ? OPEN_NOW_POOL : TOP_K,
         ...rpcArgs,
+        p_city_in: loc.cities,
+        p_neighborhood_in: loc.neighborhoods,
       });
       if (error) throw new Error(error.message);
       candidateIds = (data ?? []).map((r: { id: string }) => r.id);

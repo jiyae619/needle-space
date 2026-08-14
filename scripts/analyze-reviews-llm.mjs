@@ -464,7 +464,13 @@ async function embedCafe(state) {
   // emoji in half and leave a lone surrogate, which is not valid UTF-8 and
   // makes Voyage reject the whole request with a 400.
   const corpusSnippet = Array.from((reviews ?? []).slice(0, 5).join(" ")).slice(0, 800).join("");
+  // Omit attributes the tagger punted on. Writing "wifi=unknown" into the
+  // embedding is worse than saying nothing: it clusters cafes by what we failed
+  // to learn about them, and lends a "fast wifi" query token overlap with the
+  // very cafes whose wifi is unknown. At current coverage the average cafe
+  // carried 1.7 of these.
   const tagSummary = Object.entries(validatedTags ?? {})
+    .filter(([, v]) => v?.value && v.value !== "unknown")
     .map(([k, v]) => `${k}=${v.value}`).join(", ");
   const text = [
     cafe.name,

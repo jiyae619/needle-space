@@ -100,7 +100,11 @@ function embedText(cafe, merged, reviews) {
   // analyze-reviews-llm.mjs: a half-sliced emoji is invalid UTF-8 and Voyage
   // 400s on it, which silently drops the cafe from the re-embed.
   const corpusSnippet = Array.from((reviews ?? []).slice(0, 5).join(" ")).slice(0, 800).join("");
-  const tagSummary = ATTRS.map(([dbKey, shortKey]) => `${dbKey}=${merged[shortKey]}`).join(", ");
+  // Omit punted attributes — see the same filter in analyze-reviews-llm.mjs.
+  // "wifi=unknown" in the embedding clusters cafes by what we failed to learn.
+  const tagSummary = ATTRS
+    .filter(([, shortKey]) => merged[shortKey] && merged[shortKey] !== "unknown")
+    .map(([dbKey, shortKey]) => `${dbKey}=${merged[shortKey]}`).join(", ");
   return [
     cafe.name,
     cafe.neighborhood,
