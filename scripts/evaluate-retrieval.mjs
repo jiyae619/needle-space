@@ -23,6 +23,10 @@
  *   node scripts/evaluate-retrieval.mjs             ← table + triage output
  *   node scripts/evaluate-retrieval.mjs --k 5       ← score top-5 instead of top-10
  *   node scripts/evaluate-retrieval.mjs --json      ← machine-readable output
+ *   node scripts/evaluate-retrieval.mjs --via-api   ← measure the REAL request
+ *       path (needs `npm run dev`); includes the route's location filtering,
+ *       which the direct match_cafes path cannot see. Paced at 21s/query for
+ *       Voyage's 3 RPM free tier; --api-delay-ms 0 on a paid tier.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -43,6 +47,13 @@ const argv = process.argv.slice(2);
 const JSON_OUT = argv.includes("--json");
 const kIdx = argv.indexOf("--k");
 const K = kIdx !== -1 ? parseInt(argv[kIdx + 1], 10) : 10;
+// Route each query through the running app rather than calling match_cafes
+// directly, so the eval sees what a user sees. See searchViaApi below.
+const VIA_API   = argv.includes("--via-api");
+const flagVal   = (n, d) => { const i = argv.indexOf(n); return i !== -1 && argv[i+1] ? argv[i+1] : d; };
+const API_BASE  = flagVal("--api-base", "http://localhost:3000").replace(/\/$/, "");
+// Voyage free tier is 3 RPM and the route embeds one query per request.
+const API_DELAY_MS = parseInt(flagVal("--api-delay-ms", "21000"), 10);
 
 // ---------------------------------------------------------------------------
 // load golden queries
@@ -79,11 +90,41 @@ async function embedAll(texts) {
 const nameMatches = (resultName, expectedName) =>
   resultName.toLowerCase().includes(expectedName.toLowerCase());
 
+// --via-api routes each query through the running app instead of calling
+// match_cafes directly. The direct path measures the vector index alone; it
+// cannot see anything the route does around it — notably the location
+// extraction in src/lib/query-location.ts, which turns "in Bellevue" into a SQL
+// predicate. Both numbers are worth having: direct isolates the index, api is
+// what a user actually gets.
+//
+// Requests are paced because the route embeds one query per call against
+// Voyage's 3 RPM free tier. Without pacing the route's own 429 handler quietly
+// degrades to filter-only ranking, and the eval would score that as if it were
+// semantic search — a silently wrong number, which is worse than a slow one.
+async function searchViaApi(query) {
+  const res = await fetch(`${API_BASE}/api/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error(`${API_BASE} returned ${res.status}: ${(await res.text()).slice(0, 160)}`);
+  const json = await res.json();
+  // Assert semantic_used rather than only inferring from the fallback reason:
+  // scoring filter-only results as if they were semantic is a silently wrong
+  // number, and the whole point of this mode is to measure the real ranking.
+  if (json.semantic_used !== true) {
+    throw new Error(`route did not use semantic search` +
+      (json.semantic_fallback_reason ? ` ("${json.semantic_fallback_reason}")` : "") +
+      ` — increase --api-delay-ms if this is Voyage rate limiting.`);
+  }
+  return (json.cafes ?? []).map(c => c.name);
+}
+
 async function run() {
   const all = [...labeled, ...triage];
   if (all.length === 0) { console.error("golden-queries.json has no queries"); process.exit(1); }
 
-  const vectors = await embedAll(all.map(q => q.query));
+  const vectors = VIA_API ? [] : await embedAll(all.map(q => q.query));
 
   // Sanity check: warn about expected names that match no cafe in the DB at
   // all (typo guard) so a miss isn't silently blamed on the embeddings.
@@ -101,14 +142,21 @@ async function run() {
   const results = [];
   for (let i = 0; i < all.length; i++) {
     const q = all[i];
-    const { data, error } = await supabase.rpc("match_cafes", {
-      query_embedding: vectors[i],
-      match_count: K,
-      p_wifi_in: null, p_noise_in: null, p_outlets_in: null,
-      p_laptop_in: null, p_seating_in: null, p_verified_only: false,
-    });
-    if (error) { console.error(`match_cafes failed for "${q.query}": ${error.message}`); process.exit(1); }
-    const names = (data ?? []).map(r => r.name);
+    let names;
+    if (VIA_API) {
+      if (i > 0) await new Promise(r => setTimeout(r, API_DELAY_MS));
+      try { names = (await searchViaApi(q.query)).slice(0, K); }
+      catch (e) { console.error(`/api/search failed for "${q.query}": ${e.message}`); process.exit(1); }
+    } else {
+      const { data, error } = await supabase.rpc("match_cafes", {
+        query_embedding: vectors[i],
+        match_count: K,
+        p_wifi_in: null, p_noise_in: null, p_outlets_in: null,
+        p_laptop_in: null, p_seating_in: null, p_verified_only: false,
+      });
+      if (error) { console.error(`match_cafes failed for "${q.query}": ${error.message}`); process.exit(1); }
+      names = (data ?? []).map(r => r.name);
+    }
 
     if (!q.expected?.length) {
       results.push({ query: q.query, mode: "triage", top: names.slice(0, 5) });
