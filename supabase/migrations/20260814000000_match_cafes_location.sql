@@ -24,6 +24,16 @@
 -- Everything else is unchanged from the Strategy C tag-merge version.
 --
 -- Run in the Supabase SQL editor.
+--
+-- Drop the previous 8-argument version first. `create or replace function`
+-- only replaces when the argument list is identical, so adding parameters
+-- creates an OVERLOAD instead — and then a call that supplies only the common
+-- arguments (as scripts/evaluate-retrieval.mjs and the smoke test do) matches
+-- both candidates and fails as ambiguous, because every added parameter has a
+-- default. One definition, no ambiguity.
+drop function if exists match_cafes(
+  vector(1024), int, text[], text[], text[], text[], text[], boolean
+);
 
 create or replace function match_cafes(
   query_embedding vector(1024),
