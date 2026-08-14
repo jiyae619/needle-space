@@ -1,36 +1,37 @@
 {
-  "measured_at": "2026-08-12T19:41:47.238Z",
-  "sample_size": 463,
+  "measured_at": "2026-08-14T07:16:53.874Z",
+  "scope": "all LLM-tagged cafes",
+  "sample_size": 464,
   "attributes": {
     "wifi_quality": {
-      "unknown_rate": 0.505,
-      "evidence_backed_rate": 0.179,
-      "silent_rate": 0.495,
-      "mean_confidence": 0.473
+      "unknown_rate": 0.446,
+      "evidence_backed_rate": 0.185,
+      "silent_rate": 0.442,
+      "mean_confidence": 0.487
     },
     "outlet_availability": {
-      "unknown_rate": 0.676,
-      "evidence_backed_rate": 0.164,
-      "silent_rate": 0.672,
-      "mean_confidence": 0.425
+      "unknown_rate": 0.638,
+      "evidence_backed_rate": 0.159,
+      "silent_rate": 0.634,
+      "mean_confidence": 0.452
     },
     "noise_level": {
-      "unknown_rate": 0.194,
-      "evidence_backed_rate": 0.719,
-      "silent_rate": 0.162,
-      "mean_confidence": 0.622
+      "unknown_rate": 0.203,
+      "evidence_backed_rate": 0.728,
+      "silent_rate": 0.166,
+      "mean_confidence": 0.618
     },
     "laptop_policy": {
-      "unknown_rate": 0.326,
-      "evidence_backed_rate": 0.523,
-      "silent_rate": 0.32,
-      "mean_confidence": 0.631
+      "unknown_rate": 0.291,
+      "evidence_backed_rate": 0.524,
+      "silent_rate": 0.287,
+      "mean_confidence": 0.664
     },
     "seating_availability": {
-      "unknown_rate": 0.14,
+      "unknown_rate": 0.138,
       "evidence_backed_rate": 0.78,
-      "silent_rate": 0.127,
-      "mean_confidence": 0.693
+      "silent_rate": 0.125,
+      "mean_confidence": 0.691
     }
   }
 }
