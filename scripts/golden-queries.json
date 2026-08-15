@@ -163,6 +163,128 @@
         "River Trail Roasters"
       ],
       "notes": "neighborhood=Redmond + noise=quiet"
+    },
+    {
+      "query": "cozy spot for deep work",
+      "expected": [
+        "Thruline Coffee Co.",
+        "A Muddy Cup Cafe' & Roastery",
+        "Chocolati Cafe Wallingford",
+        "The Shop by Porter",
+        "Avole CD",
+        "Coffee TAB",
+        "Halcyon Coffee",
+        "DORDLOFVA"
+      ],
+      "notes": "noise_level + laptop_policy"
+    },
+    {
+      "query": "quiet cafe with outlets",
+      "expected": [
+        "Tailwind Café at Good Weather",
+        "Capital One Café",
+        "Chocolati Cafe Wallingford",
+        "Pike Street Coffee"
+      ],
+      "notes": "noise_level + outlet_availability"
+    },
+    {
+      "query": "cafe with reliable Wi-Fi and power outlets",
+      "expected": [
+        "Chocolati Cafe Wallingford",
+        "Realfine Coffee",
+        "SEAFAB CAFE",
+        "Sano Kirkland"
+      ],
+      "notes": "outlet_availability + wifi_quality"
+    },
+    {
+      "query": "reliable Wi-Fi",
+      "expected": [
+        "Chocolati Cafe Wallingford",
+        "Victrola Coffee Roasters @ Capitol Hill",
+        "SEAFAB CAFE",
+        "Sano Kirkland",
+        "Realfine Coffee"
+      ],
+      "notes": "wifi_quality"
+    },
+    {
+      "query": "quiet rooftop",
+      "expected": [
+        "Caffe Umbria @ Downtown Seattle",
+        "DORDLOFVA",
+        "Bean Espresso",
+        "Coffee Tree & Bop",
+        "Himalayan Coffee Roasters Seattle"
+      ],
+      "notes": "noise_level"
+    },
+    {
+      "query": "quiet rooftop with pastries",
+      "expected": [
+        "Mon Chou",
+        "Broadcast Coffee",
+        "Caffe Migliore.",
+        "Pico Cafe and Bakery",
+        "Hoffman's Fine Cakes and Pastries"
+      ],
+      "notes": "noise_level"
+    },
+    {
+      "query": "quiet place in Green Lake",
+      "expected": [
+        "Monkey Grind Espresso Bar",
+        "Atulea",
+        "Tea Republik"
+      ],
+      "notes": "noise_level · in green lake"
+    },
+    {
+      "query": "cozy date in capitol hill",
+      "expected": [
+        "Bonito Café y Mercadito",
+        "Overcast Coffee Company",
+        "Coche Valley Dessert Cafe",
+        "Mintish Coffee House",
+        "Seasmith",
+        "Hi Tea Cafe",
+        "Caffe Ladro - Capitol Hill"
+      ],
+      "notes": "general vibe · in capitol hill"
+    },
+    {
+      "query": "cozy date in U district",
+      "expected": [
+        "Lune Cafe - U District",
+        "Cafe Allegro",
+        "Ugly Mug Cafe",
+        "Mina’s Matcha",
+        "Leon Coffee House - U District"
+      ],
+      "notes": "general vibe · in u district"
+    },
+    {
+      "query": "espresso vivace capitol hill",
+      "expected": [
+        "Espresso Vivace Capitol Hill",
+        "Espresso Vivace South Lake Union"
+      ],
+      "notes": "cafe name lookup · in capitol hill"
+    },
+    {
+      "query": "Agua Verde",
+      "expected": [
+        "Agua Verde Cafe"
+      ],
+      "notes": "cafe name lookup"
+    },
+    {
+      "query": "sound fog",
+      "expected": [
+        "Sound & Fog"
+      ],
+      "notes": "cafe name lookup"
     }
   ]
 }
