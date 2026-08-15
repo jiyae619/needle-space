@@ -1,12 +1,25 @@
 /**
  * Day 1 smoke test — proves the data plane works end-to-end.
  *
- * Picks one cafe, builds an embedding, writes it to Supabase, then runs a
- * pgvector cosine-distance query to find that cafe's nearest neighbors.
+ * Picks one cafe, builds an embedding, optionally writes it to Supabase, then
+ * runs a pgvector cosine-distance query to find that cafe's nearest neighbors.
+ *
+ * READ-ONLY BY DEFAULT. The embedding this builds is deliberately minimal —
+ * name, neighborhood, address, vibe keywords and two REGEX tags — whereas the
+ * real pipeline embeds all five merged LLM tags plus 800 characters of review
+ * text. Writing it replaces a good vector with a much weaker one, and nothing
+ * repairs it: finalize-cafes only re-embeds cafes whose tags changed since
+ * finalized_at, so a smoke-tested cafe stays degraded indefinitely and quietly
+ * ranks worse in every search. It happened on 2026-08-14 to 14 Carrot Cafe
+ * while this script was being used to check whether Voyage was reachable.
+ *
+ * Pass --write only when you actually want to test the write path, and repair
+ * afterwards with:  node scripts/finalize-cafes.mjs --cafe "<name>" --all
  *
  * Usage:
- *   node scripts/embed-smoke-test.mjs                 ← uses the first cafe
+ *   node scripts/embed-smoke-test.mjs                 ← read-only, first cafe
  *   node scripts/embed-smoke-test.mjs --cafe "Elm"    ← pick by name
+ *   node scripts/embed-smoke-test.mjs --write         ← also write the vector
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -17,6 +30,7 @@ import { env } from "./_env.mjs";
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 const voyage   = new VoyageAIClient({ apiKey: env.VOYAGE_API_KEY });
 
+const WRITE       = process.argv.includes("--write");
 const cafeFlag    = process.argv.indexOf("--cafe");
 const FILTER_CAFE = cafeFlag !== -1 ? process.argv[cafeFlag + 1] : null;
 
@@ -76,12 +90,18 @@ async function main() {
   if (!vector) { console.error("❌ Voyage returned no embedding"); process.exit(1); }
   console.log(`✅ Got ${vector.length}-dim embedding in ${dt}ms`);
 
-  const { error: updErr } = await supabase
-    .from("cafes")
-    .update({ cafe_embedding: vector })
-    .eq("id", cafe.id);
-  if (updErr) { console.error("❌ Update failed:", updErr.message); process.exit(1); }
-  console.log(`💾 Wrote embedding to cafe ${cafe.id}\n`);
+  if (WRITE) {
+    const { error: updErr } = await supabase
+      .from("cafes")
+      .update({ cafe_embedding: vector })
+      .eq("id", cafe.id);
+    if (updErr) { console.error("❌ Update failed:", updErr.message); process.exit(1); }
+    console.log(`💾 Wrote embedding to cafe ${cafe.id}`);
+    console.log(`   ⚠ This vector is weaker than the pipeline's. Repair with:`);
+    console.log(`     node scripts/finalize-cafes.mjs --cafe "${cafe.name}" --all\n`);
+  } else {
+    console.log(`🔒 Read-only — embedding NOT written (pass --write to test that path)\n`);
+  }
 
   // Round-trip: cosine search using this cafe's embedding as the query.
   // Should return the cafe itself (similarity ~1.0) plus its nearest neighbors.
