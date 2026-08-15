@@ -28,6 +28,11 @@ end $$;
 
 -- 2. Recreate the single canonical definition.
 --
+-- Schema-qualified deliberately: an unqualified CREATE lands in whatever
+-- schema the session's search_path resolves first, and PostgREST only reads
+-- public — so the function can be created "successfully" and stay invisible
+-- to the Data API, which reports it as a stale-cache problem forever.
+--
 -- Location is a hard SQL predicate rather than a similarity signal, because
 -- embeddings capture vibe well and geography badly: "quiet spot in Bellevue"
 -- previously returned Lady M's SEATTLE location, and "calm minimal cafe in
@@ -45,7 +50,7 @@ end $$;
 --
 -- Tag filters keep the Strategy C merge: prefer the LLM tag, fall back to the
 -- regex tag when the LLM punted.
-create function match_cafes(
+create function public.match_cafes(
   query_embedding vector(1024),
   match_count     int default 30,
   p_wifi_in           text[] default null,
@@ -67,7 +72,7 @@ language sql stable as $$
   select
     c.id, c.name, c.neighborhood,
     1 - (c.cafe_embedding <=> query_embedding) as similarity
-  from cafes c
+  from public.cafes c
   where c.cafe_embedding is not null
     and (p_wifi_in    is null or
          coalesce(nullif(c.wifi_quality_llm, 'unknown'), c.wifi_quality) = any(p_wifi_in))
