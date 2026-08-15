@@ -8,6 +8,7 @@ import {
   CheckCircle,
   Info,
 } from "@phosphor-icons/react";
+import { shouldAutoSearch, SEARCH_DEBOUNCE_MS } from "@/lib/search-trigger";
 
 interface SearchBarProps {
   value: string;
@@ -20,15 +21,18 @@ interface SearchBarProps {
 }
 
 /**
- * NL-aware search input. The user types free text; we debounce by 300ms before
- * firing onChange. The right-side submit button (also Enter key) bypasses the
- * debounce so the user gets immediate feedback on tap. Three button states:
+ * NL-aware search input. The user types free text; we debounce before firing
+ * onChange, and skip auto-firing on mid-word fragments — every auto-search
+ * costs a Voyage embedding against a 3 req/min free tier, and abandoned
+ * prefixes were 22% of all logged searches. See src/lib/search-trigger.ts.
+ * The right-side submit button (also Enter key) bypasses BOTH rules, so an
+ * explicit submit always searches whatever is typed. Three button states:
  *   - idle:    Sparkle  (AI ready)
  *   - loading: spinner  (request in flight, button disabled)
  *   - success: check    (briefly flashes after isSearching flips false)
  */
 export default function SearchBar({
-  value, onChange, isSearching, debounceMs = 300, resultsCount,
+  value, onChange, isSearching, debounceMs = SEARCH_DEBOUNCE_MS, resultsCount,
 }: SearchBarProps) {
   const [local, setLocal] = useState(value);
   const [showInfo, setShowInfo] = useState(false);
@@ -74,6 +78,9 @@ export default function SearchBar({
   function handleInput(next: string) {
     setLocal(next);
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    // Mid-word fragments wait for an explicit submit rather than spending an
+    // embedding on a query the user has not finished writing.
+    if (!shouldAutoSearch(next)) return;
     debounceRef.current = setTimeout(() => onChange(next), debounceMs);
   }
 

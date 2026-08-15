@@ -87,8 +87,22 @@ async function embedAll(texts) {
 }
 
 // Case-insensitive substring match — "Anchorhead" hits "Anchorhead Coffee".
-const nameMatches = (resultName, expectedName) =>
-  resultName.toLowerCase().includes(expectedName.toLowerCase());
+//
+// An expected entry may be qualified as "Name @ Neighborhood" when the bare
+// name cannot identify one cafe: "Starbucks Coffee Company" matches 29 rows
+// across 15 neighborhoods, so an unqualified label silently scores a hit on
+// whichever Starbucks happens to rank, in any city. That turns the metric into
+// noise precisely where chains are involved.
+const nameMatches = (result, expectedName) => {
+  const resultName = typeof result === "string" ? result : result.name;
+  const resultHood = typeof result === "string" ? null : result.neighborhood;
+  const at = expectedName.lastIndexOf(" @ ");
+  if (at === -1) return resultName.toLowerCase().includes(expectedName.toLowerCase());
+  const wantName = expectedName.slice(0, at).trim().toLowerCase();
+  const wantHood = expectedName.slice(at + 3).trim().toLowerCase();
+  return resultName.toLowerCase().includes(wantName) &&
+         (resultHood ?? "").toLowerCase() === wantHood;
+};
 
 // --via-api routes each query through the running app instead of calling
 // match_cafes directly. The direct path measures the vector index alone; it
@@ -117,7 +131,7 @@ async function searchViaApi(query) {
       (json.semantic_fallback_reason ? ` ("${json.semantic_fallback_reason}")` : "") +
       ` — increase --api-delay-ms if this is Voyage rate limiting.`);
   }
-  return (json.cafes ?? []).map(c => c.name);
+  return (json.cafes ?? []).map(c => ({ name: c.name, neighborhood: c.neighborhood }));
 }
 
 async function run() {
@@ -128,9 +142,9 @@ async function run() {
 
   // Sanity check: warn about expected names that match no cafe in the DB at
   // all (typo guard) so a miss isn't silently blamed on the embeddings.
-  const { data: allCafes, error: namesErr } = await supabase.from("cafes").select("name");
+  const { data: allCafes, error: namesErr } = await supabase.from("cafes").select("name, neighborhood");
   if (namesErr) { console.error("Supabase error:", namesErr.message); process.exit(1); }
-  const dbNames = (allCafes ?? []).map(c => c.name);
+  const dbNames = (allCafes ?? []);
   for (const q of labeled) {
     for (const exp of q.expected) {
       if (!dbNames.some(n => nameMatches(n, exp))) {
@@ -155,11 +169,11 @@ async function run() {
         p_laptop_in: null, p_seating_in: null, p_verified_only: false,
       });
       if (error) { console.error(`match_cafes failed for "${q.query}": ${error.message}`); process.exit(1); }
-      names = (data ?? []).map(r => r.name);
+      names = (data ?? []).map(r => ({ name: r.name, neighborhood: r.neighborhood }));
     }
 
     if (!q.expected?.length) {
-      results.push({ query: q.query, mode: "triage", top: names.slice(0, 5) });
+      results.push({ query: q.query, mode: "triage", top: names.slice(0, 5).map(n => n.name) });
       continue;
     }
     // Rank of the first result that matches ANY expected name (1-based).
@@ -170,7 +184,7 @@ async function run() {
     results.push({
       query: q.query, mode: "labeled", expected: q.expected,
       rank, hit: rank !== null, zeroResults: names.length === 0,
-      top: names.slice(0, 5),
+      top: names.slice(0, 5).map(n => n.name),
     });
   }
 
