@@ -40,12 +40,24 @@
  * JSON, embedding, and llm_tagged_at. If anything earlier fails, we don't
  * leave a half-tagged row.
  *
+ * Which cafes get tagged: those never tagged, PLUS those whose web research
+ * landed AFTER their last tag AND actually found something. That second group
+ * matters — research-cafes.mjs refreshes on its own 30-day cadence, and a tag
+ * written before that evidence arrived never read it. Skipping on "has a tag at
+ * all" stranded 255 of 464 cafes holding research the tagger had never seen.
+ *
+ * Both halves of the test earn their keep. Re-tagging cafes that DO hold unread
+ * evidence gained 0.59 tags each in the 2026-08-13 backfill; re-tagging cafes
+ * whose research came back empty LOST 0.35 each, because the LLM jitters around
+ * the 0.5 confidence floor and marginal values flip to 'unknown'. Reading
+ * nothing twice costs coverage. --force still re-tags everything.
+ *
  * Usage:
  *   node scripts/analyze-reviews-llm.mjs --dry-run                      ← preview, no writes
  *   node scripts/analyze-reviews-llm.mjs --dry-run --limit 5            ← preview, 5 cafes
  *   node scripts/analyze-reviews-llm.mjs --cafe "Elm" --dry-run         ← one cafe, preview
  *   node scripts/analyze-reviews-llm.mjs --limit 5                      ← live, 5 cafes
- *   node scripts/analyze-reviews-llm.mjs                                ← live, all cafes
+ *   node scripts/analyze-reviews-llm.mjs                                ← live, untagged + stale
  *
  * Optional flags:
  *   --mock               ← skip Anthropic calls, use Day-2 hardcoded JSON
@@ -91,7 +103,7 @@ const LIMIT            = typeof flag("--limit") === "string" ? parseInt(flag("--
 // defaults, per the paid-API guardrails). Pass --delay-ms 0 on a paid tier.
 const FREE_TIER_DELAY_MS = 21000;
 const DELAY_MS         = typeof flag("--delay-ms") === "string" ? parseInt(flag("--delay-ms"), 10) : FREE_TIER_DELAY_MS;
-// Skip cafes that already have an LLM tag (resumable backfills). --force re-tags everything.
+// Skip cafes already tagged AND whose evidence has not moved since. --force re-tags everything.
 const FORCE_RETAG      = !!flag("--force");
 const MAX_RETRIES      = 2;
 
@@ -448,8 +460,17 @@ async function failValidation(state) {
 
 async function embedCafe(state) {
   const { cafe, validatedTags, reviews } = state;
-  const corpusSnippet = (reviews ?? []).slice(0, 5).join(" ").slice(0, 800);
+  // Slice by code points, not UTF-16 units: a plain .slice(0, 800) can cut an
+  // emoji in half and leave a lone surrogate, which is not valid UTF-8 and
+  // makes Voyage reject the whole request with a 400.
+  const corpusSnippet = Array.from((reviews ?? []).slice(0, 5).join(" ")).slice(0, 800).join("");
+  // Omit attributes the tagger punted on. Writing "wifi=unknown" into the
+  // embedding is worse than saying nothing: it clusters cafes by what we failed
+  // to learn about them, and lends a "fast wifi" query token overlap with the
+  // very cafes whose wifi is unknown. At current coverage the average cafe
+  // carried 1.7 of these.
   const tagSummary = Object.entries(validatedTags ?? {})
+    .filter(([, v]) => v?.value && v.value !== "unknown")
     .map(([k, v]) => `${k}=${v.value}`).join(", ");
   const text = [
     cafe.name,
@@ -593,20 +614,49 @@ async function main() {
 
   let q = supabase
     .from("cafes")
-    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, visual_tagged_at, web_research_snippets, yelp_free_wifi, tagging_confidence, outlet_availability_llm, seating_availability_llm, laptop_policy_llm")
+    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, web_research_at, visual_tagged_at, web_research_snippets, yelp_free_wifi, tagging_confidence, outlet_availability_llm, seating_availability_llm, laptop_policy_llm")
     .order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
-  if (!FORCE_RETAG && !FILTER_CAFE) q = q.is("llm_tagged_at", null);
-  if (LIMIT) q = q.limit(LIMIT);
+  // NOTE: LIMIT is applied AFTER the staleness filter below, not here — a
+  // server-side limit would take the first N cafes alphabetically and then drop
+  // the fresh ones, so `--limit 5` could tag 0 (same trap as research-cafes.mjs).
 
-  const { data: cafes, error } = await q;
+  const { data: rows, error } = await q;
   if (error) { console.error("❌", error.message); process.exit(1); }
-  if (!cafes?.length) {
-    console.log("No cafes need tagging (all up to date). Use --force to re-tag.");
+
+  // Stale = research landed after the last tag AND that research actually found
+  // something, so there is genuinely new evidence to read.
+  //
+  // The evidence half of that test is not a nicety. research-cafes.mjs stamps
+  // web_research_at even when Reddit and Yelp turn up nothing, so "research is
+  // newer" alone also selects cafes with nothing new to say. Re-tagging those
+  // measurably LOSES information: across the 2026-08-13 backfill, cafes holding
+  // unread evidence gained 0.59 tags each, while cafes without it lost 0.35 —
+  // the LLM jitters around the 0.5 confidence floor and marginal values flip to
+  // 'unknown'. Reading nothing twice is not free.
+  const hasEvidence = (c) => {
+    const s = c.web_research_snippets;
+    return (Array.isArray(s) ? s.length > 0 : !!(s && Object.keys(s).length > 0)) ||
+           c.yelp_free_wifi === true;
+  };
+  const isStale = (c) => !!c.llm_tagged_at && !!c.web_research_at &&
+    new Date(c.web_research_at) > new Date(c.llm_tagged_at) && hasEvidence(c);
+  const untagged = (rows ?? []).filter(c => !c.llm_tagged_at);
+  const stale    = (rows ?? []).filter(isStale);
+
+  let cafes = (FORCE_RETAG || FILTER_CAFE) ? (rows ?? []) : [...untagged, ...stale];
+  const skipped = (rows?.length ?? 0) - cafes.length;
+  if (LIMIT) cafes = cafes.slice(0, LIMIT);
+
+  if (!cafes.length) {
+    console.log("No cafes need tagging (all tagged, and no evidence is newer than its tag). Use --force to re-tag.");
     process.exit(0);
   }
 
-  console.log(`📋 Processing ${cafes.length} cafe${cafes.length > 1 ? "s" : ""}${!FORCE_RETAG ? " (skipping already-tagged)" : ""}...`);
+  const why = FORCE_RETAG ? " (--force: re-tagging everything)"
+            : FILTER_CAFE ? ""
+            : ` (${untagged.length} never tagged, ${stale.length} tagged before their research landed; ${skipped} up to date)`;
+  console.log(`📋 Processing ${cafes.length} cafe${cafes.length > 1 ? "s" : ""}${why}...`);
   if (DELAY_MS > 0) {
     const est = Math.max(1, Math.round((cafes.length * DELAY_MS) / 60000));
     console.log(`   Pacing ${DELAY_MS}ms/cafe (~${est}m for ${cafes.length}). On a paid Voyage tier? Pass --delay-ms 0.`);
