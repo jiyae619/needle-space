@@ -9,13 +9,7 @@ type AttrKey =
   | "laptop_policy"
   | "seating_availability";
 
-// Strategy C smart merge — prefer the LLM column when it committed to a
-// non-"unknown" value; fall back to the regex column otherwise.
-function merge(cafe: Cafe, key: AttrKey): string {
-  const llm = cafe[`${key}_llm` as keyof Cafe] as string | null | undefined;
-  const regex = (cafe[key] as string | null | undefined) ?? "unknown";
-  return (llm && llm !== "unknown") ? llm : regex;
-}
+import { mergeTag as merge } from "./merge-tags";
 
 const NEUTRAL_LABEL: Record<AttrKey, Record<string, string>> = {
   wifi_quality:        { moderate: "OK wifi" },

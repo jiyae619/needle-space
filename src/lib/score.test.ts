@@ -56,7 +56,7 @@ describe("computeMergedScore", () => {
     const cafe = makeCafe({
       wifi_quality: "fast",
       outlet_availability: "every_table",
-      noise_level: "quiet",
+      noise_level_llm: "quiet",
       laptop_policy: "welcome",
       seating_availability: "ample",
     });
@@ -67,7 +67,7 @@ describe("computeMergedScore", () => {
     const cafe = makeCafe({
       wifi_quality: "fast",
       outlet_availability: "every_table",
-      noise_level: "quiet",
+      noise_level_llm: "quiet",
       laptop_policy: "welcome",
       seating_availability: "ample",
       google_rating: 4.0,
@@ -80,7 +80,7 @@ describe("computeMergedScore", () => {
     const cafe = makeCafe({
       wifi_quality: "moderate",        // 3 * 0.25 = 0.75
       outlet_availability: "limited",  // 2 * 0.20 = 0.40
-      noise_level: "moderate",         // 3 * 0.20 = 0.60
+      noise_level_llm: "moderate",         // 3 * 0.20 = 0.60
       laptop_policy: "limited",        // 2 * 0.15 = 0.30
       seating_availability: "adequate",// 3 * 0.20 = 0.60  → raw 2.65
       google_rating: 4.5,              // 2.65*0.75 + 4.5*0.25 = 3.1125
@@ -104,7 +104,7 @@ describe("computeMergedScore", () => {
       wifi_quality: "fast",
       wifi_quality_llm: "unknown",
       outlet_availability: "every_table",
-      noise_level: "quiet",
+      noise_level_llm: "quiet",
       laptop_policy: "welcome",
       seating_availability: "ample",
     });
@@ -116,7 +116,7 @@ describe("computeMergedScore", () => {
       wifi_quality: "fast",
       wifi_quality_llm: null,
       outlet_availability: "every_table",
-      noise_level: "quiet",
+      noise_level_llm: "quiet",
       laptop_policy: "welcome",
       seating_availability: "ample",
     });
@@ -138,7 +138,7 @@ describe("computeMergedScore", () => {
     const cafe = makeCafe({
       wifi_quality: "none",            // 1
       outlet_availability: "none",     // 1
-      noise_level: "loud",             // 1
+      noise_level_llm: "loud",             // 1
       laptop_policy: "not_allowed",    // 1
       seating_availability: "none",    // 1
     });

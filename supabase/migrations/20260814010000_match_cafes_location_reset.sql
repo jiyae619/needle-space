@@ -76,8 +76,12 @@ language sql stable as $$
   where c.cafe_embedding is not null
     and (p_wifi_in    is null or
          coalesce(nullif(c.wifi_quality_llm, 'unknown'), c.wifi_quality) = any(p_wifi_in))
-    and (p_noise_in   is null or
-         coalesce(nullif(c.noise_level_llm, 'unknown'), c.noise_level) = any(p_noise_in))
+    -- noise deliberately does NOT fall back to the keyword column: that tagger
+    -- scores vibe words ("cozy", "hidden gem") as evidence of quiet and called
+    -- 301 of 464 cafes quiet while never once saying loud. See
+    -- src/lib/merge-tags.ts — the display merge drops it too, and the two must
+    -- agree or a cafe matches the quiet chip without showing a Quiet pill.
+    and (p_noise_in   is null or nullif(c.noise_level_llm, 'unknown') = any(p_noise_in))
     and (p_outlets_in is null or
          coalesce(nullif(c.outlet_availability_llm, 'unknown'), c.outlet_availability) = any(p_outlets_in))
     and (p_laptop_in  is null or

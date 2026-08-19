@@ -24,13 +24,7 @@ export const SCORE_WEIGHTS = {
 export const SCORE_TOOLTIP =
   "Productivity score (1–5): WiFi 25%, outlets 20%, noise 20%, seating 20%, laptop policy 15%, blended with Google rating.";
 
-type AttrKey = "wifi_quality" | "outlet_availability" | "noise_level" | "laptop_policy" | "seating_availability";
-
-function merge(cafe: Cafe, key: AttrKey): string {
-  const llm = cafe[`${key}_llm` as keyof Cafe] as string | null | undefined;
-  const regex = (cafe[key] as string | null | undefined) ?? "unknown";
-  return (llm && llm !== "unknown") ? llm : regex;
-}
+import { mergeTag as merge } from "./merge-tags";
 
 // Returns the productivity score using Strategy C-merged values (LLM-first,
 // regex fallback). Mirrors scripts/analyze-reviews.mjs:computeProductivityScore.
