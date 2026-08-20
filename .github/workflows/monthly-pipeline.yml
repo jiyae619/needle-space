@@ -6,7 +6,10 @@ name: Monthly data pipeline
 # and NO Google Places API is touched (photos come from the cached photo_url),
 # so this cannot repeat the Google Maps billing incident.
 #
-# The run then gates on tagging quality — see the "Quality gate" step below.
+# The pipeline gates itself on tagging quality BEFORE its finalize stage, so a
+# regression stops the run rather than being reported after the search index
+# has already been rebuilt from the bad tags. run-pipeline.mjs exits non-zero
+# when the gate fails, which fails this job.
 
 on:
   schedule:
@@ -41,12 +44,6 @@ jobs:
 
       - run: npm ci
 
-      # Stamp the moment the run begins. The quality gate uses it to measure
-      # only the cafes this run actually re-tagged, rather than the whole table.
-      - name: Mark run start
-        id: run_start
-        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-
       # Scheduled runs get no extra args → incremental & safe-paced: research
       # refreshes on its 30-day cadence, only NEW cafes get tagged, scores
       # recompute. A full re-tag is an explicit manual dispatch with --force.
@@ -63,32 +60,3 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: npm run pipeline -- $EXTRA_ARGS
-
-      # Were the cafes THIS run re-tagged as good as the corpus we already
-      # trust? --since scopes the measurement to just this run's work; without
-      # it, a run that botched 20 of ~480 cafes would move the corpus-wide
-      # rates too little to trip any sane tolerance, and sail through green.
-      #
-      # The baseline stays corpus-wide on purpose — it is the bar being
-      # cleared, not the thing being measured.
-      #
-      # Tolerance is 5 points rather than the script's 2-point default. A run's
-      # cohort is mostly newly-added cafes, which carry fewer reviews than the
-      # established corpus and so score a little worse for reasons that have
-      # nothing to do with the tagger. Tighten it once a few runs show how much
-      # the numbers normally drift. Under 25 cafes the gate reports and passes
-      # rather than reading noise as a regression.
-      #
-      # The baseline does NOT update itself. After a run you're happy with:
-      #   node scripts/quality-metrics.mjs --write-baseline docs/quality-baseline.json
-      # then commit it. That is the ratchet — the bar moves only when you say so.
-      - name: Quality gate
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          node scripts/quality-metrics.mjs \
-            --baseline docs/quality-baseline.json \
-            --since "${{ steps.run_start.outputs.at }}" \
-            --min-sample 25 \
-            --tolerance 0.05
