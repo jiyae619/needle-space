@@ -44,8 +44,8 @@ describe("buildPills — good/bad signals", () => {
     [{ outlet_availability: "every_table" },  { label: "Outlets everywhere",     type: "good" }],
     [{ outlet_availability: "most" },         { label: "Outlets at most tables", type: "good" }],
     [{ outlet_availability: "none" },         { label: "No outlets",             type: "bad" }],
-    [{ noise_level: "quiet" },                { label: "Quiet",                  type: "good" }],
-    [{ noise_level: "loud" },                 { label: "Lively",                 type: "bad" }],
+    [{ noise_level_llm: "quiet" },            { label: "Quiet",                  type: "good" }],
+    [{ noise_level_llm: "loud" },             { label: "Lively",                 type: "bad" }],
     [{ laptop_policy: "welcome" },            { label: "Laptops welcome",        type: "good" }],
     [{ laptop_policy: "not_allowed" },        { label: "No laptops",             type: "bad" }],
   ] as [Partial<Cafe>, { label: string; type: string }][])(
@@ -59,7 +59,7 @@ describe("buildPills — good/bad signals", () => {
     const cafe = makeCafe({
       wifi_quality: "moderate",
       outlet_availability: "limited",
-      noise_level: "moderate",
+      noise_level_llm: "moderate",
       laptop_policy: "limited",
       seating_availability: "adequate",
     });
@@ -70,7 +70,7 @@ describe("buildPills — good/bad signals", () => {
     const cafe = makeCafe({
       wifi_quality: "fast",
       outlet_availability: "every_table",
-      noise_level: "quiet",
+      noise_level_llm: "quiet",
       laptop_policy: "welcome",
     });
     const pills = buildPills(cafe);
@@ -91,8 +91,16 @@ describe("buildPills — Strategy C merge", () => {
   });
 
   it("falls back to the regex tag when the LLM column is null", () => {
+    const cafe = makeCafe({ wifi_quality: "fast", wifi_quality_llm: null });
+    expect(buildPills(cafe)).toEqual([{ label: "Fast wifi", type: "good" }]);
+  });
+
+  it("does NOT fall back to the regex tag for noise", () => {
+    // The keyword tagger scores vibe words ("cozy", "hidden gem") as evidence
+    // of quiet and called 301 of 464 cafes quiet while never once saying loud.
+    // Showing nothing beats showing a confident guess — see merge-tags.ts.
     const cafe = makeCafe({ noise_level: "quiet", noise_level_llm: null });
-    expect(buildPills(cafe)).toEqual([{ label: "Quiet", type: "good" }]);
+    expect(buildPills(cafe)).toEqual([]);
   });
 });
 
@@ -100,7 +108,7 @@ describe("buildPills — neutral fallback (/treasure mode)", () => {
   const midRange = () => makeCafe({
     wifi_quality: "moderate",
     outlet_availability: "limited",
-    noise_level: "moderate",
+    noise_level_llm: "moderate",
     laptop_policy: "limited",
     seating_availability: "adequate",
   });

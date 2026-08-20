@@ -110,8 +110,14 @@ export async function POST(req: Request) {
       .order("productivity_score", { ascending: false, nullsFirst: false });
     if (!openNowActive) q = q.limit(TOP_K);
 
+    // Attributes whose keyword-tagger answer is not trusted as a fallback —
+    // see src/lib/merge-tags.ts. Must match the display merge, or a cafe can
+    // lose its "Quiet" pill while still matching the quiet chip.
+    const NO_REGEX_FALLBACK = new Set(["noise_level"]);
+
     const mergedFilter = (col: string, vals: string[]) => {
       const inList = vals.map(v => `"${v}"`).join(",");
+      if (NO_REGEX_FALLBACK.has(col)) return `${col}_llm.in.(${inList})`;
       // Either: *_llm IS in the allowed list, OR (*_llm is null/unknown AND *_regex IS in the list)
       return `${col}_llm.in.(${inList}),and(${col}_llm.is.null,${col}.in.(${inList})),and(${col}_llm.eq.unknown,${col}.in.(${inList}))`;
     };
