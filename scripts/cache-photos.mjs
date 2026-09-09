@@ -31,6 +31,7 @@ import { env } from "./_env.mjs";
 
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 const BUCKET   = "cafe-photos";
+const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY;
 
 // ---- CLI ------------------------------------------------------------------
 const argv = process.argv.slice(2);
@@ -83,6 +84,37 @@ async function downloadPhoto(url) {
   return { buf, contentType };
 }
 
+// Places photo resource names are short-lived. Legacy rows may carry a URL
+// whose photo token has expired, so refresh it from the stable Place ID before
+// giving up on the photo.
+async function freshPhotoUrl(googlePlaceId) {
+  if (!GOOGLE_KEY) throw new Error("missing Google Places key to refresh photo reference");
+  const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(googlePlaceId)}`, {
+    headers: {
+      "X-Goog-Api-Key": GOOGLE_KEY,
+      "X-Goog-FieldMask": "photos",
+    },
+  });
+  if (!res.ok) throw new Error(`Place Details HTTP ${res.status}: ${await res.text().catch(() => "")}`);
+  const { photos } = await res.json();
+  const name = photos?.[0]?.name;
+  if (!name) throw new Error("Place Details returned no photos");
+  return `https://places.googleapis.com/v1/${name}/media?maxHeightPx=400&key=${encodeURIComponent(GOOGLE_KEY)}`;
+}
+
+async function downloadWithFreshReference(cafe) {
+  try {
+    const result = await downloadPhoto(cafe.photo_url);
+    return { ...result, refreshed: false };
+  } catch (error) {
+    // A 400 from Places means the embedded photo resource name is stale, not
+    // necessarily that the cafe has no current photo.
+    if (!/HTTP 400/.test(error.message)) throw error;
+    const result = await downloadPhoto(await freshPhotoUrl(cafe.google_place_id));
+    return { ...result, refreshed: true };
+  }
+}
+
 async function uploadPhoto(googlePlaceId, buf, contentType) {
   const ext  = contentType.includes("png")  ? "png"
              : contentType.includes("webp") ? "webp"
@@ -123,7 +155,7 @@ async function main() {
   console.log(`   ${alreadyCached} already cached / non-Google → will skip`);
   console.log(`   ${targets.length} need caching\n`);
 
-  let cached = 0, failed = 0, rateLimited = false;
+  let cached = 0, refreshed = 0, failed = 0, rateLimited = false;
   for (const cafe of targets) {
     if (rateLimited) { failed++; continue; }
     process.stdout.write(`  ${cafe.name.padEnd(40).slice(0, 40)} `);
@@ -134,7 +166,7 @@ async function main() {
         continue;
       }
 
-      const { buf, contentType } = await downloadPhoto(cafe.photo_url);
+      const { buf, contentType, refreshed: usedFreshReference } = await downloadWithFreshReference(cafe);
       const publicUrl = await uploadPhoto(cafe.google_place_id, buf, contentType);
       const { error: updErr } = await supabase
         .from("cafes")
@@ -142,8 +174,9 @@ async function main() {
         .eq("id", cafe.id);
       if (updErr) throw new Error(`db update: ${updErr.message}`);
 
-      console.log(`✓ ${(buf.length / 1024).toFixed(0)}KB`);
+      console.log(`✓ ${(buf.length / 1024).toFixed(0)}KB${usedFreshReference ? " (refreshed)" : ""}`);
       cached++;
+      if (usedFreshReference) refreshed++;
     } catch (e) {
       // Stop early when we hit Google's daily quota — re-run tomorrow.
       if (/HTTP 429/i.test(e.message) || /RESOURCE_EXHAUSTED/i.test(e.message)) {
@@ -159,6 +192,7 @@ async function main() {
   console.log();
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`Cached:        ${cached}`);
+  console.log(`Refreshed:     ${refreshed}`);
   console.log(`Skipped:       ${alreadyCached}`);
   console.log(`Failed:        ${failed}`);
   if (rateLimited) {
