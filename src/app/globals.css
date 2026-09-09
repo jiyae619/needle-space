@@ -203,6 +203,25 @@ h1, h2, h3, .font-display {
 
 .gs-postcard-photo img {
   transition: transform 600ms var(--gs-ease);
+  outline: 1px solid color-mix(in srgb, var(--gs-espresso) 12%, transparent);
+  outline-offset: -1px;
+}
+
+/* A missing or rate-limited source image should read as an intentional card
+   surface, rather than a broken blank rectangle that disrupts the grid. */
+.gs-postcard-photo-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--gs-paper) 80%, var(--gs-accent)) 0%, var(--gs-paper) 100%);
+  color: color-mix(in srgb, var(--gs-espresso) 64%, transparent);
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(2.4rem, 8vw, 4.5rem);
+  font-weight: 500;
+  outline: 1px solid color-mix(in srgb, var(--gs-espresso) 10%, transparent);
+  outline-offset: -1px;
 }
 
 @media (hover: hover) {

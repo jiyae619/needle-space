@@ -302,7 +302,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
                 aria-busy={isSearching}
               >
                 {visibleCafes.map((cafe, i) => (
-                  <div key={cafe.id} className={i === 0 ? "col-span-2" : undefined}>
+                  <div key={cafe.id} className={i === 0 ? "col-span-2 sm:col-span-3 lg:col-span-2" : undefined}>
                     <CafeCard
                       cafe={cafe}
                       index={i}

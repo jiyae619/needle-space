@@ -8,7 +8,12 @@
 -- Run this in the Supabase SQL editor:
 -- https://supabase.com/dashboard
 
-create extension if not exists vector;
+-- pgvector must also live outside the API-exposed public schema. `extensions`
+-- stays on the migration search path below so existing vector type references
+-- remain valid on both a fresh project and the current legacy project.
+create schema if not exists extensions;
+create extension if not exists vector with schema extensions;
+set search_path = public, extensions;
 
 alter table cafes
   add column if not exists wifi_quality_llm        text check (wifi_quality_llm in ('fast','moderate','slow','none','unknown')),
@@ -37,6 +42,8 @@ alter table nl_query_log enable row level security;
 -- Reads allowed (in case we want to display popular queries later); writes only via service role.
 create policy "Public query log is readable by everyone"
   on nl_query_log for select using (true);
+
+grant select on table nl_query_log to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Vector-search RPC used by the Day 1 smoke test and by /api/search (Day 5).

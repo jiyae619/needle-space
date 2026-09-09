@@ -31,6 +31,9 @@
 -- arguments (as scripts/evaluate-retrieval.mjs and the smoke test do) matches
 -- both candidates and fails as ambiguous, because every added parameter has a
 -- default. One definition, no ambiguity.
+-- Supports the fresh-project pgvector installation in the extensions schema.
+set search_path = public, extensions;
+
 drop function if exists match_cafes(
   vector(1024), int, text[], text[], text[], text[], text[], boolean
 );

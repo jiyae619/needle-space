@@ -50,6 +50,9 @@ end $$;
 --
 -- Tag filters keep the Strategy C merge: prefer the LLM tag, fall back to the
 -- regex tag when the LLM punted.
+-- Supports the fresh-project pgvector installation in the extensions schema.
+set search_path = public, extensions;
+
 create function public.match_cafes(
   query_embedding vector(1024),
   match_count     int default 30,

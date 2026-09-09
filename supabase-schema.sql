@@ -2,8 +2,11 @@
 -- Run this in your Supabase SQL editor from your dashboard:
 -- https://supabase.com/dashboard
 
--- Enable PostGIS for geospatial queries (distance search)
-create extension if not exists postgis;
+-- Keep PostGIS out of the API-exposed public schema. The previous unqualified
+-- CREATE EXTENSION installed its system tables (including spatial_ref_sys) in
+-- public, where they could be reached through PostgREST.
+create schema if not exists gis;
+create extension if not exists postgis with schema gis;
 
 -- Cafes table
 create table if not exists cafes (
@@ -38,7 +41,7 @@ create table if not exists cafes (
 
 -- Index for fast geospatial queries (find cafes near a location)
 create index if not exists cafes_location_idx on cafes using gist (
-  st_makepoint(lng, lat)
+  gis.st_makepoint(lng, lat)
 );
 
 -- Index for neighborhood filtering
@@ -57,6 +60,10 @@ alter table cafes enable row level security;
 create policy "Public cafes are readable by everyone"
   on cafes for select
   using (true);
+
+-- The replacement project disables automatic Data API grants. Keep the
+-- browser-facing read surface explicit and do not grant client write access.
+grant select on table cafes to anon, authenticated;
 
 -- Only allow inserts/updates from the service role (your batch script)
 -- Client-side (anon key) cannot write to this table
@@ -83,3 +90,5 @@ alter table cafe_reviews enable row level security;
 
 create policy "Public reviews readable by everyone"
   on cafe_reviews for select using (true);
+
+grant select on table cafe_reviews to anon, authenticated;

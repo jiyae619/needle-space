@@ -7,6 +7,10 @@
 --
 -- Run in the Supabase SQL editor.
 
+-- Supports the fresh-project pgvector installation in the extensions schema.
+-- public stays first for compatibility with the existing production project.
+set search_path = public, extensions;
+
 create or replace function match_cafes(
   query_embedding vector(1024),
   match_count     int default 30,

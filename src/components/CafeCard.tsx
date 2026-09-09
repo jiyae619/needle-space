@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useState } from "react";
 import { Cafe } from "@/lib/types";
 import { estimateCrowdness, crowdnessLabel } from "@/lib/crowdness";
 import { pickGlanceQuote } from "@/lib/cafe-glance";
@@ -31,8 +32,10 @@ interface CafeCardProps {
 }
 
 export default function CafeCard({ cafe, index = 0, hero = false, featured = false, highlighted, onHoverEnter, onHoverLeave }: CafeCardProps) {
+  const [imageFailed, setImageFailed] = useState(false);
   const street = cafe.address.split(",")[0];
   const photo  = safePhotoUrl(cafe.photo_url);
+  const showPhoto = Boolean(photo) && !imageFailed;
   // Crowdness is heuristic (hour-of-day × cafeId offset). Compute it
   // synchronously so the pill is present from first paint — no layout shift
   // post-hydration. suppressHydrationWarning on the wrapper covers the rare
@@ -57,9 +60,9 @@ export default function CafeCard({ cafe, index = 0, hero = false, featured = fal
         style={{ animationDelay: `${Math.min(index * 60, 360)}ms` }}
       >
         <div className="gs-postcard-photo">
-          {photo ? (
+          {showPhoto ? (
             <Image
-              src={photo}
+              src={photo!}
               alt={`Inside ${cafe.name}`}
               fill
               sizes={
@@ -69,8 +72,13 @@ export default function CafeCard({ cafe, index = 0, hero = false, featured = fal
               }
               className="object-cover"
               unoptimized
+              onError={() => setImageFailed(true)}
             />
-          ) : null}
+          ) : (
+            <div className="gs-postcard-photo-fallback" aria-hidden>
+              <span>{cafe.name.slice(0, 1)}</span>
+            </div>
+          )}
         </div>
 
         {/* Score stamp — productivity badge, sibling to photo so its tooltip
