@@ -111,6 +111,10 @@ export default function CafeCard({ cafe, href = `/cafe/${cafe.id}`, index = 0, h
           </div>
           <h3 className="gs-postcard-title">{cafe.name}</h3>
 
+          {cafe.business_status === "CLOSED_TEMPORARILY" && (
+            <p className="gs-postcard-status" role="status">Temporarily closed</p>
+          )}
+
           {hero && glance && (
             <blockquote className="gs-postcard-quote">{glance.quote}</blockquote>
           )}

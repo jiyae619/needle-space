@@ -133,6 +133,7 @@ async function searchNearby(lat, lng, areaName) {
         "places.rating",
         "places.userRatingCount",
         "places.priceLevel",
+        "places.businessStatus",
         "places.currentOpeningHours",
         "places.nationalPhoneNumber",
         "places.websiteUri",
@@ -200,6 +201,8 @@ async function processCafe(place, areaName) {
     price_level: place.priceLevel ? parseInt(place.priceLevel.replace("PRICE_LEVEL_", "")) : null,
     photo_url: getPhotoUrl(place.photos),
     hours_json: buildHoursJson(place.currentOpeningHours),
+    business_status: place.businessStatus || "BUSINESS_STATUS_UNSPECIFIED",
+    business_status_checked_at: new Date().toISOString(),
     // Work attributes: start as unknown, manual verification will fill these in
     wifi_quality: "unknown",
     outlet_availability: "unknown",

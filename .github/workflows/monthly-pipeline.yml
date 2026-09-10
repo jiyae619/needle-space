@@ -1,10 +1,8 @@
 name: Monthly data pipeline
 
-# Refreshes the cafe dataset on a schedule so it doesn't go stale between manual
-# runs. Runs scripts/run-pipeline.mjs (research → tag → vision → score) on the
-# GitHub Actions free tier. Costs stay on free tiers — Tavily, Gemini, Voyage —
-# and NO Google Places API is touched (photos come from the cached photo_url),
-# so this cannot repeat the Google Maps billing incident.
+# Runs weekly, but the Places refresh only calls Google for records older than
+# 28 days. This keeps Google-derived information inside its permitted freshness
+# window while avoiding weekly full-catalog charges.
 #
 # The pipeline gates itself on tagging quality BEFORE its finalize stage, so a
 # regression stops the run rather than being reported after the search index
@@ -13,8 +11,7 @@ name: Monthly data pipeline
 
 on:
   schedule:
-    # 09:00 UTC on the 1st of every month (~1–2am Pacific, low-traffic).
-    - cron: "0 9 1 * *"
+    - cron: "0 9 * * 1"
   workflow_dispatch:
     inputs:
       args:
@@ -44,13 +41,25 @@ jobs:
 
       - run: npm ci
 
-      # Scheduled runs get no extra args → incremental & safe-paced: research
-      # refreshes on its 30-day cadence, only NEW cafes get tagged, scores
-      # recompute. A full re-tag is an explicit manual dispatch with --force.
-      #
-      # Secrets arrive as environment variables. The scripts read process.env
-      # first and fall back to .env.local, so nothing has to be written to disk
-      # on the runner.
+      # This checks the 28-day freshness marker before making a Places call.
+      # When due, it discovers new cafes and refreshes existing status, address,
+      # hours, website, and phone with a narrow, explicit field mask.
+      - name: Refresh cafe information and discover new cafes
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY || secrets.GOOGLE_PLACES_API_KEY }}
+        run: node scripts/refresh-cafe-information.mjs --delay-ms 500
+
+      # Newly discovered cafes have no review corpus yet. Existing places are
+      # skipped, so this is inexpensive on non-discovery weeks.
+      - name: Analyze reviews for newly discovered cafes
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY || secrets.GOOGLE_PLACES_API_KEY }}
+        run: node scripts/analyze-reviews.mjs --new-only
+
       - name: Run pipeline
         env:
           EXTRA_ARGS: ${{ github.event.inputs.args }}

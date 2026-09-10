@@ -23,6 +23,7 @@ const CAFE_COLUMNS = [
   "id", "google_place_id", "name", "address", "lat", "lng", "neighborhood",
   "phone", "website", "google_rating", "google_review_count", "price_level",
   "photo_url", "hours_json", "vibe_keywords", "verified",
+  "business_status", "business_status_checked_at", "moved_place_id",
   "wifi_quality", "outlet_availability", "noise_level", "laptop_policy",
   "seating_availability", "productivity_score",
   "wifi_quality_llm", "outlet_availability_llm", "noise_level_llm",
@@ -150,6 +151,7 @@ export async function POST(req: Request) {
   let cafes = ((rows ?? []) as unknown as Cafe[]).sort(
     (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
   );
+  cafes = cafes.filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY");
 
   // Location and productivity filters are applied post-RPC for the semantic
   // path so we don't have to plumb them through match_cafes' SQL signature.

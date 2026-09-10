@@ -326,6 +326,20 @@ h1, h2, h3, .font-display {
   overflow: hidden;
 }
 
+.gs-postcard-status {
+  width: fit-content;
+  margin-top: -0.1rem;
+  padding: 0.16rem 0.42rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--gs-warn) 13%, var(--gs-paper));
+  color: var(--gs-warn);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .gs-postcard-quote {
   position: relative;
   font-family: var(--font-display), Georgia, serif;

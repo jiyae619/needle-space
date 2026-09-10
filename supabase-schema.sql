@@ -24,6 +24,9 @@ create table if not exists cafes (
   price_level         int,
   photo_url           text,
   hours_json          jsonb,
+  business_status     text not null default 'OPERATIONAL' check (business_status in ('OPERATIONAL', 'CLOSED_TEMPORARILY', 'CLOSED_PERMANENTLY', 'FUTURE_OPENING', 'BUSINESS_STATUS_UNSPECIFIED')),
+  business_status_checked_at timestamptz,
+  moved_place_id      text,
 
   -- Work-specific attributes (our value-add)
   wifi_quality        text default 'unknown' check (wifi_quality in ('fast', 'moderate', 'slow', 'none', 'unknown')),
@@ -46,6 +49,7 @@ create index if not exists cafes_location_idx on cafes using gist (
 
 -- Index for neighborhood filtering
 create index if not exists cafes_neighborhood_idx on cafes (neighborhood);
+create index if not exists cafes_business_status_idx on cafes (business_status);
 
 -- Index for filter queries
 create index if not exists cafes_wifi_idx on cafes (wifi_quality);

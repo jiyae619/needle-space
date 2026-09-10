@@ -13,6 +13,9 @@ export interface Cafe {
   price_level: number | null;
   photo_url: string | null;
   hours_json: Record<string, string> | null;
+  business_status?: "OPERATIONAL" | "CLOSED_TEMPORARILY" | "CLOSED_PERMANENTLY" | "FUTURE_OPENING" | "BUSINESS_STATUS_UNSPECIFIED";
+  business_status_checked_at?: string | null;
+  moved_place_id?: string | null;
   // Work-specific attributes
   wifi_quality: "fast" | "moderate" | "slow" | "none" | "unknown";
   outlet_availability: "every_table" | "most" | "limited" | "none" | "unknown";

@@ -24,7 +24,7 @@ export async function getCafes(): Promise<Cafe[]> {
     return [];
   }
   console.log("[getCafes] Got", data?.length ?? 0, "cafes");
-  return (data as Cafe[]) || [];
+  return ((data as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY");
 }
 
 // Used by /treasure (Surprise me). Returns all cafes scoring above the
@@ -47,7 +47,7 @@ export async function getCafesAboveScore(minScore: number): Promise<Cafe[]> {
     console.error("[getCafesAboveScore] Supabase error:", error.message);
     return [];
   }
-  return (data as Cafe[]) || [];
+  return ((data as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY");
 }
 
 export async function getVerifiedCafes(): Promise<Cafe[]> {
@@ -65,7 +65,7 @@ export async function getVerifiedCafes(): Promise<Cafe[]> {
     console.error("Supabase error:", error.message);
     return [];
   }
-  return (data as Cafe[]) || [];
+  return ((data as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY");
 }
 
 // Calls the /api/search route. Used by HomeClient when the user types in the
@@ -106,5 +106,5 @@ export async function getCafeById(id: string): Promise<Cafe | null> {
     .single();
 
   if (error) return null;
-  return data as Cafe;
+  return data?.business_status === "CLOSED_PERMANENTLY" ? null : data as Cafe;
 }
