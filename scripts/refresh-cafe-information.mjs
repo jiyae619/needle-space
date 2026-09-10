@@ -136,15 +136,15 @@ async function main() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       failures.push({ name: cafe.name, error: message });
-      // A removed Google place cannot be classified safely. Record it as an
-      // explicit review item and wait 28 days before the next retry, rather
-      // than making every weekly workflow run rediscover the entire city.
+      // A removed Google place cannot be classified safely. Preserve the last
+      // confirmed status, record a fresh check timestamp, and surface the row
+      // in the workflow report rather than letting a transient Google 404 hide
+      // a cafe that a human has confirmed is open.
       if (message === "HTTP 404") {
         if (!DRY_RUN) {
           const { error: updateError } = await supabase
             .from("cafes")
             .update({
-              business_status: "BUSINESS_STATUS_UNSPECIFIED",
               business_status_checked_at: now.toISOString(),
             })
             .eq("id", cafe.id);
