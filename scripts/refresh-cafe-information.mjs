@@ -29,6 +29,7 @@ const FIELDS = [
 const argv = process.argv.slice(2);
 const DRY_RUN = argv.includes("--dry-run");
 const FORCE = argv.includes("--force");
+const SKIP_DISCOVERY = argv.includes("--skip-discovery");
 const numberFlag = (name, fallback) => {
   const index = argv.indexOf(name);
   if (index === -1) return fallback;
@@ -99,10 +100,11 @@ async function main() {
     return;
   }
 
-  await discoverNewCafes();
+  if (!SKIP_DISCOVERY) await discoverNewCafes();
 
   const changes = [];
   const failures = [];
+  let fatalFailures = 0;
   let refreshed = 0;
   for (const [index, cafe] of targets.entries()) {
     if (index > 0 && DELAY_MS) await sleep(DELAY_MS);
@@ -134,7 +136,27 @@ async function main() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       failures.push({ name: cafe.name, error: message });
-      if (message === "HTTP 429") break;
+      // A removed Google place cannot be classified safely. Record it as an
+      // explicit review item and wait 28 days before the next retry, rather
+      // than making every weekly workflow run rediscover the entire city.
+      if (message === "HTTP 404") {
+        if (!DRY_RUN) {
+          const { error: updateError } = await supabase
+            .from("cafes")
+            .update({
+              business_status: "BUSINESS_STATUS_UNSPECIFIED",
+              business_status_checked_at: now.toISOString(),
+            })
+            .eq("id", cafe.id);
+          if (updateError) throw new Error(`Supabase 404 marker: ${updateError.message}`);
+        }
+        continue;
+      }
+      if (message === "HTTP 429") {
+        fatalFailures++;
+        break;
+      }
+      fatalFailures++;
     }
     if ((index + 1) % 25 === 0 || index + 1 === targets.length) console.log(`  Refreshed ${index + 1}/${targets.length}`);
   }
@@ -148,7 +170,7 @@ async function main() {
     ...(changes.length ? ["", "### Changed cafes", ...changes.map(change => `- **${change.name}** (${change.status}): ${change.fields.join(", ")}`)] : []),
     ...(failures.length ? ["", "### Needs review", ...failures.map(failure => `- ⚠️ **${failure.name}**: ${failure.error}`)] : []),
   ]);
-  if (failures.length) process.exitCode = 1;
+  if (fatalFailures) process.exitCode = 1;
 }
 
 main().catch(error => {
