@@ -16,6 +16,7 @@
  *   node scripts/cache-photos.mjs --dry-run          ← preview, no fetches/uploads
  *   node scripts/cache-photos.mjs --dry-run --limit 5
  *   node scripts/cache-photos.mjs --limit 5          ← live, 5 cafes
+ *   node scripts/cache-photos.mjs --limit 25 --delay-ms 2500
  *   node scripts/cache-photos.mjs                    ← live, all cafes that need it
  *
  * Idempotent: cafes whose photo_url is already a Supabase URL are skipped,
@@ -43,6 +44,16 @@ const flag = (name) => {
 };
 const DRY_RUN = !!flag("--dry-run");
 const LIMIT   = typeof flag("--limit") === "string" ? parseInt(flag("--limit"), 10) : null;
+const DELAY_MS = typeof flag("--delay-ms") === "string" ? parseInt(flag("--delay-ms"), 10) : 2_500;
+
+if (LIMIT !== null && (!Number.isInteger(LIMIT) || LIMIT < 1)) {
+  throw new Error("--limit must be a positive integer");
+}
+if (!Number.isInteger(DELAY_MS) || DELAY_MS < 0) {
+  throw new Error("--delay-ms must be a non-negative integer");
+}
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // ---- Bucket setup ---------------------------------------------------------
 async function ensureBucket() {
@@ -133,7 +144,8 @@ async function uploadPhoto(googlePlaceId, buf, contentType) {
 async function main() {
   console.log("🖼️  Needle Space — photo cache to Supabase Storage");
   console.log(`   Mode:   ${DRY_RUN ? "DRY RUN — no fetches, no uploads, no DB writes" : "LIVE — will fetch from Google + write to Storage + DB"}`);
-  if (LIMIT) console.log(`   Limit:  ${LIMIT} cafes`);
+  if (LIMIT) console.log(`   Limit:  ${LIMIT} uncached cafe(s)`);
+  if (!DRY_RUN && DELAY_MS) console.log(`   Delay:  ${DELAY_MS}ms between cafes`);
   console.log();
 
   await ensureBucket();
@@ -143,21 +155,21 @@ async function main() {
     .select("id, name, neighborhood, google_place_id, photo_url")
     .not("photo_url", "is", null)
     .order("name");
-  if (LIMIT) q = q.limit(LIMIT);
-
   const { data: cafes, error } = await q;
   if (error) { console.error("❌", error.message); process.exit(1); }
 
-  const targets = cafes.filter(c => isGooglePhoto(c.photo_url) && !isAlreadyCached(c.photo_url));
-  const alreadyCached = cafes.length - targets.length;
+  const uncachedTargets = cafes.filter(c => isGooglePhoto(c.photo_url) && !isAlreadyCached(c.photo_url));
+  const targets = LIMIT ? uncachedTargets.slice(0, LIMIT) : uncachedTargets;
+  const alreadyCached = cafes.length - uncachedTargets.length;
 
   console.log(`📋 Found ${cafes.length} cafe(s) with a photo_url`);
   console.log(`   ${alreadyCached} already cached / non-Google → will skip`);
-  console.log(`   ${targets.length} need caching\n`);
+  console.log(`   ${uncachedTargets.length} need caching${LIMIT && uncachedTargets.length > LIMIT ? `; processing ${targets.length} now` : ""}\n`);
 
   let cached = 0, refreshed = 0, failed = 0, rateLimited = false;
-  for (const cafe of targets) {
+  for (const [index, cafe] of targets.entries()) {
     if (rateLimited) { failed++; continue; }
+    if (!DRY_RUN && index > 0 && DELAY_MS) await sleep(DELAY_MS);
     process.stdout.write(`  ${cafe.name.padEnd(40).slice(0, 40)} `);
     try {
       if (DRY_RUN) {
@@ -178,9 +190,9 @@ async function main() {
       cached++;
       if (usedFreshReference) refreshed++;
     } catch (e) {
-      // Stop early when we hit Google's daily quota — re-run tomorrow.
+      // Stop early when the credential receives a rate-limit response.
       if (/HTTP 429/i.test(e.message) || /RESOURCE_EXHAUSTED/i.test(e.message)) {
-        console.log("✗ daily quota hit — stopping early, re-run tomorrow");
+        console.log("✗ Google rate limit hit — stopping early");
         rateLimited = true;
       } else {
         console.log(`✗ ${e.message.slice(0, 100)}`);
@@ -196,7 +208,7 @@ async function main() {
   console.log(`Skipped:       ${alreadyCached}`);
   console.log(`Failed:        ${failed}`);
   if (rateLimited) {
-    console.log(`\n⏳ Hit Google's daily quota. The script is idempotent — re-run tomorrow to continue.`);
+    console.log(`\n⏳ Google rate limit reached. The script is idempotent — resume later with a larger --delay-ms.`);
   }
   if (!DRY_RUN && cached > 0) {
     console.log(`\n💰 Future renders of these ${cached} photos cost $0 (Supabase CDN).`);
