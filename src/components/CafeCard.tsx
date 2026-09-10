@@ -21,6 +21,7 @@ function safePhotoUrl(url: string | null | undefined): string | null {
 
 interface CafeCardProps {
   cafe: Cafe;
+  href?: string;
   index?: number;
   hero?: boolean;
   // When true, the hero shows "TODAY'S PICK" instead of "NO. 01" — editorial
@@ -31,7 +32,7 @@ interface CafeCardProps {
   onHoverLeave?: (id: string) => void;
 }
 
-export default function CafeCard({ cafe, index = 0, hero = false, featured = false, highlighted, onHoverEnter, onHoverLeave }: CafeCardProps) {
+export default function CafeCard({ cafe, href = `/cafe/${cafe.id}`, index = 0, hero = false, featured = false, highlighted, onHoverEnter, onHoverLeave }: CafeCardProps) {
   const [imageFailed, setImageFailed] = useState(false);
   const street = cafe.address.split(",")[0];
   const photo  = safePhotoUrl(cafe.photo_url);
@@ -49,7 +50,7 @@ export default function CafeCard({ cafe, index = 0, hero = false, featured = fal
 
   return (
     <Link
-      href={`/cafe/${cafe.id}`}
+      href={href}
       className="block h-full group"
       id={`card-${cafe.id}`}
       onMouseEnter={() => onHoverEnter?.(cafe.id)}

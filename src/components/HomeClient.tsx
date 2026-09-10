@@ -7,12 +7,46 @@ import FilterChips from "@/components/FilterChips";
 import CafeCard from "@/components/CafeCard";
 import MapView from "@/components/MapView";
 import SearchBar from "@/components/SearchBar";
-import { Cafe, Filters, FilterKey, EMPTY_FILTERS, isFilterEmpty } from "@/lib/types";
+import { Cafe, Filters, FilterKey, EMPTY_FILTERS, isFilterEmpty, NEIGHBORHOODS } from "@/lib/types";
 import { searchCafes } from "@/lib/cafes";
 
 const PAGE_SIZE = 16;
 
 type ViewMode = "list" | "map";
+
+function filtersFromUrl(params: { get(name: string): string | null; getAll(name: string): string[] }): Filters {
+  const location = params.getAll("location").filter(
+    (value) => NEIGHBORHOODS.includes(value as (typeof NEIGHBORHOODS)[number]),
+  );
+  const noise = params.get("noise");
+  const outlets = params.get("outlets");
+  const laptop = params.get("laptop");
+  const productivity = params.get("productivity");
+  const openNow = params.get("open_now");
+
+  return {
+    location,
+    noise: noise === "quiet" || noise === "quiet_or_moderate" ? noise : "any",
+    outlets: outlets === "every_table" || outlets === "any_outlets" ? outlets : "any",
+    laptop: laptop === "welcome" || laptop === "welcome_or_limited" ? laptop : "any",
+    productivity: productivity === "above_4" || productivity === "under_4" ? productivity : "any",
+    open_now: openNow === "open_now" ? "open_now" : "any",
+  };
+}
+
+function exploreStateQuery(searchQuery: string, filters: Filters, visibleCount: number, viewMode: ViewMode) {
+  const params = new URLSearchParams();
+  if (searchQuery.trim()) params.set("q", searchQuery);
+  for (const location of filters.location) params.append("location", location);
+  if (filters.noise !== "any") params.set("noise", filters.noise);
+  if (filters.outlets !== "any") params.set("outlets", filters.outlets);
+  if (filters.laptop !== "any") params.set("laptop", filters.laptop);
+  if (filters.productivity !== "any") params.set("productivity", filters.productivity);
+  if (filters.open_now !== "any") params.set("open_now", filters.open_now);
+  if (visibleCount > PAGE_SIZE) params.set("show", String(visibleCount));
+  if (viewMode === "map") params.set("view", viewMode);
+  return params.toString();
+}
 
 interface HomeClientProps {
   initialCafes: Cafe[];
@@ -23,18 +57,18 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  // Read current visible-count from URL so back-button from /cafe/[id] returns
-  // the user to roughly the same scroll context. Next.js handles actual scroll
-  // restoration on browser back.
+  // Persist search, filters, visible count, and view in the URL. A café detail
+  // link can therefore return to the user's exact Explore state even if the
+  // client-side route cache has been discarded.
   const urlShow = Math.max(PAGE_SIZE, parseInt(searchParams.get("show") || String(PAGE_SIZE), 10) || PAGE_SIZE);
 
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [filters, setFilters] = useState<Filters>(() => filtersFromUrl(searchParams));
+  const [viewMode, setViewMode] = useState<ViewMode>(() => searchParams.get("view") === "map" ? "map" : "list");
   const [selectedCafeId, setSelectedCafeId] = useState<string | null>(null);
   // Yelp-style hover sync: source of truth for which cafe is currently
   // hovered on either the map or the list. null = no hover.
   const [hoveredCafeId, setHoveredCafeId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") || "");
   const [visibleCount, setVisibleCount] = useState(urlShow);
   const [results, setResults] = useState<Cafe[]>(initialCafes);
   const [isSearching, setIsSearching] = useState(false);
@@ -47,19 +81,16 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
 
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Sync URL whenever visibleCount changes — replaceState so the browser-back
-  // history isn't bloated with one entry per scroll batch.
+  const stateQuery = exploreStateQuery(searchQuery, filters, visibleCount, viewMode);
+  const returnHref = stateQuery ? `${pathname}?${stateQuery}` : pathname;
+
+  // replaceState prevents a history entry for every typed character or scroll
+  // batch while still keeping a complete return destination for café details.
   useEffect(() => {
-    const sp = new URLSearchParams(Array.from(searchParams.entries()));
-    if (visibleCount > PAGE_SIZE) sp.set("show", String(visibleCount));
-    else sp.delete("show");
-    const next = sp.toString();
-    const target = next ? `${pathname}?${next}` : pathname;
-    if (typeof window !== "undefined" && window.location.pathname + window.location.search !== target) {
-      router.replace(target, { scroll: false });
+    if (typeof window !== "undefined" && window.location.pathname + window.location.search !== returnHref) {
+      router.replace(returnHref, { scroll: false });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleCount]);
+  }, [returnHref, router]);
 
   // Back-to-top visibility — appears after a meaningful scroll.
   useEffect(() => {
@@ -305,6 +336,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
                   <div key={cafe.id} className={i === 0 ? "col-span-2 sm:col-span-3 lg:col-span-2" : undefined}>
                     <CafeCard
                       cafe={cafe}
+                      href={`/cafe/${cafe.id}?from=${encodeURIComponent(returnHref)}`}
                       index={i}
                       hero={i === 0}
                       featured={i === 0 && showTodaysPickHero}
@@ -365,6 +397,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
                   <CafeCard
                     key={cafe.id}
                     cafe={cafe}
+                    href={`/cafe/${cafe.id}?from=${encodeURIComponent(returnHref)}`}
                     index={i}
                     highlighted={cafe.id === hoveredCafeId || cafe.id === selectedCafeId}
                     onHoverEnter={handleHoverEnter}
@@ -378,7 +411,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
           {/* Mobile: when a marker is tapped, show that single card below. */}
           {selectedCafe && (
             <div className="mt-3 md:hidden">
-              <CafeCard cafe={selectedCafe} />
+              <CafeCard cafe={selectedCafe} href={`/cafe/${selectedCafe.id}?from=${encodeURIComponent(returnHref)}`} />
             </div>
           )}
         </div>
