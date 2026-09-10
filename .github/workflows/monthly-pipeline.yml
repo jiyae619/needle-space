@@ -1,8 +1,8 @@
 name: Monthly data pipeline
 
-# Runs weekly, but the Places refresh only calls Google for records older than
-# 28 days. This keeps Google-derived information inside its permitted freshness
-# window while avoiding weekly full-catalog charges.
+# Runs a lightweight eligibility check daily, but the Places refresh only calls
+# Google for records approaching 28 days old. This keeps Google-derived
+# information fresh while avoiding daily full-catalog charges.
 #
 # The pipeline gates itself on tagging quality BEFORE its finalize stage, so a
 # regression stops the run rather than being reported after the search index
@@ -11,7 +11,7 @@ name: Monthly data pipeline
 
 on:
   schedule:
-    - cron: "0 9 * * 1"
+    - cron: "0 9 * * *"
   workflow_dispatch:
     inputs:
       args:
@@ -41,7 +41,7 @@ jobs:
 
       - run: npm ci
 
-      # This checks the 28-day freshness marker before making a Places call.
+      # This checks the 27-day freshness marker before making a Places call.
       # When due, it discovers new cafes and refreshes existing status, address,
       # hours, website, and phone with a narrow, explicit field mask.
       - name: Refresh cafe information and discover new cafes
