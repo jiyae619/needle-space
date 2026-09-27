@@ -87,7 +87,7 @@ async function main() {
     "id, google_place_id, name, neighborhood, address, vibe_keywords, google_rating, productivity_score, " +
     "wifi_quality, outlet_availability, noise_level, laptop_policy, seating_availability, " +
     "wifi_quality_llm, outlet_availability_llm, noise_level_llm, laptop_policy_llm, seating_availability_llm, " +
-    "llm_tagged_at, visual_tagged_at, finalized_at"
+    "human_labels, llm_tagged_at, visual_tagged_at, finalized_at"
   ).not("llm_tagged_at", "is", null).order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
 

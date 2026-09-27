@@ -32,6 +32,11 @@ async function embedRaw(input: string, inputType: "query" | "document"): Promise
   return vector;
 }
 
+/** True when embedQuery would answer from memory without calling Voyage. */
+export function isQueryCached(text: string): boolean {
+  return queryCache.has(text.trim().toLowerCase());
+}
+
 export async function embedQuery(text: string): Promise<number[]> {
   const key = text.trim().toLowerCase();
   const cached = queryCache.get(key);

@@ -31,8 +31,10 @@ export const ATTRS = [
 // comment on DISTRUSTED_FALLBACK in src/lib/merge-tags.ts.
 const DISTRUSTED_FALLBACK = new Set(["noise_level"]);
 
-/** Strategy C: LLM value if it committed, else the keyword value unless distrusted. */
+/** Strategy C: human label, else LLM value if it committed, else the keyword value unless distrusted. */
 export function mergeVal(cafe, dbKey) {
+  const human = cafe.human_labels?.[dbKey];
+  if (human && human !== "unknown") return human;
   const llm = cafe[`${dbKey}_llm`];
   if (llm && llm !== "unknown") return llm;
   if (DISTRUSTED_FALLBACK.has(dbKey)) return "unknown";

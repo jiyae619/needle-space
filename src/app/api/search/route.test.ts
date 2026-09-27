@@ -4,7 +4,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Cafe } from "@/lib/types";
 
 const calls: { rpc: Record<string, unknown>[]; tableFilters: string[][] } = { rpc: [], tableFilters: [] };
-let rpcRows: { id: string }[] = [];
+let rpcRows: { id: string; similarity?: number }[] = [];
+let rateLimitAllows = true;
+let embedCalls = 0;
 let tableRows: Partial<Cafe>[] = [];
 let embedFails = false;
 
@@ -33,7 +35,8 @@ function builder() {
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
-    rpc: (_name: string, args: Record<string, unknown>) => {
+    rpc: (name: string, args: Record<string, unknown>) => {
+      if (name === "rate_limit_hit") return Promise.resolve({ data: rateLimitAllows, error: null });
       calls.rpc.push(args);
       return Promise.resolve({ data: rpcRows, error: null });
     },
@@ -42,9 +45,11 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 vi.mock("@/lib/embeddings", () => ({
   embedQuery: async () => {
+    embedCalls++;
     if (embedFails) throw new Error("429 rate limit");
     return new Array(1024).fill(0);
   },
+  isQueryCached: () => false,
 }));
 vi.mock("next/server", async (orig) => ({
   ...(await orig<typeof import("next/server")>()),
@@ -57,6 +62,7 @@ const post = async (body: unknown) =>
 
 beforeEach(() => {
   calls.rpc = []; calls.tableFilters = []; rpcRows = []; tableRows = []; embedFails = false;
+  rateLimitAllows = true; embedCalls = 0;
 });
 
 describe("/api/search", () => {
@@ -101,5 +107,22 @@ describe("/api/search", () => {
     tableRows = [cafe("p1", { photo_url: "https://places.googleapis.com/v1/x/media?key=SECRET" })];
     const r = await post({ query: "", filters: { laptop: "welcome" } });
     expect(JSON.stringify(r)).not.toContain("SECRET");
+  });
+
+  it("skips the embedding once a client is over its per-minute limit", async () => {
+    rateLimitAllows = false;
+    tableRows = [cafe("a")];
+    const r = await post({ query: "quiet corner", filters: {} });
+    expect(embedCalls).toBe(0);
+    expect(r.semantic_used).toBe(false);
+    expect(r.semantic_fallback_code).toBe("client_rate_limit");
+    expect(r.cafes).toHaveLength(1);
+  });
+
+  it("reports the top similarity so a floor can be chosen from real data", async () => {
+    rpcRows = [{ id: "a", similarity: 0.61 }, { id: "b", similarity: 0.2 }];
+    tableRows = [cafe("a"), cafe("b")];
+    const r = await post({ query: "quiet corner", filters: {} });
+    expect(r.top_similarity).toBe(0.61);
   });
 });

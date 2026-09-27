@@ -1,5 +1,6 @@
 import { Cafe } from "@/lib/types";
 import { computeMergedScore } from "@/lib/score";
+import { mergeTag as merge, tagProvenance, type AttrKey, type TagProvenance } from "@/lib/merge-tags";
 
 const WIFI_LABEL: Record<string, string> = {
   fast: "Fast", moderate: "Decent", slow: "Slow", none: "None", unknown: "Unknown",
@@ -21,28 +22,41 @@ const SEATING_LABEL: Record<string, string> = {
   ample: "Ample", adequate: "Adequate", limited: "Limited", none: "None", unknown: "Unknown",
 };
 
-type AttrKey = "wifi_quality" | "outlet_availability" | "noise_level" | "laptop_policy" | "seating_availability";
 
-// Strategy C merge — same logic as cafe-pills + score utils, kept inline so
-// the breakdown row labels match what computeMergedScore consumed.
-function merge(cafe: Cafe, key: AttrKey): string {
-  const llm = cafe[`${key}_llm` as keyof Cafe] as string | null | undefined;
-  const regex = (cafe[key] as string | null | undefined) ?? "unknown";
-  return (llm && llm !== "unknown") ? llm : regex;
+// "Why this tag": one short line naming where the value came from, with the
+// review quote (checked against its source by the pipeline) when there is one.
+function Why({ p }: { p: TagProvenance }) {
+  const pct = (c: number | null) => (c == null ? "" : ` · ${Math.round(c * 100)}% confidence`);
+  let text: string | null = null;
+  let quote: string | null = null;
+  if (p.source === "human") text = "Checked by Needle Space";
+  else if (p.source === "text") { text = `From reviews${pct(p.confidence)}`; quote = p.quote; }
+  else if (p.source === "vision") { text = `From a photo${pct(p.confidence)}`; quote = p.reason; }
+  else if (p.source === "keyword") text = "Keyword match in reviews · lower confidence";
+  if (!text) return null;
+  return (
+    <p className="text-xs mt-1 leading-snug" style={{ color: "var(--gs-kraft)" }}>
+      {text}
+      {quote && <span className="block italic mt-0.5">&ldquo;{quote}&rdquo;</span>}
+    </p>
+  );
 }
 
-function Row({ label, valueLabel, known }: { label: string; valueLabel: string; known: boolean }) {
+function Row({ label, valueLabel, known, why }: { label: string; valueLabel: string; known: boolean; why: TagProvenance }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
-      <span className="gs-kraft text-xs tracking-widest uppercase font-semibold">
-        {label}
-      </span>
-      <span
-        className="text-sm font-medium"
-        style={{ color: known ? "var(--gs-espresso)" : "var(--gs-rule)" }}
-      >
-        {valueLabel}
-      </span>
+    <div className="py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="gs-kraft text-xs tracking-widest uppercase font-semibold">
+          {label}
+        </span>
+        <span
+          className="text-sm font-medium"
+          style={{ color: known ? "var(--gs-espresso)" : "var(--gs-rule)" }}
+        >
+          {valueLabel}
+        </span>
+      </div>
+      {known && <Why p={why} />}
     </div>
   );
 }
@@ -54,6 +68,7 @@ export default function ScoreBreakdown({ cafe }: { cafe: Cafe }) {
   const laptop  = merge(cafe, "laptop_policy");
   const seating = merge(cafe, "seating_availability");
   const score   = computeMergedScore(cafe);
+  const why = (k: AttrKey) => tagProvenance(cafe, k);
 
   return (
     <div className="gs-card p-5">
@@ -69,11 +84,11 @@ export default function ScoreBreakdown({ cafe }: { cafe: Cafe }) {
         )}
       </div>
       <div className="divide-y" style={{ borderColor: "var(--gs-rule)" }}>
-        <Row label="WiFi"    valueLabel={WIFI_LABEL[wifi]}        known={wifi    !== "unknown"} />
-        <Row label="Outlets" valueLabel={OUTLET_LABEL[outlets]}   known={outlets !== "unknown"} />
-        <Row label="Noise"   valueLabel={NOISE_LABEL[noise]}      known={noise   !== "unknown"} />
-        <Row label="Seating" valueLabel={SEATING_LABEL[seating]}  known={seating !== "unknown"} />
-        <Row label="Laptops" valueLabel={LAPTOP_LABEL[laptop]}    known={laptop  !== "unknown"} />
+        <Row label="WiFi"    valueLabel={WIFI_LABEL[wifi]}        known={wifi    !== "unknown"} why={why("wifi_quality")} />
+        <Row label="Outlets" valueLabel={OUTLET_LABEL[outlets]}   known={outlets !== "unknown"} why={why("outlet_availability")} />
+        <Row label="Noise"   valueLabel={NOISE_LABEL[noise]}      known={noise   !== "unknown"} why={why("noise_level")} />
+        <Row label="Seating" valueLabel={SEATING_LABEL[seating]}  known={seating !== "unknown"} why={why("seating_availability")} />
+        <Row label="Laptops" valueLabel={LAPTOP_LABEL[laptop]}    known={laptop  !== "unknown"} why={why("laptop_policy")} />
       </div>
     </div>
   );

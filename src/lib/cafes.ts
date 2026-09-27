@@ -79,6 +79,7 @@ export async function searchCafes(
   latency_ms?: number;
   semantic_used?: boolean;
   semantic_fallback_reason?: string;
+  semantic_fallback_code?: "client_rate_limit" | "provider_rate_limit" | "error";
   error?: string;
 }> {
   try {
