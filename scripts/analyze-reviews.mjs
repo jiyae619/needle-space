@@ -606,7 +606,11 @@ async function main() {
           laptop_policy: laptop,
           seating_availability: seating,
           productivity_score: score,
-          verified: false,
+          // Don't touch `verified`: it records a human check, and resetting it
+          // here erased every manual verification on a full run. Clearing
+          // finalized_at makes finalize-cafes.mjs replace this keyword-only
+          // score with the merged one on its next run.
+          finalized_at: null,
         })
         .eq("id", cafe.id);
 

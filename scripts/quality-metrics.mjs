@@ -75,6 +75,15 @@ const TOLERANCE      = Number(flag("--tolerance") ?? 0.02);
 const SINCE          = flag("--since");
 const MIN_SAMPLE     = Number(flag("--min-sample") ?? 25);
 
+// A non-numeric value ("5%") would make every `delta > TOLERANCE` false and
+// silently disable the gate.
+for (const [name, v] of [["--tolerance", TOLERANCE], ["--min-sample", MIN_SAMPLE]]) {
+  if (!Number.isFinite(v) || v < 0) {
+    console.error(`${name} must be a non-negative number (got "${flag(name)}")`);
+    process.exit(2);
+  }
+}
+
 if (SINCE && Number.isNaN(Date.parse(SINCE))) {
   console.error(`--since must be a parseable timestamp (got "${SINCE}"), e.g. 2026-09-01T09:00:00Z`);
   process.exit(2);
