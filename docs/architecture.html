@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Needle Space Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #F5EFE3; --surface: #FBF7EF; --paper: #EDE3CF;
+  --ink: #2A1D14; --body: #4A3728; --muted: #6E5238; --rule: #D9CAAF; --line: #8C7258;
+  --accent: #D9481A; --accent-soft: #F8DCCF;
+  --good: #3F6E36; --good-bg: #E6F0E3; --warn: #97660F; --warn-bg: #F8EDD3; --bad: #A82B1C; --bad-bg: #F7E3E0;
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --sans: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #1A130E; --surface: #231A13; --paper: #2E2219;
+    --ink: #F3EADB; --body: #DCCDB8; --muted: #BBA283; --rule: #3F3024; --line: #9C8468;
+    --accent: #F2753F; --accent-soft: #4A2718;
+    --good: #8CC47F; --good-bg: #20301C; --warn: #E3B35A; --warn-bg: #352A14; --bad: #F08A7A; --bad-bg: #3A1D18;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1A130E; --surface: #231A13; --paper: #2E2219;
+  --ink: #F3EADB; --body: #DCCDB8; --muted: #BBA283; --rule: #3F3024; --line: #9C8468;
+  --accent: #F2753F; --accent-soft: #4A2718;
+  --good: #8CC47F; --good-bg: #20301C; --warn: #E3B35A; --warn-bg: #352A14; --bad: #F08A7A; --bad-bg: #3A1D18;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--body); font: 16px/1.6 var(--sans); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 72px; display: grid; gap: 64px; }
+h1, h2, h3 { font-family: var(--serif); color: var(--ink); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.3rem); line-height: 1.05; font-weight: 400; }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); line-height: 1.15; }
+h3 { font-size: 1.15rem; }
+p { margin: 0; max-width: 68ch; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--paper); padding: 1px 5px; border-radius: 4px; color: var(--ink); overflow-wrap: anywhere; }
+a { color: var(--accent); }
+.eyebrow { font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+section { display: grid; gap: 20px; }
+.head { display: grid; gap: 10px; }
+header.top { display: grid; gap: 18px; }
+.lede { font-size: 1.12rem; color: var(--body); max-width: 64ch; }
+.facts { display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 14px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); margin: 0; }
+.facts div { display: grid; }
+.facts dt { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.facts dd { margin: 0; font-family: var(--serif); font-size: 1.35rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+figure { margin: 0; display: grid; gap: 12px; }
+.scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); padding: 12px; }
+svg.diagram { display: block; width: 100%; min-width: 820px; height: auto; color: var(--ink); }
+svg.diagram.narrow { min-width: 560px; max-width: 760px; margin: 0 auto; }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 80ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 0.85rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 22px; height: 12px; border-radius: 3px; border: 1.5px solid var(--line); background: var(--surface); }
+.sw.hot { border: 1.5px dashed var(--accent); }
+.sw.accent { border: 2px solid var(--ink); }
+.sw.gap { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 0; }
+
+/* diagram primitives */
+.diagram .lane { fill: none; stroke: var(--rule); stroke-width: 1; stroke-dasharray: 2 4; }
+.diagram .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.3; }
+.diagram .box.accent { stroke: var(--ink); stroke-width: 2.2; }
+.diagram .box.hot { stroke: var(--accent); stroke-dasharray: 5 3; stroke-width: 1.6; fill: var(--accent-soft); fill-opacity: 0.35; }
+.diagram .box.dim { stroke: var(--rule); fill: var(--bg); }
+.diagram .db { fill: var(--paper); stroke: var(--line); stroke-width: 1.3; }
+.diagram .chip { fill: var(--surface); stroke: var(--rule); stroke-width: 1; }
+.diagram .chip.hot { stroke: var(--accent); stroke-dasharray: 5 3; }
+.diagram .edge { fill: none; stroke: var(--line); stroke-width: 1.4; }
+.diagram .edge.hot { stroke: var(--accent); stroke-width: 1.8; }
+.diagram .mk-norm path { fill: var(--line); }
+.diagram .mk-hot path { fill: var(--accent); }
+.diagram .term { fill: var(--ink); }
+.diagram text { font-family: var(--sans); fill: currentColor; }
+.diagram .t-title { font-size: 13px; font-weight: 700; fill: var(--ink); }
+.diagram .t-dim { fill: var(--muted); }
+.diagram .t-sub { font-size: 11px; fill: var(--muted); }
+.diagram .t-edge { font-size: 10.5px; fill: var(--muted); font-style: italic; }
+.diagram .t-hot { fill: var(--accent); }
+.diagram .t-lane { font-size: 10.5px; letter-spacing: 0.12em; fill: var(--muted); font-weight: 500; }
+.diagram .t-term { font-size: 8px; font-weight: 700; fill: var(--bg); letter-spacing: 0.05em; }
+.diagram .tag { fill: var(--accent); }
+.diagram .t-tag { font-size: 9px; font-weight: 700; fill: #FFF8F2; letter-spacing: 0.06em; }
+.diagram .gap { fill: var(--accent); }
+.diagram .t-gap { font-size: 9.5px; font-weight: 700; fill: #FFF8F2; }
+
+ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; max-width: 76ch; }
+ol.steps li::marker { font-family: var(--serif); color: var(--accent); }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 11px 14px; border-bottom: 1px solid var(--rule); }
+th { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--paper); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .was { color: var(--bad); }
+td .now { color: var(--good); font-weight: 700; }
+td:first-child { color: var(--ink); font-weight: 500; }
+
+.gaps { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.gaps li { display: grid; grid-template-columns: 44px 76px 1fr; gap: 12px; align-items: start; padding: 12px 14px; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; }
+.gid { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); padding-top: 2px; }
+.gid.marked { color: #FFF8F2; background: var(--accent); border-radius: 999px; text-align: center; font-weight: 700; width: 34px; }
+.sev { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; padding: 3px 8px; border-radius: 999px; text-align: center; }
+.sev.high { background: var(--bad-bg); color: var(--bad); }
+.sev.med { background: var(--warn-bg); color: var(--warn); }
+.sev.low { background: var(--paper); color: var(--muted); }
+.gaps b { color: var(--ink); font-weight: 700; }
+.gaps p { font-size: 0.93rem; }
+.gaps .fix { color: var(--muted); font-size: 0.88rem; margin-top: 4px; }
+
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.col { border-top: 3px solid var(--ink); padding-top: 12px; display: grid; gap: 10px; align-content: start; }
+.col.now { border-color: var(--accent); }
+.col ul { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; font-size: 0.93rem; }
+.col h3 small { font-family: var(--sans); font-size: 0.75rem; color: var(--muted); font-weight: 400; letter-spacing: 0.04em; display: block; margin-top: 2px; }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 18px; display: grid; gap: 10px; align-content: start; }
+.card ul { margin: 0; padding-left: 1.1em; display: grid; gap: 7px; font-size: 0.93rem; }
+.card.caution { background: var(--warn-bg); border-color: transparent; }
+.callout { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; max-width: 76ch; }
+footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 16px; display: grid; gap: 6px; }
+
+@media (max-width: 760px) {
+  .cols, .two { grid-template-columns: 1fr; }
+  .gaps li { grid-template-columns: 40px 1fr; }
+  .gaps li .sev { grid-column: 2; justify-self: start; }
+  .gaps li > div { grid-column: 1 / -1; }
+  .wrap { gap: 48px; }
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Needle Space · system review · 27 September 2026</p>
+  <h1>How Needle Space finds a cafe you can work from</h1>
+  <p class="lede">Needle Space is a two-tier system. A daily offline pipeline uses LLMs to read reviews, Reddit threads and photos, and turns them into structured work tags with quotes as evidence. The online search path never calls an LLM. It embeds the query once and ranks cafes in Postgres. In short, this is retrieval without generation, and that choice is what keeps the cost of a search near zero.</p>
+  <dl class="facts">
+    <div><dt>LLM calls per search</dt><dd>0</dd></div>
+    <div><dt>Cafes indexed</dt><dd>464 · 1024-d</dd></div>
+    <div><dt>Fixes verified on a live stack</dt><dd>11</dd></div>
+    <div><dt>Automated tests</dt><dd>69 → 93</dd></div>
+  </dl>
+</header>
+
+<section id="current">
+  <div class="head">
+    <p class="eyebrow">Current phase</p>
+    <h2>The system as it runs today</h2>
+  </div>
+  <figure>
+    <div class="scroll"><svg class="diagram" viewBox="0 0 1080 622" role="img" aria-label="Current Needle Space architecture: an online search path with one embedding call and no LLM, over a Supabase pgvector store fed by a daily offline pipeline of seven stages"><defs><marker id="c-norm" class="mk-norm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker><marker id="c-hot" class="mk-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker></defs><rect class="lane" x="4" y="28" width="1072" height="200" rx="10"/><text class="t-lane" x="20" y="50">ONLINE · every search · no LLM call, one embedding</text><rect class="lane" x="4" y="454" width="1072" height="158" rx="10"/><text class="t-lane" x="20" y="476">OFFLINE · GitHub Action, daily · all LLM work happens here</text><rect class="box" x="20" y="108" width="140" height="58" rx="6"/><text class="t-title" x="90.0" y="133.0" text-anchor="middle">Browser</text><text class="t-sub" x="90.0" y="148.0" text-anchor="middle">search bar + chips</text><rect class="box" x="196" y="108" width="140" height="58" rx="6"/><text class="t-title" x="266.0" y="133.0" text-anchor="middle">/api/search</text><text class="t-sub" x="266.0" y="148.0" text-anchor="middle">Next.js route</text><rect class="box" x="372" y="108" width="140" height="58" rx="6"/><text class="t-title" x="442.0" y="133.0" text-anchor="middle">Place parser</text><text class="t-sub" x="442.0" y="148.0" text-anchor="middle">place → SQL filter</text><rect class="box" x="548" y="108" width="140" height="58" rx="6"/><text class="t-title" x="618.0" y="133.0" text-anchor="middle">Voyage-3 embed</text><text class="t-sub" x="618.0" y="148.0" text-anchor="middle">intent only · cached</text><rect class="box" x="724" y="108" width="140" height="58" rx="6"/><text class="t-title" x="794.0" y="133.0" text-anchor="middle">Post-filters</text><text class="t-sub" x="794.0" y="148.0" text-anchor="middle">open now · score · closed</text><rect class="box" x="900" y="108" width="140" height="58" rx="6"/><text class="t-title" x="970.0" y="133.0" text-anchor="middle">Ranked cafes</text><text class="t-sub" x="970.0" y="148.0" text-anchor="middle">30 by meaning, or all</text><path class="edge" d="M160 137.0 L196 137.0" marker-end="url(#c-norm)"/><path class="edge" d="M336 137.0 L372 137.0" marker-end="url(#c-norm)"/><path class="edge" d="M512 137.0 L548 137.0" marker-end="url(#c-norm)"/><path class="edge" d="M864 137.0 L900 137.0" marker-end="url(#c-norm)"/><path class="edge" d="M970.0 108 L970.0 74 L90.0 74 L90.0 108" marker-end="url(#c-norm)"/><text class="t-edge" x="540" y="68" text-anchor="middle">JSON: ranked cafe cards</text><path class="edge" d="M618.0 166 L618.0 292" marker-end="url(#c-norm)"/><text class="t-edge" x="626.0" y="196" text-anchor="start">query vector + chips</text><path class="edge" d="M794.0 292 L794.0 166" marker-end="url(#c-norm)"/><text class="t-edge" x="802.0" y="212" text-anchor="start">100 candidates</text><path class="edge" d="M442.0 166 L442.0 292" marker-end="url(#c-norm)"/><text class="t-edge" x="434.0" y="196" text-anchor="end">city / area filter</text><path class="edge" d="M226 166 L226 292" marker-end="url(#c-norm)"/><text class="t-edge" x="218" y="212" text-anchor="end">log (after)</text><rect class="db" x="20" y="262" width="1040" height="148" rx="8"/><text class="t-title" x="34" y="282" text-anchor="start">Supabase Postgres + pgvector</text><rect class="chip" x="34" y="296" width="150" height="56" rx="6"/><text class="t-title" x="109.0" y="320.0" text-anchor="middle">nl_query_log</text><text class="t-sub" x="109.0" y="335.0" text-anchor="middle">queries + result ids</text><rect class="chip" x="198" y="296" width="470" height="56" rx="6"/><text class="t-title" x="433.0" y="320.0" text-anchor="middle">cafes</text><text class="t-sub" x="433.0" y="335.0" text-anchor="middle">regex tags · *_llm tags · quotes · 1024-d vector · score</text><rect class="chip" x="682" y="296" width="150" height="56" rx="6"/><text class="t-title" x="757.0" y="320.0" text-anchor="middle">cafe_reviews</text><text class="t-sub" x="757.0" y="335.0" text-anchor="middle">review corpus</text><rect class="chip" x="846" y="296" width="200" height="56" rx="6"/><text class="t-title" x="946.0" y="320.0" text-anchor="middle">match_cafes()</text><text class="t-sub" x="946.0" y="335.0" text-anchor="middle">exact scan at 464 rows</text><circle class="gap" cx="662" cy="298" r="10"/><text class="t-gap" x="662" y="302" text-anchor="middle">G5</text><circle class="gap" cx="682" cy="110" r="10"/><text class="t-gap" x="682" y="114" text-anchor="middle">G3</text><circle class="gap" cx="1034" cy="110" r="10"/><text class="t-gap" x="1034" y="114" text-anchor="middle">G4</text><rect class="box" x="20" y="514" width="140" height="58" rx="6"/><text class="t-title" x="90.0" y="539.0" text-anchor="middle">Places refresh</text><text class="t-sub" x="90.0" y="554.0" text-anchor="middle">Google · 27-day cycle</text><rect class="box" x="170" y="514" width="140" height="58" rx="6"/><text class="t-title" x="240.0" y="539.0" text-anchor="middle">Keyword tagger</text><text class="t-sub" x="240.0" y="554.0" text-anchor="middle">regex · new cafes</text><rect class="box" x="320" y="514" width="140" height="58" rx="6"/><text class="t-title" x="390.0" y="539.0" text-anchor="middle">Web research</text><text class="t-sub" x="390.0" y="554.0" text-anchor="middle">Tavily: Reddit, Yelp</text><rect class="box accent" x="470" y="514" width="140" height="58" rx="6"/><text class="t-title" x="540.0" y="539.0" text-anchor="middle">LangGraph tagger</text><text class="t-sub" x="540.0" y="554.0" text-anchor="middle">Gemini 2.5 Flash</text><rect class="box" x="620" y="514" width="140" height="58" rx="6"/><text class="t-title" x="690.0" y="539.0" text-anchor="middle">Vision gap-fill</text><text class="t-sub" x="690.0" y="554.0" text-anchor="middle">Gemini on 1 photo</text><rect class="box" x="770" y="514" width="140" height="58" rx="6"/><text class="t-title" x="840.0" y="539.0" text-anchor="middle">Quality gate</text><text class="t-sub" x="840.0" y="554.0" text-anchor="middle">coverage vs baseline</text><rect class="box" x="920" y="514" width="140" height="58" rx="6"/><text class="t-title" x="990.0" y="539.0" text-anchor="middle">Finalize</text><text class="t-sub" x="990.0" y="554.0" text-anchor="middle">merge · score · embed</text><path class="edge" d="M160 543.0 L170 543.0" marker-end="url(#c-norm)"/><path class="edge" d="M310 543.0 L320 543.0" marker-end="url(#c-norm)"/><path class="edge" d="M460 543.0 L470 543.0" marker-end="url(#c-norm)"/><path class="edge" d="M610 543.0 L620 543.0" marker-end="url(#c-norm)"/><path class="edge" d="M760 543.0 L770 543.0" marker-end="url(#c-norm)"/><path class="edge" d="M910 543.0 L920 543.0" marker-end="url(#c-norm)"/><path class="edge" d="M520.0 410 L520.0 514" marker-end="url(#c-norm)"/><text class="t-edge" x="512.0" y="440" text-anchor="end">reviews + research</text><path class="edge" d="M560.0 514 L560.0 410" marker-end="url(#c-norm)"/><text class="t-edge" x="568.0" y="440" text-anchor="start">tags + grounded quotes</text><path class="edge" d="M990.0 514 L990.0 410" marker-end="url(#c-norm)"/><text class="t-edge" x="982.0" y="440" text-anchor="end">score + vector</text><path class="edge" d="M90.0 514 L90.0 410" marker-end="url(#c-norm)"/><text class="t-edge" x="98.0" y="440" text-anchor="start">hours, status, new cafes</text><circle class="gap" cx="154" cy="516" r="10"/><text class="t-gap" x="154" y="520" text-anchor="middle">G1</text><circle class="gap" cx="904" cy="516" r="10"/><text class="t-gap" x="904" y="520" text-anchor="middle">G2</text><circle class="gap" cx="604" cy="516" r="10"/><text class="t-gap" x="604" y="520" text-anchor="middle">G6</text><text class="t-sub" x="20" y="602" text-anchor="start">External APIs: Google Places · Tavily · Gemini · Voyage.  Stages run in this order; each skips work that is already fresh.</text></svg></div>
+    <div class="legend">
+      <span><i class="sw"></i>component</span>
+      <span><i class="sw accent"></i>the LLM pipeline</span>
+      <span><i class="sw gap"></i>open gap, numbered in the list below</span>
+    </div>
+    <figcaption>Both tiers meet at one Supabase table. The offline pipeline writes tags, quotes, a score and a vector for each cafe. The online path reads them back in one database function call per search.</figcaption>
+  </figure>
+  <h3>What happens when someone types “quiet spot in Bellevue for deep work”</h3>
+  <ol class="steps">
+    <li>The search bar waits 800 ms after the last keystroke and ignores fragments under four characters, because every search spends one embedding on a free tier of 3 requests a minute.</li>
+    <li>The place parser removes “in Bellevue” and turns it into a hard SQL filter on the postal address. Embeddings are good at vibe and bad at geography.</li>
+    <li>Only “quiet spot for deep work” is sent to Voyage-3, which returns a 1024-number vector. Repeat queries come from an in-memory cache.</li>
+    <li><code>match_cafes()</code> ranks cafes by cosine similarity inside the place filter and any chip filters, and returns 100 candidates.</li>
+    <li>The route removes closed cafes and applies the open-now and productivity chips, then returns the top 30. If Voyage fails, the same filters rank by productivity score and the page says semantic search is limited.</li>
+  </ol>
+</section>
+
+<section id="graph">
+  <div class="head">
+    <p class="eyebrow">Inside the offline tier</p>
+    <h2>The LangGraph tagging graph</h2>
+    <p>Each cafe runs through this state machine once. The graph's job is reliability. It retries bad model output, stops before it can do damage, and writes each cafe in a single update so no row is ever half-tagged.</p>
+  </div>
+  <figure>
+    <div class="scroll"><svg class="diagram narrow" viewBox="0 0 760 640" role="img" aria-label="LangGraph tagging graph: fetch reviews, extract attributes, validate with retry, ground quotes, embed, write"><defs><marker id="g-norm" class="mk-norm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker><marker id="g-hot" class="mk-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker></defs><circle class="term" cx="265.0" cy="24" r="17"/><text class="t-term" x="265.0" y="27" text-anchor="middle">START</text><rect class="box" x="150" y="64" width="230" height="46" rx="6"/><text class="t-title" x="265.0" y="83.0" text-anchor="middle">fetchReviewCorpus</text><text class="t-sub" x="265.0" y="98.0" text-anchor="middle">Supabase: cafe_reviews</text><rect class="box" x="150" y="160" width="230" height="46" rx="6"/><text class="t-title" x="265.0" y="179.0" text-anchor="middle">extractAttributes</text><text class="t-sub" x="265.0" y="194.0" text-anchor="middle">Gemini · forced function call</text><rect class="box" x="150" y="256" width="230" height="46" rx="6"/><text class="t-title" x="265.0" y="275.0" text-anchor="middle">validate</text><text class="t-sub" x="265.0" y="290.0" text-anchor="middle">Zod enums · confidence ≥ 0.5</text><rect class="box hot" x="150" y="352" width="230" height="46" rx="6"/><text class="t-title" x="265.0" y="371.0" text-anchor="middle">extractEvidenceQuotes</text><text class="t-sub" x="265.0" y="386.0" text-anchor="middle">Gemini · + grounding check</text><rect class="box" x="150" y="432" width="230" height="46" rx="6"/><text class="t-title" x="265.0" y="451.0" text-anchor="middle">embedCafe</text><text class="t-sub" x="265.0" y="466.0" text-anchor="middle">Voyage-3 · 1024-d</text><rect class="box" x="150" y="512" width="230" height="46" rx="6"/><text class="t-title" x="265.0" y="531.0" text-anchor="middle">writeToSupabase</text><text class="t-sub" x="265.0" y="546.0" text-anchor="middle">one update: tags + quotes + vector</text><circle class="term" cx="265.0" cy="612" r="14"/><text class="t-term" x="265.0" y="615" text-anchor="middle">END</text><path class="edge" d="M265.0 41 L265.0 64" marker-end="url(#g-norm)"/><path class="edge" d="M265.0 110 L265.0 160" marker-end="url(#g-norm)"/><text class="t-edge" x="273.0" y="140" text-anchor="start">reviews loaded</text><path class="edge" d="M265.0 206 L265.0 256" marker-end="url(#g-norm)"/><path class="edge" d="M265.0 302 L265.0 352" marker-end="url(#g-norm)"/><text class="t-edge" x="273.0" y="332" text-anchor="start">ok</text><path class="edge" d="M265.0 398 L265.0 432" marker-end="url(#g-norm)"/><path class="edge" d="M265.0 478 L265.0 512" marker-end="url(#g-norm)"/><path class="edge" d="M265.0 558 L265.0 598" marker-end="url(#g-norm)"/><rect class="box hot" x="490" y="64" width="250" height="46" rx="6"/><text class="t-title" x="615.0" y="83.0" text-anchor="middle">stop: no LLM call</text><text class="t-sub" x="615.0" y="98.0" text-anchor="middle">never tag from an empty corpus</text><path class="edge hot" d="M380 87.0 L490 87.0" marker-end="url(#g-hot)"/><text class="t-edge t-hot" x="435.0" y="81.0" text-anchor="middle">read failed</text><rect class="box hot" x="490" y="160" width="250" height="46" rx="6"/><text class="t-title" x="615.0" y="179.0" text-anchor="middle">retryNode</text><text class="t-sub" x="615.0" y="194.0" text-anchor="middle">API error: wait 15s, 30s · schema: correct</text><path class="edge" d="M380 270 L640 270 L640 206" marker-end="url(#g-norm)"/><text class="t-edge" x="390" y="264" text-anchor="start">invalid, retries left</text><path class="edge" d="M490 183.0 L380 183.0" marker-end="url(#g-norm)"/><text class="t-edge" x="435.0" y="177.0" text-anchor="middle">try again (max 2)</text><rect class="box" x="490" y="352" width="250" height="46" rx="6"/><text class="t-title" x="615.0" y="371.0" text-anchor="middle">failValidation</text><text class="t-sub" x="615.0" y="386.0" text-anchor="middle">counted as failed; nothing written</text><path class="edge" d="M380 290 L550 290 L550 352" marker-end="url(#g-norm)"/><text class="t-edge" x="558" y="322" text-anchor="start">retries used up</text><path class="edge" d="M615.0 398 L615.0 612 L279.0 612" marker-end="url(#g-norm)"/><text class="t-sub t-hot" x="20" y="380" text-anchor="start">drops quotes not</text><text class="t-sub t-hot" x="20" y="394" text-anchor="start">found in sources</text></svg></div>
+    <div class="legend"><span><i class="sw hot"></i>added or changed in this review</span></div>
+    <figcaption>Three edges are new. A failed review read now ends the run for that cafe instead of tagging from nothing. An API error such as a rate limit now waits before retrying, where before it retried at once and told the model its answer had broken the schema. Quotes the model claims are verbatim are now checked against the source text before they can appear on a card.</figcaption>
+  </figure>
+</section>
+
+<section id="fixed">
+  <div class="head">
+    <p class="eyebrow">Verified</p>
+    <h2>What was broken, and what changed</h2>
+    <p>I built a local copy of the stack to test these: Postgres 16 with pgvector and all 11 migrations, PostgREST (the API layer Supabase uses), and the production Next.js build. A deterministic stand-in replaced Voyage and Gemini, since no API keys were available. I ran every check on the original code and on the fixed code. The dataset had 72 synthetic cafes in the real shape.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Problem</th><th>Before</th><th>After</th><th>Why it mattered</th></tr></thead>
+      <tbody>
+        <tr><td>Location chip plus a search</td><td class="num"><span class="was">4 of 12</span> Kirkland cafes</td><td class="num"><span class="now">12 of 12</span></td><td>The chip was applied after the top 30 vector hits were taken, so most matches were already gone.</td></tr>
+        <tr><td>Chips without a search</td><td class="num"><span class="was">30 of 71</span> shown</td><td class="num"><span class="now">71 of 71</span></td><td>Results were capped at 30, and the count said “30 cafes”.</td></tr>
+        <tr><td>Explore page size (dense vectors)</td><td class="num"><span class="was">1.07 MB</span> · 362 KB gzip</td><td class="num"><span class="now">138 KB</span> · 12 KB gzip</td><td><code>select("*")</code> sent every cafe's embedding to the phone. Scaled to 464 cafes, that is about 7 MB raw.</td></tr>
+        <tr><td>Anonymous POST to the admin API</td><td class="num"><span class="was">200</span>, row changed</td><td class="num"><span class="now">404</span></td><td>Anyone could edit tags with the service-role key. The endpoint now needs <code>ADMIN_PASSWORD</code>.</td></tr>
+        <tr><td>Google server key in page HTML</td><td class="num"><span class="was">present</span></td><td class="num"><span class="now">absent</span></td><td>Newly found cafes store a Places URL that contains the key. The app no longer sends it (see G1).</td></tr>
+        <tr><td>Stored score vs the score on the card</td><td class="num"><span class="was">4.4 vs 3.6</span></td><td class="num"><span class="now">equal</span></td><td>Finalize still used the keyword noise tag the app had stopped trusting. Ordering, the productivity chip and /treasure all used the inflated number.</td></tr>
+        <tr><td>Gemini rate limit (429)</td><td>instant retry, wrong fix prompt</td><td>waits 15 s, 30 s</td><td>A 429 used up both retries in under a second.</td></tr>
+        <tr><td>Review read fails mid-run</td><td>tags from 0 reviews</td><td>stops, no LLM call</td><td>Good tags would have been overwritten with “unknown”.</td></tr>
+        <tr><td>Invented evidence quote</td><td>shown as a review</td><td>dropped (1 of 3 in test)</td><td>Cards present these as reviewers' words.</td></tr>
+        <tr><td>Clearing the box mid-search</td><td>“Searching…” forever</td><td>resets</td><td>The cancelled request never cleared the spinner.</td></tr>
+        <tr><td>Lint in CI</td><td class="num">3 errors, not run</td><td class="num">0 errors, runs + typecheck</td><td>The CI config had a note to enable lint “once fixed”.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="callout">Checked and working as intended: the place parser, chip-to-SQL mapping, and the Strategy C tag merge. At 464 rows, Postgres ignores the vector index and does an exact scan, so filtered vector results are complete. I confirmed this across 100 trials on 5 filter combinations. The HNSW index only starts to matter, and to risk dropping results under filters, when the catalog grows to thousands.</p>
+</section>
+
+<section id="gaps">
+  <div class="head">
+    <p class="eyebrow">Open gaps</p>
+    <h2>What is still missing, in priority order</h2>
+    <p>These need a decision, a secret, or data I could not reach from here. G1 to G6 are marked on the first diagram.</p>
+  </div>
+  <ul class="gaps">
+    <li><span class="gid marked">G1</span><span class="sev high">High</span><div><p><b>The Google server key is still stored in the public cafes table.</b> <code>fetch-cafes.mjs</code> saves a photo URL with the key appended. Anyone with the public Supabase key can read the table directly.</p><p class="fix">Rotate the key and restrict it to the Places API. Store photo URLs without the key, and add <code>cache-photos.mjs</code> to the daily workflow.</p></div></li>
+    <li><span class="gid marked">G2</span><span class="sev high">High</span><div><p><b>The quality gate rarely gates.</b> It passes any run that touches fewer than 25 cafes, which is almost every daily run. It skips cafes that only vision changed. And it measures coverage (fewer “unknown”), not accuracy, so confident wrong tags pass.</p><p class="fix">Gate on a rolling window since the last passing run, and add accuracy against human labels once they exist.</p></div></li>
+    <li><span class="gid">G7</span><span class="sev high">High</span><div><p><b>No human-labeled ground truth.</b> The tagging eval compares the LLM to the regex tagger, which the code itself shows is unreliable: it called 301 of 464 cafes quiet and never called one loud. The retrieval golden set was drafted from the system's own tags, and some labels contradict the location filter.</p><p class="fix">Label 80–100 cafes by ID in the existing /admin tool. Report accuracy per attribute and nDCG@10 for search.</p></div></li>
+    <li><span class="gid marked">G3</span><span class="sev med">Medium</span><div><p><b>One visitor can use up search for everyone.</b> There is no rate limit on <code>/api/search</code>, and Voyage's free tier allows 3 embeddings a minute across all users.</p><p class="fix">Add a per-IP limit and move to Voyage's paid tier, which costs cents a month at this volume.</p></div></li>
+    <li><span class="gid marked">G4</span><span class="sev med">Medium</span><div><p><b>Every search returns 30 cafes, however weak the match.</b> There is no similarity floor, so “pizza” still fills a page.</p><p class="fix">Log similarity scores, pick a floor from real queries, and show “no close match” below it.</p></div></li>
+    <li><span class="gid marked">G5</span><span class="sev med">Medium</span><div><p><b>Stored scores and vectors are stale until one re-run.</b> The code is fixed, but the database still holds the inflated values.</p><p class="fix">Run <code>node scripts/finalize-cafes.mjs --all</code> once (about $0.02 of Voyage usage).</p></div></li>
+    <li><span class="gid marked">G6</span><span class="sev med">Medium</span><div><p><b>Every cafe is embedded twice.</b> The tagger embeds, then finalize embeds again and overwrites it. With free-tier pacing, a <code>--force</code> run takes longer than the job's 180-minute timeout.</p><p class="fix">Embed only in finalize.</p></div></li>
+    <li><span class="gid">G8</span><span class="sev med">Medium</span><div><p><b>The pipeline can stall or skip stages.</b> One persistent refresh error fails the job every day and blocks every later stage. Vision tags the first Google photo, which is often a logo, and marks the cafe as done. Research re-stamps its date every 30 days, which triggers re-tagging even when nothing changed.</p></div></li>
+    <li><span class="gid">G9</span><span class="sev med">Medium</span><div><p><b>The search index loses most of what it knows.</b> Each vector is built from tags written as <code>key=value</code> plus 800 characters of reviews. Google's review summary is fetched and then thrown away.</p><p class="fix">Save the summary and embed plain sentences (“Fast WiFi. Outlets at most tables.”).</p></div></li>
+    <li><span class="gid">G10</span><span class="sev low">Low</span><div><p><b>Housekeeping.</b></p><ul>
+      <li>The search log is publicly readable.</li>
+      <li><code>@anthropic-ai/sdk</code> and <code>@langchain/anthropic</code> are installed but unused.</li>
+      <li>CI never runs a build.</li>
+      <li>The docs disagree with the code: CLAUDE.md says Vercel but the repo deploys to Netlify, and the README cites 252 cafes and figures that contradict EVAL.md.</li>
+    </ul></div></li>
+  </ul>
+</section>
+
+<section id="next">
+  <div class="head">
+    <p class="eyebrow">Next phase</p>
+    <h2>The same system, with the gaps closed</h2>
+    <p>The layout is the same as the first diagram, so you can compare them box by box. Nothing moves the LLM into the search path. The next phase is about trust (evals and labels), ranking quality, and protecting the one paid call.</p>
+  </div>
+  <figure>
+    <div class="scroll"><svg class="diagram" viewBox="0 0 1080 672" role="img" aria-label="Proposed next phase: the same layout with rate limiting, a similarity floor, hybrid full-text plus vector ranking, an MCP server, human labels, and a nightly eval that blocks finalize"><defs><marker id="n-norm" class="mk-norm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker><marker id="n-hot" class="mk-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker></defs><rect class="lane" x="4" y="28" width="1072" height="200" rx="10"/><text class="t-lane" x="20" y="50">ONLINE · every search · no LLM call, one embedding</text><rect class="lane" x="4" y="454" width="1072" height="208" rx="10"/><text class="t-lane" x="20" y="476">OFFLINE · GitHub Action, daily · all LLM work happens here</text><rect class="box hot" x="20" y="108" width="140" height="58" rx="6"/><text class="t-title" x="90.0" y="133.0" text-anchor="middle">Browser</text><text class="t-sub" x="90.0" y="148.0" text-anchor="middle">+ “why this tag” quotes</text><rect class="tag" x="108.8" y="100" width="47.2" height="15" rx="3"/><text class="t-tag" x="132.4" y="111" text-anchor="middle">NEW UI</text><rect class="box hot" x="196" y="108" width="140" height="58" rx="6"/><text class="t-title" x="266.0" y="133.0" text-anchor="middle">/api/search</text><text class="t-sub" x="266.0" y="148.0" text-anchor="middle">+ per-IP rate limit</text><rect class="tag" x="303.4" y="100" width="28.6" height="15" rx="3"/><text class="t-tag" x="317.7" y="111" text-anchor="middle">NEW</text><rect class="box" x="372" y="108" width="140" height="58" rx="6"/><text class="t-title" x="442.0" y="133.0" text-anchor="middle">Place parser</text><text class="t-sub" x="442.0" y="148.0" text-anchor="middle">place → SQL filter</text><rect class="box" x="548" y="108" width="140" height="58" rx="6"/><text class="t-title" x="618.0" y="133.0" text-anchor="middle">Voyage-3 embed</text><text class="t-sub" x="618.0" y="148.0" text-anchor="middle">intent only · cached</text><rect class="box" x="724" y="108" width="140" height="58" rx="6"/><text class="t-title" x="794.0" y="133.0" text-anchor="middle">Post-filters</text><text class="t-sub" x="794.0" y="148.0" text-anchor="middle">open now · score · closed</text><rect class="box hot" x="900" y="108" width="140" height="58" rx="6"/><text class="t-title" x="970.0" y="133.0" text-anchor="middle">Ranked cafes</text><text class="t-sub" x="970.0" y="148.0" text-anchor="middle">similarity floor</text><rect class="tag" x="1007.4" y="100" width="28.6" height="15" rx="3"/><text class="t-tag" x="1021.7" y="111" text-anchor="middle">NEW</text><path class="edge" d="M160 137.0 L196 137.0" marker-end="url(#n-norm)"/><path class="edge" d="M336 137.0 L372 137.0" marker-end="url(#n-norm)"/><path class="edge" d="M512 137.0 L548 137.0" marker-end="url(#n-norm)"/><path class="edge" d="M864 137.0 L900 137.0" marker-end="url(#n-norm)"/><path class="edge" d="M970.0 108 L970.0 74 L90.0 74 L90.0 108" marker-end="url(#n-norm)"/><text class="t-edge" x="540" y="68" text-anchor="middle">JSON: ranked cafe cards</text><path class="edge" d="M618.0 166 L618.0 292" marker-end="url(#n-norm)"/><text class="t-edge" x="626.0" y="196" text-anchor="start">query vector + chips</text><path class="edge" d="M794.0 292 L794.0 166" marker-end="url(#n-norm)"/><text class="t-edge" x="802.0" y="212" text-anchor="start">100 candidates</text><path class="edge" d="M442.0 166 L442.0 292" marker-end="url(#n-norm)"/><text class="t-edge" x="434.0" y="196" text-anchor="end">city / area filter</text><path class="edge" d="M226 166 L226 292" marker-end="url(#n-norm)"/><text class="t-edge" x="218" y="212" text-anchor="end">log (after)</text><rect class="box hot" x="20" y="262" width="150" height="148" rx="6"/><text class="t-title" x="95.0" y="332.0" text-anchor="middle">MCP server</text><text class="t-sub" x="95.0" y="347.0" text-anchor="middle">agents query the index</text><rect class="tag" x="137.4" y="254" width="28.6" height="15" rx="3"/><text class="t-tag" x="151.7" y="265" text-anchor="middle">NEW</text><path class="edge" d="M170 336.0 L196 336.0" marker-end="url(#n-norm)"/><rect class="db" x="196" y="262" width="864" height="148" rx="8"/><text class="t-title" x="210" y="282" text-anchor="start">Supabase Postgres + pgvector</text><text class="t-sub t-hot" x="1046" y="282" text-anchor="end">match_cafes: vector + full-text fused (RRF)</text><rect class="chip hot" x="210" y="296" width="232" height="56" rx="6"/><text class="t-title" x="326.0" y="320.0" text-anchor="middle">query log</text><text class="t-sub" x="326.0" y="335.0" text-anchor="middle">→ quality dashboard</text><rect class="chip hot" x="456" y="296" width="300" height="56" rx="6"/><text class="t-title" x="606.0" y="320.0" text-anchor="middle">cafes</text><text class="t-sub" x="606.0" y="335.0" text-anchor="middle">tags · quotes · vector · tsvector</text><rect class="chip hot" x="770" y="296" width="150" height="56" rx="6"/><text class="t-title" x="845.0" y="320.0" text-anchor="middle">cafe_reviews</text><text class="t-sub" x="845.0" y="335.0" text-anchor="middle">grows monthly</text><rect class="chip hot" x="934" y="296" width="112" height="56" rx="6"/><text class="t-title" x="990.0" y="320.0" text-anchor="middle">human labels</text><text class="t-sub" x="990.0" y="335.0" text-anchor="middle">80–100 cafes</text><rect class="box hot" x="20" y="514" width="140" height="58" rx="6"/><text class="t-title" x="90.0" y="539.0" text-anchor="middle">Places refresh</text><text class="t-sub" x="90.0" y="554.0" text-anchor="middle">+ photo cache (no key)</text><rect class="tag" x="102.6" y="506" width="53.4" height="15" rx="3"/><text class="t-tag" x="129.3" y="517" text-anchor="middle">CHANGED</text><rect class="box dim" x="170" y="514" width="140" height="58" rx="6"/><text class="t-title t-dim" x="240.0" y="539.0" text-anchor="middle">Keyword tagger</text><text class="t-sub" x="240.0" y="554.0" text-anchor="middle">eval baseline only</text><rect class="box hot" x="320" y="514" width="140" height="58" rx="6"/><text class="t-title" x="390.0" y="539.0" text-anchor="middle">Web research</text><text class="t-sub" x="390.0" y="554.0" text-anchor="middle">re-tag only if changed</text><rect class="tag" x="402.6" y="506" width="53.4" height="15" rx="3"/><text class="t-tag" x="429.3" y="517" text-anchor="middle">CHANGED</text><rect class="box accent" x="470" y="514" width="140" height="58" rx="6"/><text class="t-title" x="540.0" y="539.0" text-anchor="middle">LangGraph tagger</text><text class="t-sub" x="540.0" y="554.0" text-anchor="middle">Gemini · no embed</text><rect class="tag" x="552.6" y="506" width="53.4" height="15" rx="3"/><text class="t-tag" x="579.3" y="517" text-anchor="middle">CHANGED</text><rect class="box hot" x="620" y="514" width="140" height="58" rx="6"/><text class="t-title" x="690.0" y="539.0" text-anchor="middle">Vision gap-fill</text><text class="t-sub" x="690.0" y="554.0" text-anchor="middle">on curated photo</text><rect class="tag" x="702.6" y="506" width="53.4" height="15" rx="3"/><text class="t-tag" x="729.3" y="517" text-anchor="middle">CHANGED</text><rect class="box hot" x="770" y="514" width="140" height="58" rx="6"/><text class="t-title" x="840.0" y="539.0" text-anchor="middle">Quality gate</text><text class="t-sub" x="840.0" y="554.0" text-anchor="middle">accuracy-based</text><rect class="tag" x="852.6" y="506" width="53.4" height="15" rx="3"/><text class="t-tag" x="879.3" y="517" text-anchor="middle">CHANGED</text><rect class="box hot" x="920" y="514" width="140" height="58" rx="6"/><text class="t-title" x="990.0" y="539.0" text-anchor="middle">Finalize</text><text class="t-sub" x="990.0" y="554.0" text-anchor="middle">only embedding step</text><rect class="tag" x="1002.6" y="506" width="53.4" height="15" rx="3"/><text class="t-tag" x="1029.3" y="517" text-anchor="middle">CHANGED</text><path class="edge" d="M160 543.0 L170 543.0" marker-end="url(#n-norm)"/><path class="edge" d="M310 543.0 L320 543.0" marker-end="url(#n-norm)"/><path class="edge" d="M460 543.0 L470 543.0" marker-end="url(#n-norm)"/><path class="edge" d="M610 543.0 L620 543.0" marker-end="url(#n-norm)"/><path class="edge" d="M760 543.0 L770 543.0" marker-end="url(#n-norm)"/><path class="edge" d="M910 543.0 L920 543.0" marker-end="url(#n-norm)"/><path class="edge" d="M520.0 410 L520.0 514" marker-end="url(#n-norm)"/><text class="t-edge" x="512.0" y="440" text-anchor="end">reviews + research</text><path class="edge" d="M560.0 514 L560.0 410" marker-end="url(#n-norm)"/><text class="t-edge" x="568.0" y="440" text-anchor="start">tags + grounded quotes</text><path class="edge" d="M990.0 514 L990.0 410" marker-end="url(#n-norm)"/><text class="t-edge" x="982.0" y="440" text-anchor="end">score + vector</text><path class="edge" d="M140 514 L140 432 L220 432 L220 410" marker-end="url(#n-norm)"/><text class="t-edge" x="28" y="504" text-anchor="start">hours, status, new cafes</text><rect class="box hot" x="620" y="606" width="290" height="44" rx="6"/><text class="t-title" x="765.0" y="624.0" text-anchor="middle">Nightly eval in CI</text><text class="t-sub" x="765.0" y="639.0" text-anchor="middle">tag accuracy + nDCG@10 by cafe id</text><rect class="tag" x="877.4" y="598" width="28.6" height="15" rx="3"/><text class="t-tag" x="891.7" y="609" text-anchor="middle">NEW</text><path class="edge hot" d="M840.0 606 L840.0 572" marker-end="url(#n-hot)"/><text class="t-edge t-hot" x="832.0" y="592" text-anchor="end">accuracy feeds the gate</text></svg></div>
+    <div class="legend">
+      <span><i class="sw hot"></i>new or changed</span>
+      <span><i class="sw"></i>unchanged</span>
+    </div>
+    <figcaption>Hybrid ranking combines Postgres full-text search and the vector score using reciprocal rank fusion, so a cafe's name or a literal phrase like “oat milk” can match exactly. The MCP server gives outside agents read-only access to the same <code>match_cafes</code> function, not a second copy of the logic.</figcaption>
+  </figure>
+  <div class="cols">
+    <div class="col now">
+      <h3>Now<small>days · mostly config</small></h3>
+      <ul>
+        <li>Rotate the Google key and cache photos in the workflow (G1)</li>
+        <li>Run finalize once with <code>--all</code> (G5)</li>
+        <li>Set <code>ADMIN_PASSWORD</code> on Netlify if you use /admin in production</li>
+        <li>Rate-limit search and move Voyage to the paid tier (G3)</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3>Next<small>1–2 weeks · the credibility work</small></h3>
+      <ul>
+        <li>Label 80–100 cafes by ID in /admin (G7)</li>
+        <li>A nightly eval covering tag accuracy and search nDCG@10, on the production code path</li>
+        <li>Gate on a rolling window and on accuracy (G2)</li>
+        <li>A similarity floor and a “no close match” state (G4)</li>
+        <li>Evidence quotes and confidence on cafe pages</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3>Later<small>v2 · once the evals exist</small></h3>
+      <ul>
+        <li>Hybrid full-text plus vector ranking, kept only if nDCG improves</li>
+        <li>Embed plain sentences and review summaries (G9)</li>
+        <li>An MCP server over <code>match_cafes</code></li>
+        <li>Tracing for the LangGraph run and a dashboard for the query log</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="case-study">
+  <div class="head">
+    <p class="eyebrow">For the portfolio case study</p>
+    <h2>What these diagrams support, and what they don't yet</h2>
+  </div>
+  <div class="two">
+    <div class="card">
+      <h3>Claims you can make now</h3>
+      <ul>
+        <li>The LLM runs offline only. Search costs one cached embedding and no generation.</li>
+        <li>Location is handled as a fact, not a vibe. The place parser fixed real misses, such as a Seattle cafe ranking for a “Bellevue” search.</li>
+        <li>The graph is built for reliability: validated output, retries that tell the model what went wrong, atomic writes, and evidence quotes checked against their sources.</li>
+        <li>The team distrusts its own signals where evidence says to. The keyword noise tag was dropped because it said “quiet” to vibe words.</li>
+      </ul>
+    </div>
+    <div class="card caution">
+      <h3>Hold these until there are human labels</h3>
+      <ul>
+        <li>Any accuracy figure. Current numbers measure agreement with a regex, and coverage.</li>
+        <li>Most of the 90.9% WiFi “agreement” is both taggers saying “unknown” (226 of 252 cafes).</li>
+        <li>“Search accuracy lift.” The retrieval eval measures a hit in the top 10 against labels partly drafted from the system's own tags.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Changes are on branch <code>claude/bold-cray-c8cfqw</code> in <code>jiyae619/needle-space</code>, in commits covering search, admin and CI, the pipeline, and this page.</p>
+  <p>A copy of this page is saved in the repo at <code>docs/architecture.html</code>.</p>
+</footer>
+
+</div>
+
+</body>
+</html>
