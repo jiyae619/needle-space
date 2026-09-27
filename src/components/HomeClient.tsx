@@ -140,8 +140,12 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
     // No query AND no filter constraints → keep the SSR-rendered list. Avoids
     // a needless API hit on first paint.
     if (!searchQuery.trim() && filtersAreEmpty) {
+      // Also clear the in-flight state: clearing the box while a search is
+      // pending cancels that request, so its own reset never runs.
       setResults(initialCafes);
       setSearchError(null);
+      setSemanticFallback(null);
+      setIsSearching(false);
       return;
     }
 
@@ -262,7 +266,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
           className="px-4 mb-1 text-[11px] tracking-wide"
           style={{ color: "var(--gs-kraft)" }}
         >
-          {searchError ?? "Showing keyword-only results — semantic search temporarily limited."}
+          {searchError ?? "Smart search is busy — showing top-rated cafes for your place and filters instead."}
         </p>
       )}
 

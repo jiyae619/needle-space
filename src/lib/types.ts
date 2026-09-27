@@ -42,6 +42,29 @@ export interface Cafe {
   cafe_embedding?: number[] | null;
 }
 
+// Columns every list/search view reads. Never select("*") for these views:
+// that pulls cafe_embedding (1024 floats, ~12 KB of text per cafe) and the
+// web-research JSON into the page payload the browser downloads.
+export const CAFE_COLUMNS = [
+  "id", "google_place_id", "name", "address", "lat", "lng", "neighborhood",
+  "phone", "website", "google_rating", "google_review_count", "price_level",
+  "photo_url", "hours_json", "vibe_keywords", "verified",
+  "business_status", "business_status_checked_at", "moved_place_id",
+  "wifi_quality", "outlet_availability", "noise_level", "laptop_policy",
+  "seating_availability", "productivity_score",
+  "wifi_quality_llm", "outlet_availability_llm", "noise_level_llm",
+  "laptop_policy_llm", "seating_availability_llm", "tagging_confidence",
+  "llm_tagged_at",
+  "last_synced_at", "created_at",
+].join(", ");
+
+// A direct Places media URL carries the server API key (scripts/fetch-cafes.mjs
+// writes one for every newly discovered cafe until cache-photos replaces it).
+// The UI already refuses to render these; this keeps the key out of the JSON too.
+export function withoutKeyedPhoto<T extends { photo_url: string | null }>(cafe: T): T {
+  return cafe.photo_url?.includes("places.googleapis.com") ? { ...cafe, photo_url: null } : cafe;
+}
+
 export interface AttributeConfidence {
   confidence: number; // 0..1
   evidence: string[]; // 1-2 short quotes from reviews
