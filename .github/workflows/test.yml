@@ -17,5 +17,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      # `npm run lint` currently fails on 4 pre-existing errors in
-      # layout.tsx / FilterChip.tsx / MapView.tsx — add it here once fixed.
+      - run: npm run lint
+      - run: npx tsc --noEmit

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { MapTrifold } from "@phosphor-icons/react";
 import { Cafe } from "@/lib/types";
+import { mergeTag } from "@/lib/merge-tags";
 
 interface MapViewProps {
   cafes: Cafe[];
@@ -22,9 +23,20 @@ function notifyListeners(state: LoadState) {
   listeners.forEach((fn) => fn(state));
 }
 
+// useSyncExternalStore adapters for the module-level loader state.
+function subscribe(onChange: () => void) {
+  listeners.push(onChange);
+  return () => {
+    const idx = listeners.indexOf(onChange);
+    if (idx > -1) listeners.splice(idx, 1);
+  };
+}
+const getLoadState = () => globalLoadState;
+const getServerLoadState = (): LoadState => "idle";
+
 function loadGoogleMaps(apiKey: string) {
   if (globalLoadState !== "idle") return;
-  globalLoadState = "loading";
+  notifyListeners("loading");
 
   // Google calls this function when the script finishes loading
   (window as unknown as Record<string, unknown>).__needlespace_maps_ready = () => {
@@ -62,33 +74,19 @@ export default function MapView({ cafes, selectedCafeId, onSelectCafe, hoveredCa
   // Markers keyed by cafe id so the hover/select effect can mutate the
   // specific marker's icon without rebuilding every marker on the map.
   const markersByIdRef = useRef<Map<string, google.maps.Marker>>(new Map());
-  const [loadState, setLoadState] = useState<LoadState>(globalLoadState);
+  const loadState = useSyncExternalStore(subscribe, getLoadState, getServerLoadState);
 
-  // Load Google Maps script once
+  // Load Google Maps script once (loadGoogleMaps is a no-op after the first call).
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
       if (process.env.NODE_ENV === "development") {
         console.warn("[MapView] Missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in .env.local");
       }
-      setLoadState("error");
+      notifyListeners("error");
       return;
     }
-
-    if (globalLoadState === "ready") { setLoadState("ready"); return; }
-    if (globalLoadState === "error") { setLoadState("error"); return; }
-
-    // Subscribe to load state changes
-    const handler = (state: LoadState) => setLoadState(state);
-    listeners.push(handler);
-
-    // Start loading if not already
     loadGoogleMaps(apiKey);
-
-    return () => {
-      const idx = listeners.indexOf(handler);
-      if (idx > -1) listeners.splice(idx, 1);
-    };
   }, []);
 
   // Effect A — build the map and add/remove markers when the cafe set changes.
@@ -108,7 +106,7 @@ export default function MapView({ cafes, selectedCafeId, onSelectCafe, hoveredCa
           fullscreenControl: false,
         });
       } catch {
-        setLoadState("error");
+        notifyListeners("error");
         return;
       }
     }
@@ -127,7 +125,7 @@ export default function MapView({ cafes, selectedCafeId, onSelectCafe, hoveredCa
     // Add markers for cafes that are new in this render
     cafes.forEach((cafe) => {
       if (existing.has(cafe.id)) return;
-      const isWelcome = cafe.laptop_policy === "welcome";
+      const isWelcome = mergeTag(cafe, "laptop_policy") === "welcome";
       const marker = new google.maps.Marker({
         map: mapInstanceRef.current!,
         position: { lat: cafe.lat, lng: cafe.lng },
@@ -154,7 +152,7 @@ export default function MapView({ cafes, selectedCafeId, onSelectCafe, hoveredCa
       if (!cafe) return;
       const isSelected = id === selectedCafeId;
       const isHovered  = id === hoveredCafeId;
-      const isWelcome  = cafe.laptop_policy === "welcome";
+      const isWelcome  = mergeTag(cafe, "laptop_policy") === "welcome";
       marker.setIcon(buildIcon(isSelected, isHovered, isWelcome));
       marker.setZIndex(isSelected ? 30 : isHovered ? 20 : 10);
     });
