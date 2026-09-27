@@ -2,7 +2,7 @@
 /**
  * Needle Space — data pipeline orchestrator (Phase B "conveyor belt").
  *
- * Runs the four offline stages in the correct order with ONE command, instead
+ * Runs the five offline stages in the correct order with ONE command, instead
  * of relying on remembering the sequence. Every stage is independently
  * idempotent and self-skips work that is already fresh (research skips cafes
  * researched < 30 days ago; tagging/vision skip already-tagged rows), so
@@ -12,9 +12,11 @@
  *   1. research-cafes      Reddit/Yelp evidence  → web_research_snippets, yelp_free_wifi
  *   2. analyze-reviews-llm  text tags + embedding → *_llm, tagging_confidence, cafe_embedding
  *   3. visual-tag-cafes     fill gaps from photos → *_llm (outlets/seating/laptop)
- *   4. quality-metrics      GATE — scores only the cafes this run touched against
- *                            docs/quality-baseline.json and stops the pipeline if
- *                            they came back worse. Produces nothing.
+ *   4. quality-metrics      GATE — scores every cafe changed since the last passing
+ *                            gate (so small runs accumulate) against
+ *                            docs/quality-baseline.json, plus accuracy against
+ *                            human labels once there are enough, and stops the
+ *                            pipeline if either got worse. Records the outcome.
  *   5. finalize-cafes       re-embed + re-score from the MERGED tags
  *                            → cafe_embedding, productivity_score, finalized_at
  *
@@ -26,9 +28,9 @@
  * is recoverable by fixing the tagger and re-running — every stage skips work it
  * has already done.
  *
- * Stage 4 (finalize) closes the gap where stage 3 changes tags after stage 2 built
- * the embedding: it rebuilds the embedding + score from the final merged tags for
- * cafes that changed since their last finalize. (scripts/recompute-merged-scores.mjs
+ * Stage 5 (finalize) is the only stage that embeds: it builds the embedding +
+ * score from the final merged tags (human labels, text and vision) for cafes
+ * that changed since their last finalize, in batches. (scripts/recompute-merged-scores.mjs
  * still exists standalone for the human-readable SCORE-UPDATE.md report.)
  *
  * Flags are forwarded to every stage (each ignores the ones it doesn't use):
@@ -37,7 +39,7 @@
  *   --cafe "Name"          single-cafe run
  *   --force                re-do work even if freshness markers say to skip
  *                          (bumps llm_tagged_at, so finalize refreshes those too)
- *   --delay-ms N           pacing for stages 2 & 4 (default paces for the Voyage free tier)
+ *   --delay-ms N           pacing for stages 2 & 5 (defaults pace for the Gemini / Voyage free tiers)
  *
  * Orchestrator-only flags (NOT forwarded to stages):
  *   --plan                 print the ordered plan and exit without running anything
@@ -57,10 +59,6 @@ const PLAN      = argv.includes("--plan");
 const CONTINUE  = argv.includes("--continue-on-error");
 const forwarded = argv.filter(a => !ORCHESTRATOR_FLAGS.has(a));
 
-// Timestamp taken before any stage runs, so the gate can score only the cafes
-// this run touched rather than the whole corpus.
-const RUN_STARTED_AT = new Date().toISOString();
-
 // The gate sits BEFORE finalize on purpose. finalize is the synthesiser — it
 // re-embeds and re-scores from the merged tags, which is the point where a bad
 // tag stops being a row in a table and becomes the search index. Running the
@@ -76,7 +74,7 @@ const STAGES = [
   { key: "gate",     label: "4/5  Quality gate (before finalize)",  script: "scripts/quality-metrics.mjs",
     gate: true,
     args: ["--baseline", "docs/quality-baseline.json", "--tolerance", "0.05",
-           "--min-sample", "25", "--since", RUN_STARTED_AT] },
+           "--min-sample", "25", "--since-last-pass", "--record"] },
   { key: "finalize", label: "5/5  Finalize (re-embed + re-score)",  script: "scripts/finalize-cafes.mjs" },
 ];
 

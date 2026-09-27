@@ -113,9 +113,17 @@ async function freshPhotoUrl(googlePlaceId) {
   return `https://places.googleapis.com/v1/${name}/media?maxHeightPx=400&key=${encodeURIComponent(GOOGLE_KEY)}`;
 }
 
+// Stored Places URLs carry no key (the table is public); add it only for the
+// request itself.
+function withKey(url) {
+  if (!isGooglePhoto(url) || /[?&]key=/.test(url)) return url;
+  if (!GOOGLE_KEY) throw new Error("missing Google Places key to download photo");
+  return `${url}${url.includes("?") ? "&" : "?"}key=${encodeURIComponent(GOOGLE_KEY)}`;
+}
+
 async function downloadWithFreshReference(cafe) {
   try {
-    const result = await downloadPhoto(cafe.photo_url);
+    const result = await downloadPhoto(withKey(cafe.photo_url));
     return { ...result, refreshed: false };
   } catch (error) {
     // A 400 from Places means the embedded photo resource name is stale, not

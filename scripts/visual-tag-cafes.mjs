@@ -188,7 +188,10 @@ async function main() {
       outlet_availability_llm, seating_availability_llm, laptop_policy_llm,
       tagging_confidence
     `)
-    .not("photo_url", "is", null)
+    // Only photos already cached to Supabase Storage. A raw Places URL has no
+    // key (see cache-photos.mjs), and tagging one would stamp visual_tagged_at
+    // before the cafe has a real photo to look at.
+    .like("photo_url", "%/storage/v1/object/public/%")
     .order("name");
   if (CAFE) q = q.ilike("name", `%${CAFE}%`);
   if (!FORCE && !CAFE) q = q.is("visual_tagged_at", null);

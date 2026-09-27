@@ -25,7 +25,7 @@
  *                                 overwrite good tags with "unknown")
  *     → extractAttributes       (LLM: 5 enums + confidence; sees reviews + v2 web research)
  *     → validate                (Zod + confidence >= 0.5)
- *         ├─ ok        → extractEvidenceQuotes → embedCafe → writeToSupabase → END
+ *         ├─ ok        → extractEvidenceQuotes → writeToSupabase → END
  *         ├─ retry     → retryNode → extractAttributes  (max 2; a schema error is fed back
  *         │                                              into the prompt, an API error backs off)
  *         └─ exhausted → failValidation → END  (records an error so the run summary counts the cafe)
@@ -43,9 +43,13 @@
  * populated by any script, so it is intentionally NOT read here. Wiring it in
  * is a follow-up that also needs fetch-cafes.mjs to capture reviewSummary.
  *
- * Atomicity: writeToSupabase is a single upsert containing tags, confidence
- * JSON, embedding, and llm_tagged_at. If anything earlier fails, we don't
- * leave a half-tagged row.
+ * Atomicity: writeToSupabase is a single update containing tags, confidence
+ * JSON and llm_tagged_at. If anything earlier fails, we don't leave a
+ * half-tagged row.
+ *
+ * No embedding here: finalize-cafes.mjs embeds every changed cafe once, from
+ * its MERGED tags (human + text + vision), in batches. Embedding here as well
+ * cost a second Voyage call per cafe whose result finalize always overwrote.
  *
  * Which cafes get tagged: those never tagged, PLUS those whose web research
  * landed AFTER their last tag AND actually found something. That second group
@@ -70,11 +74,10 @@
  *   --mock               ← skip Gemini calls, use Day-2 hardcoded JSON
  *   --force-retry-once   ← (mock only) first call returns invalid data
  *                          to exercise the retry edge end-to-end
- *   --delay-ms 0         ← disable pacing (paid Voyage tier only; default paces for free tier)
+ *   --delay-ms 0         ← disable pacing (paid Gemini tier only; default paces for the free tier)
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { VoyageAIClient } from "voyageai";
 import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
 import { z } from "zod";
 import { GoogleGenAI, FunctionCallingConfigMode } from "@google/genai";
@@ -85,7 +88,6 @@ import { groundQuotes } from "./_shared.mjs";
 // env
 // ---------------------------------------------------------------------------
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-const voyage   = new VoyageAIClient({ apiKey: env.VOYAGE_API_KEY });
 const gemini   = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 // Gemini 2.5 Flash: GA, supports forced function calling, free tier ~10 RPM /
 // 250K TPM. Strong-enough reasoning for structured tagging at zero direct cost.
@@ -106,10 +108,10 @@ const MOCK             = !!flag("--mock");
 const FORCE_RETRY_ONCE = !!flag("--force-retry-once");
 const FILTER_CAFE      = typeof flag("--cafe") === "string" ? flag("--cafe") : null;
 const LIMIT            = typeof flag("--limit") === "string" ? parseInt(flag("--limit"), 10) : null;
-// Pause between cafes. Voyage free tier without billing on file is capped at
-// 3 RPM (≈20s between calls), so we pace for the free tier BY DEFAULT (safe
-// defaults, per the paid-API guardrails). Pass --delay-ms 0 on a paid tier.
-const FREE_TIER_DELAY_MS = 21000;
+// Pause between cafes. Each cafe makes two Gemini calls, and the free tier
+// allows about 10 per minute, so pace at ~13s by default. Pass --delay-ms 0
+// on a paid tier.
+const FREE_TIER_DELAY_MS = 13000;
 const DELAY_MS         = typeof flag("--delay-ms") === "string" ? parseInt(flag("--delay-ms"), 10) : FREE_TIER_DELAY_MS;
 // Skip cafes already tagged AND whose evidence has not moved since. --force re-tags everything.
 const FORCE_RETAG      = !!flag("--force");
@@ -235,7 +237,6 @@ const State = Annotation.Root({
   quotesDropped:    Annotation({ default: () => 0 }),
   lastError:        Annotation({ default: () => null }),  // prior validation error, fed into the retry prompt
   retryCount:       Annotation({ default: () => 0, reducer: (_, n) => n }),
-  embedding:        Annotation(),
   written:          Annotation({ default: () => false }),
   errors:           Annotation({
                       default: () => [],
@@ -436,7 +437,7 @@ async function extractEvidenceQuotes(state) {
     return { evidenceQuotes: kept, quotesDropped: dropped.length };
   } catch (e) {
     // Quotes are nice-to-have, not blocking. Fall back to empty arrays so the
-    // pipeline still writes the tags + embedding.
+    // pipeline still writes the tags.
     return {
       evidenceQuotes: {
         wifi_quality: [], outlet_availability: [], noise_level: [],
@@ -487,45 +488,6 @@ async function failValidation(state) {
   };
 }
 
-async function embedCafe(state) {
-  const { cafe, validatedTags, reviews } = state;
-  // Slice by code points, not UTF-16 units: a plain .slice(0, 800) can cut an
-  // emoji in half and leave a lone surrogate, which is not valid UTF-8 and
-  // makes Voyage reject the whole request with a 400.
-  const corpusSnippet = Array.from((reviews ?? []).slice(0, 5).join(" ")).slice(0, 800).join("");
-  // Omit attributes the tagger punted on. Writing "wifi=unknown" into the
-  // embedding is worse than saying nothing: it clusters cafes by what we failed
-  // to learn about them, and lends a "fast wifi" query token overlap with the
-  // very cafes whose wifi is unknown. At current coverage the average cafe
-  // carried 1.7 of these.
-  const tagSummary = Object.entries(validatedTags ?? {})
-    .filter(([, v]) => v?.value && v.value !== "unknown")
-    .map(([k, v]) => `${k}=${v.value}`).join(", ");
-  const text = [
-    cafe.name,
-    cafe.neighborhood,
-    cafe.address,
-    (cafe.vibe_keywords ?? []).join(", "),
-    tagSummary,
-    corpusSnippet,
-  ].filter(Boolean).join(" — ");
-
-  try {
-    const res = await voyage.embed({
-      input: text,
-      model: "voyage-3",
-      inputType: "document",
-    });
-    const vec = res.data?.[0]?.embedding;
-    if (!vec || vec.length !== 1024) {
-      return { errors: [`embed_cafe: bad shape len=${vec?.length}`] };
-    }
-    return { embedding: vec };
-  } catch (e) {
-    return { errors: [`embed_cafe: ${e.message}`] };
-  }
-}
-
 // Attributes the vision tagger (scripts/visual-tag-cafes.mjs) can fill from a
 // photo. Reviews rarely mention these, so vision is often the only source.
 const VISION_FILLABLE = ["outlet_availability", "seating_availability", "laptop_policy"];
@@ -548,9 +510,9 @@ function visionEntryFor(tc, attr) {
 }
 
 async function writeToSupabase(state) {
-  const { cafe, validatedTags, evidenceQuotes, embedding } = state;
-  if (!validatedTags || !embedding) {
-    return { errors: ["write_to_supabase: missing tags or embedding"] };
+  const { cafe, validatedTags, evidenceQuotes } = state;
+  if (!validatedTags) {
+    return { errors: ["write_to_supabase: missing tags"] };
   }
 
   // Build the merged column values + provenance. For a vision-fillable attribute
@@ -586,14 +548,12 @@ async function writeToSupabase(state) {
     laptop_policy_llm:        values.laptop_policy,
     seating_availability_llm: values.seating_availability,
     tagging_confidence,
-    cafe_embedding:           embedding,
     llm_tagged_at:            new Date().toISOString(),
   };
 
   if (DRY_RUN) {
     console.log(`     [dry-run] would write:`,
-      Object.fromEntries(Object.entries(update).filter(([k]) => k !== "cafe_embedding")),
-      `+ ${embedding.length}-dim embedding`);
+      update);
     return { written: false };
   }
 
@@ -613,7 +573,6 @@ function buildGraph() {
     .addNode("retryNode",             retryNode)
     .addNode("failValidation",        failValidation)
     .addNode("extractEvidenceQuotes", extractEvidenceQuotes)
-    .addNode("embedCafe",             embedCafe)
     .addNode("writeToSupabase",       writeToSupabase)
     .addEdge(START,                       "fetchReviewCorpus")
     .addConditionalEdges("fetchReviewCorpus", (state) =>
@@ -626,8 +585,7 @@ function buildGraph() {
     })
     .addEdge("retryNode",                 "extractAttributes")
     .addEdge("failValidation",            END)
-    .addEdge("extractEvidenceQuotes",     "embedCafe")
-    .addEdge("embedCafe",                 "writeToSupabase")
+    .addEdge("extractEvidenceQuotes",     "writeToSupabase")
     .addEdge("writeToSupabase",           END)
     .compile();
 }
@@ -689,7 +647,7 @@ async function main() {
   console.log(`📋 Processing ${cafes.length} cafe${cafes.length > 1 ? "s" : ""}${why}...`);
   if (DELAY_MS > 0) {
     const est = Math.max(1, Math.round((cafes.length * DELAY_MS) / 60000));
-    console.log(`   Pacing ${DELAY_MS}ms/cafe (~${est}m for ${cafes.length}). On a paid Voyage tier? Pass --delay-ms 0.`);
+    console.log(`   Pacing ${DELAY_MS}ms/cafe (~${est}m for ${cafes.length}). On a paid Gemini tier? Pass --delay-ms 0.`);
   }
   console.log();
 
@@ -705,9 +663,9 @@ async function main() {
       const final = await graph.invoke({ cafe });
 
       // Surface every error, including non-fatal ones (e.g. the quotes step
-      // failing while tags + embedding still wrote).
+      // failing while the tags still wrote).
       if (final.errors?.length) {
-        const wrote = final.written || (DRY_RUN && final.validatedTags && final.embedding);
+        const wrote = final.written || (DRY_RUN && final.validatedTags);
         console.log(`     ${wrote ? "⚠️ " : "❌"} ${final.errors.join(" | ")}`);
       }
       counts.quotesDropped += final.quotesDropped ?? 0;
@@ -724,7 +682,7 @@ async function main() {
       // Mutually exclusive outcome buckets → Written + Dry-run OK + Failed == Processed.
       // (retried is orthogonal: it overlaps whichever terminal bucket applies.)
       if (final.written) counts.written++;
-      else if (DRY_RUN && final.validatedTags && final.embedding) counts.dryRunOk++;
+      else if (DRY_RUN && final.validatedTags) counts.dryRunOk++;
       else counts.failed++;
     } catch (e) {
       console.log(`     💥 graph crashed: ${e.message}`);

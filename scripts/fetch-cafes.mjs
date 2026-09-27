@@ -177,7 +177,10 @@ function buildHoursJson(openingHours) {
 function getPhotoUrl(photos) {
   if (!photos || photos.length === 0) return null;
   const ref = photos[0].name;
-  return `https://places.googleapis.com/v1/${ref}/media?maxHeightPx=400&key=${GOOGLE_KEY}`;
+  // No key in the stored URL: the cafes table is publicly readable.
+  // scripts/cache-photos.mjs adds the key at download time and swaps this for
+  // a Supabase Storage URL.
+  return `https://places.googleapis.com/v1/${ref}/media?maxHeightPx=400`;
 }
 
 async function processCafe(place, areaName) {

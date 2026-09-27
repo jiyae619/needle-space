@@ -51,9 +51,23 @@ jobs:
           GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY || secrets.GOOGLE_PLACES_API_KEY }}
         run: node scripts/refresh-cafe-information.mjs --delay-ms 500
 
+      # New cafes arrive with a raw Places photo URL (stored without the key).
+      # Copy it into Supabase Storage now, so the site can show it and the
+      # vision stage below has a real photo to read. Cached cafes are skipped.
+      # `!cancelled()`: a refresh failure is reported (the job still ends red)
+      # but no longer stops tagging and finalize for everything else.
+      - name: Cache photos for new cafes
+        if: ${{ !cancelled() }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY || secrets.GOOGLE_PLACES_API_KEY }}
+        run: node scripts/cache-photos.mjs
+
       # Newly discovered cafes have no review corpus yet. Existing places are
       # skipped, so this is inexpensive on non-discovery weeks.
       - name: Analyze reviews for newly discovered cafes
+        if: ${{ !cancelled() }}
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -61,6 +75,7 @@ jobs:
         run: node scripts/analyze-reviews.mjs --new-only
 
       - name: Run pipeline
+        if: ${{ !cancelled() }}
         env:
           EXTRA_ARGS: ${{ github.event.inputs.args }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
