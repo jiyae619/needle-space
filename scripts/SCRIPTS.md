@@ -81,3 +81,11 @@ When surfacing new keyword candidates, look for:
 | `"no laptop"` / `"laptop-free"` | Explicit laptop policy | `laptop_policy.not_allowed` |
 
 Any phrase appearing **2+ times** across cafes is worth considering for SIGNALS.
+
+## Evaluation and labels
+
+- **Label cafes** at `/admin` (needs `ADMIN_PASSWORD` outside `npm run dev`). Labels go to `cafes.human_labels`, win over the model on the site, and are the answer key for the evals. The model's answer stays hidden until you pick yours.
+- `node scripts/evaluate-accuracy.mjs [--matrices]` — accuracy and coverage of the model, the keyword tagger, and what shipped, against your labels. Quote nothing below 20 labels per attribute.
+- `node scripts/evaluate-retrieval.mjs [--via-api]` — Hit@k, Recall@k, nDCG@k and MRR on `golden-queries.json`. `--via-api` measures the real `/api/search` path. Prefer `expected_ids` for new labels.
+- `node scripts/quality-metrics.mjs --baseline docs/quality-baseline.json --since-last-pass --record` — the pipeline's gate. Measures every cafe changed since the last passing gate, adds accuracy once 20+ cafes are labeled, and records the outcome in `pipeline_gate_runs`.
+- `.github/workflows/nightly-eval.yml` runs the first two every night and posts the numbers to the run summary.

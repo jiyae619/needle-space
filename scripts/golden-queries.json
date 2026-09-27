@@ -4,6 +4,7 @@
     "Each entry: { query, expected, notes? }.",
     "  query    — a natural-language search a real user would type.",
     "  expected — cafe names that SHOULD appear in the top results.",
+    "  expected_ids — optional cafe UUIDs. Unambiguous; prefer them for new labels.",
     "             Case-insensitive substring match against the cafe `name`",
     "             column, so 'Anchorhead' matches 'Anchorhead Coffee'.",
     "  notes    — optional, why these cafes are the right answer.",
