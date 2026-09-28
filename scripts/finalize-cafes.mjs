@@ -13,7 +13,8 @@
  *
  * Selection rule ("changed since last refresh"):
  *   refresh a tagged cafe when finalized_at IS NULL, OR a tag change
- *   (llm_tagged_at / visual_tagged_at) is newer than finalized_at.
+ *   (llm_tagged_at / visual_tagged_at) is newer than finalized_at, OR it has no
+ *   search_text yet (the full-text index for hybrid search).
  *   An /admin attribute edit sets finalized_at back to NULL, so it's caught too.
  *   --all ignores the rule and refreshes every tagged cafe.
  *
@@ -81,8 +82,25 @@ if (!Number.isInteger(BATCH_SIZE) || BATCH_SIZE < 1 || BATCH_SIZE > 128) {
   process.exit(2);
 }
 
+// Without billing, Voyage also caps tokens at 10K a minute, and batches vary in
+// length, so the fixed delay above occasionally lands over it. A 429 is waited
+// out (the window is a minute) and the same batch retried, rather than dropped.
+const RATE_LIMIT_WAIT_MS = 61000;
+const RATE_LIMIT_RETRIES = 3;
+
 async function embedBatch(texts) {
-  const res = await voyage.embed({ input: texts, model: "voyage-3", inputType: "document" });
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await voyage.embed({ input: texts, model: "voyage-3", inputType: "document" });
+      break;
+    } catch (e) {
+      const limited = e?.statusCode === 429 || /429|rate limit/i.test(e?.message ?? "");
+      if (!limited || attempt >= RATE_LIMIT_RETRIES) throw e;
+      console.log(`   ⏳ Voyage rate limit — waiting ${RATE_LIMIT_WAIT_MS / 1000}s, then retrying this batch (${attempt + 1}/${RATE_LIMIT_RETRIES})`);
+      await new Promise(r => setTimeout(r, RATE_LIMIT_WAIT_MS));
+    }
+  }
   const vecs = new Array(texts.length);
   for (const d of res.data ?? []) vecs[d.index ?? 0] = d.embedding;
   vecs.forEach((v, i) => {
@@ -104,10 +122,11 @@ async function reviewsByPlace(placeIds) {
   return out;
 }
 
-// The selection rule. finalized_at NULL (never finalized, or admin-invalidated)
-// or any tag change newer than it → refresh.
-function needsFinalize(cafe) {
+// The selection rule. finalized_at NULL (never finalized, or admin-invalidated),
+// any tag change newer than it, or no full-text search_text yet → refresh.
+function needsFinalize(cafe, hasSearchText) {
   if (ALL) return true;
+  if (hasSearchText && !cafe.search_text) return true;
   const fin = cafe.finalized_at ? new Date(cafe.finalized_at).getTime() : null;
   if (fin == null) return true;
   const llm = cafe.llm_tagged_at    ? new Date(cafe.llm_tagged_at).getTime()    : 0;
@@ -121,12 +140,17 @@ async function main() {
   console.log(`   Scope: ${ALL ? "ALL tagged cafes (--all)" : "cafes changed since last finalize"}`);
   console.log();
 
+  // cafes.search_text arrives with 20260929000000_hybrid_search.sql. Without it,
+  // keep finalizing embeddings and scores rather than fail every update.
+  const { error: stErr } = await supabase.from("cafes").select("search_text").limit(1);
+  const HAS_SEARCH_TEXT = !stErr;
+
   let q = supabase.from("cafes").select(
     "id, google_place_id, name, neighborhood, address, vibe_keywords, google_rating, productivity_score, " +
     "wifi_quality, outlet_availability, noise_level, laptop_policy, seating_availability, " +
     "wifi_quality_llm, outlet_availability_llm, noise_level_llm, laptop_policy_llm, seating_availability_llm, " +
     "human_labels, google_review_summary, google_editorial_summary, " +
-    "llm_tagged_at, visual_tagged_at, finalized_at"
+    "llm_tagged_at, visual_tagged_at, finalized_at" + (HAS_SEARCH_TEXT ? ", search_text" : "")
   ).not("llm_tagged_at", "is", null).order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
 
@@ -134,7 +158,7 @@ async function main() {
   if (error) { console.error("❌", error.message); process.exit(1); }
   if (!cafes?.length) { console.log("No tagged cafes found."); return; }
 
-  let targets = cafes.filter(needsFinalize);
+  let targets = cafes.filter(c => needsFinalize(c, HAS_SEARCH_TEXT));
   const fresh = cafes.length - targets.length;   // rule-skipped (already up to date)
   if (LIMIT) targets = targets.slice(0, LIMIT);
 
@@ -148,10 +172,6 @@ async function main() {
   }
   console.log();
 
-  // cafes.search_text arrives with 20260929000000_hybrid_search.sql. Without it,
-  // keep finalizing embeddings and scores rather than fail every update.
-  const { error: stErr } = await supabase.from("cafes").select("search_text").limit(1);
-  const HAS_SEARCH_TEXT = !stErr;
   if (!HAS_SEARCH_TEXT) console.log("   ⚠️  cafes.search_text missing — apply 20260929000000_hybrid_search.sql to fill the full-text index.");
   console.log(`   Embedding text: ${TEXT_VERSION}\n`);
 
@@ -194,6 +214,9 @@ async function main() {
   console.log(`Re-scored:  ${counts.rescored} (score changed)`);
   console.log(`No score:   ${counts.noScore} (all attrs unknown; re-embedded + bookmarked anyway)`);
   console.log(`Failed:     ${counts.failed}`);
+  // A partial finalize must not read as success in the pipeline summary.
+  // Failed cafes keep their old vector; the same command run again retries them.
+  if (counts.failed > 0) process.exitCode = 1;
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
