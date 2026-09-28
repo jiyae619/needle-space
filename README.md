@@ -45,7 +45,9 @@ A full-text + vector hybrid (reciprocal rank fusion) is built and switched off w
 
 ### The tagging graph
 
-Each cafe runs once through a [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) state machine in `scripts/analyze-reviews-llm.mjs`:
+Each cafe runs through a [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) state machine in `scripts/analyze-reviews-llm.mjs`. It reads the stored reviews (most relevant first, then newest, so the same reviews make the length cut every run), Google's summary of all reviews, and the Reddit and Yelp research.
+
+A cafe is tagged when it is new, and re-tagged only when new evidence arrives: web research that found something, or reviews or a review summary fetched after its last tag. Re-reading unchanged evidence makes tags drift, so nothing else is re-read. Each run handles at most 100 cafes, to stay within Gemini's free daily limit, and stops early if the API keeps failing.
 
 ```
 fetchReviewCorpus ─(read failed)─→ stop, no LLM call
@@ -207,7 +209,7 @@ The server key is never stored in the database (photo links are saved without it
 ```bash
 npm run lint
 npx tsc --noEmit
-npm test          # Vitest, 140 tests
+npm test          # Vitest
 npm run build
 ```
 
@@ -225,7 +227,7 @@ This project has automatic Data API grants turned off. A new table or function n
 |---|---|
 | `fetch-cafes.mjs`, `refresh-cafe-information.mjs` | Discover cafes and refresh hours and status from Google Places |
 | `cache-photos.mjs`, `curate-photos.mjs` | Cache photos in Storage; pick the best interior shot |
-| `analyze-reviews.mjs` | Fetch reviews and Google's review summary; keyword tags (kept as a baseline) |
+| `analyze-reviews.mjs` | Fetch reviews and Google's review summary; keyword tags (kept as a baseline). `--summaries-only` fills in missing summaries |
 | `research-cafes.mjs` | Reddit and Yelp evidence via Tavily; re-tags only when evidence changed |
 | `analyze-reviews-llm.mjs` | The LangGraph tagger |
 | `visual-tag-cafes.mjs` | Fill tags from the cafe's photo where reviews are silent |

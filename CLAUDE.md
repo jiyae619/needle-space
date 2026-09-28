@@ -54,7 +54,8 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
   3. keyword columns (`scripts/analyze-reviews.mjs`), except noise: the keyword noise tag is never used as a fallback
   The merge exists in `src/lib/merge-tags.ts`, `scripts/_shared.mjs` and `match_cafes()` in SQL. Keep all three identical; `scripts/_shared.test.mjs` checks the JS copies against each other.
 - Daily pipeline (`npm run pipeline`, `scripts/run-pipeline.mjs`): web research → LLM tagging → vision gap-fill → quality gate → finalize. The workflow first refreshes Places info, caches photos, and fetches reviews for new cafes.
-  - `analyze-reviews-llm.mjs` tags; it does not embed.
+  - `analyze-reviews-llm.mjs` tags; it does not embed. It reads reviews in a fixed order plus `google_review_summary`, selects cafes with `taggingReason()` in `scripts/_shared.mjs` (never tagged, or evidence newer than the tag), handles at most 100 a run for the Gemini free tier, and stops after 3 consecutive API failures.
+  - `analyze-reviews.mjs --summaries-only` (a workflow step) fills in Google's review summary for cafes without one; a new summary queues the cafe for re-tagging.
   - `finalize-cafes.mjs` merges, scores and embeds once, 10 cafes per Voyage request (free tier: 3 requests and 10K tokens a minute), waits out 429s, and exits non-zero if any cafe fails.
   - `research-cafes.mjs` only re-tags a cafe when its evidence fingerprint changed.
 - Evals: `evaluate-accuracy.mjs` (vs human labels; gates at 20+ labels), `evaluate-retrieval.mjs` (golden queries), `evaluate-tagging.mjs` (LLM vs keyword baseline, historical).

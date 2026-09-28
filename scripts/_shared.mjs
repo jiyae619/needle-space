@@ -236,6 +236,48 @@ export function researchFingerprint(results, yelpFreeWifi) {
 }
 
 // ---------------------------------------------------------------------------
+// Which cafes the LangGraph tagger (analyze-reviews-llm.mjs) picks up.
+//
+// Re-tagging only pays when there is evidence the last tag never read: in the
+// 2026-08-13 backfill, cafes with unread evidence gained 0.59 tags each and
+// cafes without it lost 0.35 (the model jitters around the 0.5 confidence
+// floor). So a cafe is re-tagged only when something new arrived after its tag.
+// ---------------------------------------------------------------------------
+
+function hasWebEvidence(c) {
+  const s = c.web_research_snippets;
+  return (Array.isArray(s) ? s.length > 0 : !!(s && Object.keys(s).length > 0)) || c.yelp_free_wifi === true;
+}
+
+const after = (a, b) => !!a && !!b && new Date(a) > new Date(b);
+
+/**
+ * Why a cafe needs tagging, or null when its tag is current:
+ *   "untagged"      never tagged
+ *   "new_research"  web research found evidence after the last tag
+ *   "new_reviews"   reviews or Google's review summary were fetched after the
+ *                   last tag, and there is a summary to read
+ */
+export function taggingReason(c) {
+  if (!c.llm_tagged_at) return "untagged";
+  if (after(c.web_research_at, c.llm_tagged_at) && hasWebEvidence(c)) return "new_research";
+  if (after(c.reviews_checked_at, c.llm_tagged_at) && c.google_review_summary?.trim()) return "new_reviews";
+  return null;
+}
+
+/**
+ * Google's own summary of ALL of a cafe's reviews, as a prompt block. The
+ * tagger otherwise sees only the ~10 reviews we store. It is AI-written by
+ * Google, so it informs the tags but is never offered as a quote.
+ */
+export function reviewSummaryBlock(summary) {
+  const s = summary?.trim();
+  return s
+    ? `GOOGLE'S SUMMARY OF ALL REVIEWS (written by Google from every review, not only those above):\n${s.slice(0, 1200)}`
+    : null;
+}
+
+// ---------------------------------------------------------------------------
 // Run trace for the LangGraph tagger: per cafe, which nodes ran, how long each
 // took, retries, errors and Gemini token use; per run, totals, node latency
 // percentiles and a cost estimate. Written as JSON next to the run so a bad
