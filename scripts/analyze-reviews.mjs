@@ -391,6 +391,8 @@ async function fetchGoogleData(placeId) {
     source: "Google v1 (relevant)",
     rawReviews,
     summaryTexts: [reviewSummary, editorialSummary].filter(Boolean),
+    reviewSummary,
+    editorialSummary,
     structuredSignals,
     rating: data.rating,
   };
@@ -532,11 +534,19 @@ async function main() {
     ]);
 
     // Record the check only when Google actually answered, so a key or quota
-    // problem never makes a cafe look "done".
-    if (HAS_MARKER && googleResult && !DRY_RUN) {
-      const { error: markErr } = await supabase.from("cafes")
-        .update({ reviews_checked_at: new Date().toISOString() }).eq("id", cafe.id);
-      if (markErr) console.warn(`    ⚠️  could not record reviews_checked_at: ${markErr.message}`);
+    // problem never makes a cafe look "done". Keep Google's summaries too:
+    // reviewSummary is Google's synthesis of ALL reviews, not just the 5 the
+    // API returns, and it feeds the search text (finalize-cafes.mjs). It used
+    // to be fetched and thrown away. An empty answer never erases a stored one.
+    if (googleResult && !DRY_RUN) {
+      const mark = {};
+      if (HAS_MARKER) mark.reviews_checked_at = new Date().toISOString();
+      if (googleResult.reviewSummary) mark.google_review_summary = googleResult.reviewSummary;
+      if (googleResult.editorialSummary) mark.google_editorial_summary = googleResult.editorialSummary;
+      if (Object.keys(mark).length) {
+        const { error: markErr } = await supabase.from("cafes").update(mark).eq("id", cafe.id);
+        if (markErr) console.warn(`    ⚠️  could not save review check / summaries: ${markErr.message}`);
+      }
     }
 
     const relevantReviews = googleResult?.rawReviews || [];

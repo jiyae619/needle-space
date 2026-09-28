@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -72,5 +72,102 @@ describe("groundQuotes", () => {
   it("accepts an excerpt joined with an ellipsis only if every fragment is real", () => {
     expect(groundQuotes({ o: ["The WiFi is fast ... outlets at nearly every table"] }, reviews).kept.o).toHaveLength(1);
     expect(groundQuotes({ o: ["The WiFi is fast ... outlets at the bar only"] }, reviews).kept.o).toEqual([]);
+  });
+});
+
+describe("search text v2", () => {
+  const cafe = { name: "Elm Coffee", neighborhood: "Pioneer Square", address: "240 2nd Ave S, Seattle, WA 98104, USA",
+    vibe_keywords: ["great pastries"], google_review_summary: "A calm spot with good light." };
+  const merged = { wifi: "fast", outlets: "unknown", noise: "quiet", laptop: "welcome", seating: "unknown" };
+
+  it("reads the city from the postal address", () => {
+    expect(cityOf(cafe.address)).toBe("Seattle");
+    expect(cityOf("1 Main St, Bellevue, WA 98004, USA")).toBe("Bellevue");
+  });
+
+  it("writes known tags as sentences and leaves unknown ones out", () => {
+    const d = describeCafe(cafe, merged);
+    expect(d).toContain("Elm Coffee is a cafe in Pioneer Square, Seattle.");
+    expect(d).toContain("WiFi is fast.");
+    expect(d).toContain("Usually quiet");
+    expect(d).not.toMatch(/outlet|unknown|=/i);
+  });
+
+  it("includes Google's review summary", () => {
+    expect(embedTextV2(cafe, merged, [])).toContain("What reviewers say: A calm spot with good light.");
+  });
+
+  it("does not repeat the city when it is also the neighborhood", () => {
+    expect(describeCafe({ name: "X", neighborhood: "Kirkland", address: "1 A St, Kirkland, WA 98033, USA" }, merged))
+      .toContain("X is a cafe in Kirkland.");
+  });
+});
+
+describe("retrieval scoring", () => {
+  const q = { expected: ["A", "B"] };
+
+  it("scores a perfect ranking as 1", () => {
+    const s = scoreRanking([{ name: "A" }, { name: "B" }, { name: "C" }], q, 10);
+    expect(s).toMatchObject({ rank: 1, hit: true, recall: 1 });
+    expect(s.ndcg).toBeCloseTo(1);
+  });
+
+  it("counts an expected cafe once even if it appears twice", () => {
+    const s = scoreRanking([{ name: "A" }, { name: "A 2" }, { name: "x" }], { expected: ["A"] }, 10);
+    expect(s.recall).toBe(1);
+    expect(s.ndcg).toBeCloseTo(1);
+  });
+
+  it("ignores results beyond k", () => {
+    expect(scoreRanking([{ name: "x" }, { name: "A" }], q, 1).hit).toBe(false);
+  });
+
+  it("matches by cafe id when labels use expected_ids", () => {
+    expect(scoreRanking([{ id: "u1", name: "Z" }], { expected_ids: ["u1"] }, 10).hit).toBe(true);
+  });
+
+  it("averages per-query scores", () => {
+    const s = summarize([{ hit: true, rank: 1, recall: 1, ndcg: 1 }, { hit: false, rank: null, recall: 0, ndcg: 0 }]);
+    expect(s).toEqual({ hit_at_k: 0.5, recall_at_k: 0.5, ndcg_at_k: 0.5, mrr: 0.5 });
+  });
+});
+
+describe("researchFingerprint", () => {
+  const a = { url: "https://reddit.com/r/Seattle/1", snippet: "Fast wifi, lots of outlets." };
+  const b = { url: "https://reddit.com/r/Seattle/2", snippet: "Quiet in the mornings." };
+
+  it("ignores result order and cosmetic differences", () => {
+    expect(researchFingerprint([a, b], false)).toBe(researchFingerprint([b, { ...a, snippet: "fast WiFi,  lots of outlets" }], false));
+  });
+
+  it("changes when the evidence changes", () => {
+    expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([a, b], false));
+    expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([a], true));
+    expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([{ ...a, snippet: "Laptops banned now." }], false));
+  });
+});
+
+describe("createRunTrace", () => {
+  it("records node runs, errors, retries and tokens per cafe", async () => {
+    const t = createRunTrace({ script: "test" });
+    t.startCafe({ id: "a", name: "A" });
+    await t.node("fetch", async () => ({ reviews: [] }))({});
+    await t.node("extract", async () => ({ errors: ["429 rate limit"] }))({});
+    t.llmCall({ promptTokenCount: 1000, candidatesTokenCount: 100, thoughtsTokenCount: 50 });
+    t.endCafe("written", { retries: 1 });
+    const run = t.toJSON();
+    expect(run.cafes[0].nodes.map(n => n.node)).toEqual(["fetch", "extract"]);
+    expect(run.cafes[0].nodes[1].error).toMatch(/429/);
+    expect(run.summary).toMatchObject({ cafes: 1, retried: 1, llm_calls: 1, tokens: { input: 1000, output: 150 }, outcomes: { written: 1 } });
+    expect(run.summary.nodes.extract).toMatchObject({ runs: 1, errors: 1 });
+    expect(run.summary.est_cost_usd_paid_tier).toBeCloseTo((1000 * GEMINI_PRICE_PER_M.input + 150 * GEMINI_PRICE_PER_M.output) / 1e6, 4);
+  });
+
+  it("records a node that throws, then rethrows", async () => {
+    const t = createRunTrace();
+    t.startCafe({ id: "b", name: "B" });
+    await expect(t.node("boom", async () => { throw new Error("crash"); })({})).rejects.toThrow("crash");
+    t.endCafe("crashed");
+    expect(t.toJSON().cafes[0].nodes[0]).toMatchObject({ node: "boom", error: "crash" });
   });
 });

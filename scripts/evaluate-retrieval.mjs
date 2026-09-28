@@ -29,6 +29,9 @@
  *   node scripts/evaluate-retrieval.mjs             ← table + triage output
  *   node scripts/evaluate-retrieval.mjs --k 5       ← score top-5 instead of top-10
  *   node scripts/evaluate-retrieval.mjs --json      ← machine-readable output
+ *   node scripts/evaluate-retrieval.mjs --hybrid    ← rank with match_cafes_hybrid
+ *       (full-text + vector, RRF) instead of vector only. Compare the two before
+ *       turning on SEARCH_HYBRID=1 in production.
  *   node scripts/evaluate-retrieval.mjs --via-api   ← measure the REAL request
  *       path (needs `npm run dev`); includes the route's location filtering,
  *       which the direct match_cafes path cannot see. Paced at 21s/query for
@@ -39,6 +42,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { env } from "./_env.mjs";
+import { nameMatches, expectedCount, scoreRanking, summarize } from "./_shared.mjs";
 
 // ---------------------------------------------------------------------------
 // env
@@ -57,6 +61,11 @@ if (!Number.isInteger(K) || K < 1) { console.error("--k must be a positive integ
 // Route each query through the running app rather than calling match_cafes
 // directly, so the eval sees what a user sees. See searchViaApi below.
 const VIA_API   = argv.includes("--via-api");
+const HYBRID    = argv.includes("--hybrid");
+if (HYBRID && VIA_API) {
+  console.error("--hybrid ranks via the database directly; for the app path set SEARCH_HYBRID=1 on the server instead.");
+  process.exit(2);
+}
 const flagVal   = (n, d) => { const i = argv.indexOf(n); return i !== -1 && argv[i+1] ? argv[i+1] : d; };
 const API_BASE  = flagVal("--api-base", "http://localhost:3000").replace(/\/$/, "");
 // Voyage free tier is 3 RPM and the route embeds one query per request.
@@ -68,19 +77,8 @@ const API_DELAY_MS = parseInt(flagVal("--api-delay-ms", "21000"), 10);
 const golden = JSON.parse(
   readFileSync(resolve(process.cwd(), "scripts/golden-queries.json"), "utf-8"),
 ).queries;
-const expectedCount = (q) => (q.expected?.length ?? 0) + (q.expected_ids?.length ?? 0);
 const labeled = golden.filter(q => expectedCount(q) > 0);
 const triage  = golden.filter(q => expectedCount(q) === 0);
-
-// Each expected entry (a name or an id) is one relevant item. Returns the
-// index of the entry a result satisfies, or -1.
-function matchExpected(result, q) {
-  const ids = q.expected_ids ?? [];
-  const byId = ids.indexOf(result.id);
-  if (byId !== -1) return byId;
-  const byName = (q.expected ?? []).findIndex(exp => nameMatches(result, exp));
-  return byName === -1 ? -1 : ids.length + byName;
-}
 
 // ---------------------------------------------------------------------------
 // embed all queries in one batched Voyage call (mirrors src/lib/embeddings.ts:
@@ -103,24 +101,6 @@ async function embedAll(texts) {
   const json = await res.json();
   return json.data.map(d => d.embedding);
 }
-
-// Case-insensitive substring match — "Anchorhead" hits "Anchorhead Coffee".
-//
-// An expected entry may be qualified as "Name @ Neighborhood" when the bare
-// name cannot identify one cafe: "Starbucks Coffee Company" matches 29 rows
-// across 15 neighborhoods, so an unqualified label silently scores a hit on
-// whichever Starbucks happens to rank, in any city. That turns the metric into
-// noise precisely where chains are involved.
-const nameMatches = (result, expectedName) => {
-  const resultName = typeof result === "string" ? result : result.name;
-  const resultHood = typeof result === "string" ? null : result.neighborhood;
-  const at = expectedName.lastIndexOf(" @ ");
-  if (at === -1) return resultName.toLowerCase().includes(expectedName.toLowerCase());
-  const wantName = expectedName.slice(0, at).trim().toLowerCase();
-  const wantHood = expectedName.slice(at + 3).trim().toLowerCase();
-  return resultName.toLowerCase().includes(wantName) &&
-         (resultHood ?? "").toLowerCase() === wantHood;
-};
 
 // --via-api routes each query through the running app instead of calling
 // match_cafes directly. The direct path measures the vector index alone; it
@@ -182,13 +162,15 @@ async function run() {
       try { names = (await searchViaApi(q.query)).slice(0, K); }
       catch (e) { console.error(`/api/search failed for "${q.query}": ${e.message}`); process.exit(1); }
     } else {
-      const { data, error } = await supabase.rpc("match_cafes", {
+      const fn = HYBRID ? "match_cafes_hybrid" : "match_cafes";
+      const { data, error } = await supabase.rpc(fn, {
         query_embedding: vectors[i],
+        ...(HYBRID ? { query_text: q.query } : {}),
         match_count: K,
         p_wifi_in: null, p_noise_in: null, p_outlets_in: null,
         p_laptop_in: null, p_seating_in: null, p_verified_only: false,
       });
-      if (error) { console.error(`match_cafes failed for "${q.query}": ${error.message}`); process.exit(1); }
+      if (error) { console.error(`${fn} failed for "${q.query}": ${error.message}`); process.exit(1); }
       names = (data ?? []).map(r => ({ id: r.id, name: r.name, neighborhood: r.neighborhood }));
     }
 
@@ -196,24 +178,10 @@ async function run() {
       results.push({ query: q.query, mode: "triage", top: names.slice(0, 5).map(n => n.name) });
       continue;
     }
-    // Walk the ranking once: first-hit rank, distinct expected items found,
-    // and DCG with binary relevance (each expected item counts once).
-    let rank = null, dcg = 0;
-    const found = new Set();
-    names.forEach((n, r) => {
-      const e = matchExpected(n, q);
-      if (e === -1 || found.has(e)) return;
-      found.add(e);
-      if (rank === null) rank = r + 1;
-      dcg += 1 / Math.log2(r + 2);
-    });
-    const total = expectedCount(q);
-    let idcg = 0;
-    for (let r = 0; r < Math.min(total, K); r++) idcg += 1 / Math.log2(r + 2);
+    const { rank, recall, ndcg } = scoreRanking(names, q, K);
     results.push({
       query: q.query, mode: "labeled", expected: [...(q.expected ?? []), ...(q.expected_ids ?? [])],
-      rank, hit: rank !== null, zeroResults: names.length === 0,
-      recall: found.size / total, ndcg: idcg ? dcg / idcg : 0,
+      rank, hit: rank !== null, zeroResults: names.length === 0, recall, ndcg,
       top: names.slice(0, 5).map(n => n.name),
     });
   }
@@ -221,19 +189,17 @@ async function run() {
   const scored = results.filter(r => r.mode === "labeled");
   const summary = {
     k: K,
+    ranking: VIA_API ? "api" : HYBRID ? "hybrid" : "vector",
     labeled_queries: scored.length,
     triage_queries: results.length - scored.length,
-    hit_at_k: scored.length ? scored.filter(r => r.hit).length / scored.length : null,
-    recall_at_k: scored.length ? scored.reduce((s, r) => s + r.recall, 0) / scored.length : null,
-    ndcg_at_k: scored.length ? scored.reduce((s, r) => s + r.ndcg, 0) / scored.length : null,
-    mrr: scored.length ? scored.reduce((s, r) => s + (r.rank ? 1 / r.rank : 0), 0) / scored.length : null,
+    ...summarize(scored),
     zero_result_rate: scored.length ? scored.filter(r => r.zeroResults).length / scored.length : null,
   };
 
   if (JSON_OUT) { console.log(JSON.stringify({ summary, results }, null, 2)); return; }
 
   if (scored.length) {
-    console.log(`\n# Retrieval eval — ${scored.length} labeled queries, k=${K}\n`);
+    console.log(`\n# Retrieval eval — ${scored.length} labeled queries, k=${K}, ranking: ${summary.ranking}\n`);
     console.log(`Hit@${K}: ${(summary.hit_at_k * 100).toFixed(1)}%   Recall@${K}: ${(summary.recall_at_k * 100).toFixed(1)}%   ` +
       `nDCG@${K}: ${summary.ndcg_at_k.toFixed(3)}   MRR: ${summary.mrr.toFixed(3)}   zero-result: ${(summary.zero_result_rate * 100).toFixed(1)}%\n`);
     console.log("| # | query | first hit rank | recall | nDCG | top result |");

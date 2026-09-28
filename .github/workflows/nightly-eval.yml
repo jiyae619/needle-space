@@ -47,10 +47,19 @@ jobs:
           node scripts/evaluate-accuracy.mjs --json > eval-out/accuracy.json
           node scripts/evaluate-accuracy.mjs --matrices | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - name: Search quality — vector index only
+      # Vector-only vs hybrid (full-text + vector) on the same queries: the
+      # evidence for or against turning on SEARCH_HYBRID=1.
+      - name: Search quality — vector vs hybrid ranking
         run: |
-          node scripts/evaluate-retrieval.mjs --json > eval-out/retrieval-direct.json
-          { echo; echo "## Search — vector index only"; node scripts/evaluate-retrieval.mjs | sed -n '/^# Retrieval eval/,/^$/p;/^Hit@/p'; } >> "$GITHUB_STEP_SUMMARY"
+          node scripts/evaluate-retrieval.mjs --json > eval-out/retrieval-vector.json
+          node scripts/evaluate-retrieval.mjs --hybrid --json > eval-out/retrieval-hybrid.json
+          { echo; echo "## Search — ranking comparison (database only)"; node -e '
+            const p = (x) => x == null ? "—" : (x * 100).toFixed(1) + "%";
+            console.log("| ranking | Hit@k | Recall@k | nDCG@k | MRR |"); console.log("|---|---:|---:|---:|---:|");
+            for (const f of ["vector", "hybrid"]) {
+              const r = require(`./eval-out/retrieval-${f}.json`).summary;
+              console.log(`| ${f} | ${p(r.hit_at_k)} | ${p(r.recall_at_k)} | ${r.ndcg_at_k?.toFixed(3)} | ${r.mrr?.toFixed(3)} |`);
+            }'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build the app
         run: npm run build

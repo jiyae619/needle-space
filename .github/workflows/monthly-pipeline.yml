@@ -83,4 +83,24 @@ jobs:
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          # Which embedding text finalize builds (v1 or v2). Set the repository
+          # variable EMBED_TEXT_VERSION only together with a full re-embed
+          # (finalize-cafes.mjs --all --text v2), so the index never mixes both.
+          EMBED_TEXT_VERSION: ${{ vars.EMBED_TEXT_VERSION || 'v1' }}
+          # Optional LangSmith tracing of the LangGraph run: set the repository
+          # variable LANGSMITH_TRACING=true and the secret LANGSMITH_API_KEY.
+          LANGSMITH_TRACING: ${{ vars.LANGSMITH_TRACING || 'false' }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT: needle-space
         run: npm run pipeline -- $EXTRA_ARGS
+
+      # Per-cafe node timings, retries, errors and Gemini tokens from the
+      # tagging run (scripts/analyze-reviews-llm.mjs), kept for 30 days.
+      - name: Upload tagging trace
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: tagging-trace-${{ github.run_id }}
+          path: traces/
+          if-no-files-found: ignore
+          retention-days: 30
