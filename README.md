@@ -243,7 +243,15 @@ More detail in [`scripts/SCRIPTS.md`](./scripts/SCRIPTS.md).
 
 ## Deployment
 
-The site is hosted on Netlify from `main`. Deploys are triggered by hand after a merge. Set the environment variables above in Netlify, and the pipeline secrets (`SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_PLACES_SERVER_KEY`, `VOYAGE_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`) in GitHub Actions. Apply any new migration before merging code that reads it.
+The site is hosted on Netlify in three stages:
+
+- **Deploy Previews:** every pull request into `main` gets its own preview address.
+- **Staging:** `main` deploys to `main--needle-space.netlify.app`.
+- **Live:** the live site deploys from the `production` branch. To release, open a pull request from `main` into `production` and merge it.
+
+Previews and staging read the live database, so saving anything through their admin pages changes real data. The daily pipeline runs from `main` on GitHub Actions, so pipeline changes take effect as soon as they merge; test them first with a dry run (see Data pipeline).
+
+Set the environment variables above in Netlify, and the pipeline secrets (`SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_PLACES_SERVER_KEY`, `VOYAGE_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`) in GitHub Actions. Apply any new migration before merging code that reads it.
 
 ## Docs
 

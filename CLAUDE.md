@@ -19,7 +19,11 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
 - **Cafe Data:** Google Places API, pulled only by pipeline scripts, never on user requests
 - **AI:** Voyage-3 embeddings (search), Gemini 2.5 Flash (tagging + vision), LangGraph.js (tagging graph)
 - **Styling:** Tailwind CSS
-- **Hosting:** Netlify. Deploys are triggered by hand after merging to `main`.
+- **Hosting:** Netlify. Three stages:
+  - every PR into `main` gets a Deploy Preview (`deploy-preview-<n>--needle-space.netlify.app`);
+  - `main` is staging (`main--needle-space.netlify.app`);
+  - the live site deploys from the `production` branch, released by a PR from `main` into `production`.
+  Previews and staging use the live Supabase database. The GitHub Actions pipeline runs from `main`, so pipeline changes go live on merge; test them with the workflow's "Dry run" first.
 - **Automation:** GitHub Actions: daily data pipeline, nightly eval, lint + typecheck + tests on every PR
 - **Cost target:** $0/month using free tiers. Google Maps Platform has no $200 credit any more (since March 2025); each Places request type has its own free monthly allowance instead (e.g. 1,000 for "Place Details Enterprise + Atmosphere", which covers reviews and review summaries). Keep batch jobs inside those allowances.
 
