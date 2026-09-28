@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, embedTextV2, describeCafe, cityOf, scoreRanking, summarize } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -144,5 +144,30 @@ describe("researchFingerprint", () => {
     expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([a, b], false));
     expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([a], true));
     expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([{ ...a, snippet: "Laptops banned now." }], false));
+  });
+});
+
+describe("createRunTrace", () => {
+  it("records node runs, errors, retries and tokens per cafe", async () => {
+    const t = createRunTrace({ script: "test" });
+    t.startCafe({ id: "a", name: "A" });
+    await t.node("fetch", async () => ({ reviews: [] }))({});
+    await t.node("extract", async () => ({ errors: ["429 rate limit"] }))({});
+    t.llmCall({ promptTokenCount: 1000, candidatesTokenCount: 100, thoughtsTokenCount: 50 });
+    t.endCafe("written", { retries: 1 });
+    const run = t.toJSON();
+    expect(run.cafes[0].nodes.map(n => n.node)).toEqual(["fetch", "extract"]);
+    expect(run.cafes[0].nodes[1].error).toMatch(/429/);
+    expect(run.summary).toMatchObject({ cafes: 1, retried: 1, llm_calls: 1, tokens: { input: 1000, output: 150 }, outcomes: { written: 1 } });
+    expect(run.summary.nodes.extract).toMatchObject({ runs: 1, errors: 1 });
+    expect(run.summary.est_cost_usd_paid_tier).toBeCloseTo((1000 * GEMINI_PRICE_PER_M.input + 150 * GEMINI_PRICE_PER_M.output) / 1e6, 4);
+  });
+
+  it("records a node that throws, then rethrows", async () => {
+    const t = createRunTrace();
+    t.startCafe({ id: "b", name: "B" });
+    await expect(t.node("boom", async () => { throw new Error("crash"); })({})).rejects.toThrow("crash");
+    t.endCafe("crashed");
+    expect(t.toJSON().cafes[0].nodes[0]).toMatchObject({ node: "boom", error: "crash" });
   });
 });

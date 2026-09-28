@@ -28,3 +28,6 @@ tsconfig.tsbuildinfo
 
 # Local DB snapshots taken before bulk re-tags — not repo content
 docs/backups/
+
+# LangGraph run traces (uploaded as workflow artifacts, not committed)
+traces/

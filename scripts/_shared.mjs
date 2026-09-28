@@ -234,3 +234,80 @@ export function researchFingerprint(results, yelpFreeWifi) {
     .sort();
   return createHash("sha256").update(JSON.stringify({ items, yelp: yelpFreeWifi === true })).digest("hex").slice(0, 32);
 }
+
+// ---------------------------------------------------------------------------
+// Run trace for the LangGraph tagger: per cafe, which nodes ran, how long each
+// took, retries, errors and Gemini token use; per run, totals, node latency
+// percentiles and a cost estimate. Written as JSON next to the run so a bad
+// night can be diagnosed from the file (the workflow uploads it).
+// ---------------------------------------------------------------------------
+
+// Gemini 2.5 Flash paid-tier list prices, USD per million tokens. Thinking
+// tokens bill as output. The free tier costs nothing; this is what the same
+// run would cost on a paid key. Update if Google's pricing changes.
+export const GEMINI_PRICE_PER_M = { input: 0.30, output: 2.50 };
+
+const pct = (sorted, p) => sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : null;
+
+export function createRunTrace(meta = {}) {
+  const trace = { ...meta, started_at: new Date().toISOString(), cafes: [] };
+  let current = null;
+  return {
+    startCafe(cafe) {
+      current = { id: cafe.id, name: cafe.name, t0: Date.now(), nodes: [], llm_calls: 0, tokens: { input: 0, output: 0 } };
+    },
+    /** Wrap a graph node so its duration and any error are recorded. */
+    node(name, fn) {
+      return async (state) => {
+        const t = Date.now();
+        const record = (extra) => current?.nodes.push({ node: name, ms: Date.now() - t, ...extra });
+        try {
+          const out = await fn(state);
+          record(out?.errors?.length ? { error: out.errors.join("; ").slice(0, 300) } : {});
+          return out;
+        } catch (e) {
+          record({ error: String(e?.message ?? e).slice(0, 300) });
+          throw e;
+        }
+      };
+    },
+    llmCall(usage) {
+      if (!current) return;
+      current.llm_calls++;
+      current.tokens.input += usage?.promptTokenCount ?? 0;
+      current.tokens.output += (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0);
+    },
+    endCafe(outcome, extra = {}) {
+      if (!current) return;
+      const { t0, ...rest } = current;
+      trace.cafes.push({ ...rest, ms: Date.now() - t0, outcome, ...extra });
+      current = null;
+    },
+    summary() {
+      const byNode = {};
+      for (const c of trace.cafes) for (const n of c.nodes) {
+        (byNode[n.node] ??= { runs: 0, errors: 0, ms: [] }).runs++;
+        if (n.error) byNode[n.node].errors++;
+        byNode[n.node].ms.push(n.ms);
+      }
+      const nodes = Object.fromEntries(Object.entries(byNode).map(([k, v]) => {
+        const s = v.ms.sort((a, b) => a - b);
+        return [k, { runs: v.runs, errors: v.errors, p50_ms: pct(s, 0.5), p95_ms: pct(s, 0.95) }];
+      }));
+      const tokens = trace.cafes.reduce((t, c) => ({ input: t.input + c.tokens.input, output: t.output + c.tokens.output }), { input: 0, output: 0 });
+      const outcomes = trace.cafes.reduce((o, c) => ({ ...o, [c.outcome]: (o[c.outcome] ?? 0) + 1 }), {});
+      return {
+        cafes: trace.cafes.length,
+        outcomes,
+        retried: trace.cafes.filter(c => c.retries > 0).length,
+        llm_calls: trace.cafes.reduce((n, c) => n + c.llm_calls, 0),
+        tokens,
+        est_cost_usd_paid_tier: Math.round(((tokens.input * GEMINI_PRICE_PER_M.input + tokens.output * GEMINI_PRICE_PER_M.output) / 1e6) * 10000) / 10000,
+        nodes,
+      };
+    },
+    toJSON() {
+      return { ...trace, finished_at: new Date().toISOString(), summary: this.summary() };
+    },
+  };
+}

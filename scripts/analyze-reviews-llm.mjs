@@ -75,6 +75,12 @@
  *   --force-retry-once   ← (mock only) first call returns invalid data
  *                          to exercise the retry edge end-to-end
  *   --delay-ms 0         ← disable pacing (paid Gemini tier only; default paces for the free tier)
+ *   --no-trace           ← skip writing traces/tag-run-<time>.json
+ *
+ * Tracing: every run writes traces/tag-run-<time>.json — per cafe, the nodes
+ * that ran, their durations, retries, errors and Gemini tokens; per run, node
+ * latency percentiles and a paid-tier cost estimate. Set LANGSMITH_TRACING=true
+ * and LANGSMITH_API_KEY to also send each graph run to LangSmith.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -82,7 +88,9 @@ import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
 import { z } from "zod";
 import { GoogleGenAI, FunctionCallingConfigMode } from "@google/genai";
 import { env } from "./_env.mjs";
-import { groundQuotes } from "./_shared.mjs";
+import { groundQuotes, createRunTrace } from "./_shared.mjs";
+import { mkdirSync, writeFileSync } from "fs";
+import { resolve } from "path";
 
 // ---------------------------------------------------------------------------
 // env
@@ -92,6 +100,7 @@ const gemini   = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 // Gemini 2.5 Flash: GA, supports forced function calling, free tier ~10 RPM /
 // 250K TPM. Strong-enough reasoning for structured tagging at zero direct cost.
 const GEMINI_MODEL = "gemini-2.5-flash";
+const trace = createRunTrace({ script: "analyze-reviews-llm", model: GEMINI_MODEL });
 
 // ---------------------------------------------------------------------------
 // CLI flags
@@ -116,6 +125,7 @@ const DELAY_MS         = typeof flag("--delay-ms") === "string" ? parseInt(flag(
 // Skip cafes already tagged AND whose evidence has not moved since. --force re-tags everything.
 const FORCE_RETAG      = !!flag("--force");
 const MAX_RETRIES      = 2;
+const TRACE_TO_FILE    = !flag("--no-trace");
 // Backoff before retrying after an API failure (429 / 5xx / network). Retrying
 // a rate limit immediately just spends the retry budget on a second 429.
 const API_RETRY_BASE_MS = 15000;
@@ -337,6 +347,7 @@ async function callGeminiWithTool(systemPrompt, userText, tool) {
       temperature: 0,  // deterministic tagging
     },
   });
+  trace.llmCall(response.usageMetadata);
   const parts = response.candidates?.[0]?.content?.parts ?? [];
   const call  = parts.find(p => p.functionCall)?.functionCall;
   if (!call) throw new Error(`Gemini returned no functionCall (finish_reason=${response.candidates?.[0]?.finishReason})`);
@@ -567,13 +578,13 @@ async function writeToSupabase(state) {
 // ---------------------------------------------------------------------------
 function buildGraph() {
   return new StateGraph(State)
-    .addNode("fetchReviewCorpus",     fetchReviewCorpus)
-    .addNode("extractAttributes",     extractAttributes)
-    .addNode("validate",              validate)
-    .addNode("retryNode",             retryNode)
-    .addNode("failValidation",        failValidation)
-    .addNode("extractEvidenceQuotes", extractEvidenceQuotes)
-    .addNode("writeToSupabase",       writeToSupabase)
+    .addNode("fetchReviewCorpus",     trace.node("fetchReviewCorpus", fetchReviewCorpus))
+    .addNode("extractAttributes",     trace.node("extractAttributes", extractAttributes))
+    .addNode("validate",              trace.node("validate", validate))
+    .addNode("retryNode",             trace.node("retryNode", retryNode))
+    .addNode("failValidation",        trace.node("failValidation", failValidation))
+    .addNode("extractEvidenceQuotes", trace.node("extractEvidenceQuotes", extractEvidenceQuotes))
+    .addNode("writeToSupabase",       trace.node("writeToSupabase", writeToSupabase))
     .addEdge(START,                       "fetchReviewCorpus")
     .addConditionalEdges("fetchReviewCorpus", (state) =>
       state.reviewsLoaded ? "extractAttributes" : END)
@@ -659,8 +670,12 @@ async function main() {
     if (i > 0 && DELAY_MS > 0) await new Promise(r => setTimeout(r, DELAY_MS));
     i++;
     console.log(`━━━ ${cafe.name} (${cafe.neighborhood ?? "?"})`);
+    trace.startCafe(cafe);
     try {
-      const final = await graph.invoke({ cafe });
+      // runName/metadata label the run when LangSmith tracing is on.
+      const final = await graph.invoke({ cafe }, { runName: "tag-cafe", metadata: { cafe: cafe.name, cafe_id: cafe.id } });
+      trace.endCafe(final.written ? "written" : (DRY_RUN && final.validatedTags) ? "dry_run_ok" : "failed",
+        { retries: final.retryCount ?? 0, quotes_dropped: final.quotesDropped ?? 0 });
 
       // Surface every error, including non-fatal ones (e.g. the quotes step
       // failing while the tags still wrote).
@@ -686,6 +701,7 @@ async function main() {
       else counts.failed++;
     } catch (e) {
       console.log(`     💥 graph crashed: ${e.message}`);
+      trace.endCafe("crashed", { error: String(e.message).slice(0, 300) });
       counts.failed++;
     }
     console.log();
@@ -698,6 +714,21 @@ async function main() {
   console.log(`Retried:    ${counts.retried}  (also counted in Written/Dry-run OK)`);
   console.log(`Failed:     ${counts.failed}`);
   console.log(`Quotes dropped (not found in sources): ${counts.quotesDropped}`);
+
+  const run = trace.toJSON();
+  const s = run.summary;
+  console.log(`Gemini:     ${s.llm_calls} calls, ${s.tokens.input} in / ${s.tokens.output} out tokens` +
+              ` (≈ $${s.est_cost_usd_paid_tier} at paid-tier prices)`);
+  for (const [node, v] of Object.entries(s.nodes)) {
+    console.log(`   ${node.padEnd(22)} runs ${String(v.runs).padStart(4)}  errors ${String(v.errors).padStart(3)}  p50 ${v.p50_ms}ms  p95 ${v.p95_ms}ms`);
+  }
+  if (TRACE_TO_FILE) {
+    const dir = resolve(process.cwd(), "traces");
+    mkdirSync(dir, { recursive: true });
+    const file = resolve(dir, `tag-run-${run.started_at.replace(/[:.]/g, "-")}.json`);
+    writeFileSync(file, JSON.stringify(run, null, 2) + "\n");
+    console.log(`Trace:      ${file}`);
+  }
   const accounted = counts.written + counts.dryRunOk + counts.failed;
   if (accounted !== cafes.length) {
     console.log(`⚠️  Unreconciled: ${cafes.length - accounted} cafe(s) neither written, dry-run-OK, nor failed — investigate.`);
