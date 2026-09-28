@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -169,5 +169,61 @@ describe("createRunTrace", () => {
     await expect(t.node("boom", async () => { throw new Error("crash"); })({})).rejects.toThrow("crash");
     t.endCafe("crashed");
     expect(t.toJSON().cafes[0].nodes[0]).toMatchObject({ node: "boom", error: "crash" });
+  });
+});
+
+describe("taggingReason (which cafes the tagger picks up)", () => {
+  const tagged = { llm_tagged_at: "2026-09-01T00:00:00Z" };
+  const later = "2026-09-20T00:00:00Z", earlier = "2026-08-01T00:00:00Z";
+
+  it("tags a cafe that was never tagged", () => {
+    expect(taggingReason({})).toBe("untagged");
+  });
+
+  it("re-tags on web research newer than the tag, only if it found something", () => {
+    expect(taggingReason({ ...tagged, web_research_at: later, web_research_snippets: { results: [{ snippet: "fast wifi" }] } })).toBe("new_research");
+    expect(taggingReason({ ...tagged, web_research_at: later, yelp_free_wifi: true })).toBe("new_research");
+    expect(taggingReason({ ...tagged, web_research_at: later, web_research_snippets: {} })).toBeNull();
+    expect(taggingReason({ ...tagged, web_research_at: earlier, yelp_free_wifi: true })).toBeNull();
+  });
+
+  it("re-tags when reviews or a review summary were fetched after the tag", () => {
+    expect(taggingReason({ ...tagged, reviews_checked_at: later, google_review_summary: "Calm, with plenty of outlets." })).toBe("new_reviews");
+  });
+
+  it("does not re-tag for a review check that found no summary, or one older than the tag", () => {
+    expect(taggingReason({ ...tagged, reviews_checked_at: later, google_review_summary: "" })).toBeNull();
+    expect(taggingReason({ ...tagged, reviews_checked_at: later, google_review_summary: null })).toBeNull();
+    expect(taggingReason({ ...tagged, reviews_checked_at: earlier, google_review_summary: "Calm." })).toBeNull();
+  });
+});
+
+describe("reviewSummaryBlock", () => {
+  it("labels Google's summary and leaves it out when there is none", () => {
+    expect(reviewSummaryBlock("Quiet mornings, busy weekends.")).toMatch(/^GOOGLE'S SUMMARY OF ALL REVIEWS.*\nQuiet mornings, busy weekends\.$/s);
+    expect(reviewSummaryBlock("")).toBeNull();
+    expect(reviewSummaryBlock(null)).toBeNull();
+  });
+
+  it("caps a long summary", () => {
+    expect(reviewSummaryBlock("x".repeat(5000)).length).toBeLessThan(1400);
+  });
+});
+
+describe("cost guards", () => {
+  it("re-tags on a new summary only if it says something about working there", () => {
+    expect(summaryHasWorkSignal("Cozy spot with fast Wi-Fi and plenty of outlets.")).toBe(true);
+    expect(summaryHasWorkSignal("Popular for studying; gets crowded on weekends.")).toBe(true);
+    expect(summaryHasWorkSignal("Beloved for its croissants and seasonal lattes.")).toBe(false);
+    const c = { llm_tagged_at: "2026-09-01T00:00:00Z", reviews_checked_at: "2026-09-20T00:00:00Z" };
+    expect(taggingReason({ ...c, google_review_summary: "Known for croissants and friendly baristas." })).toBeNull();
+    expect(taggingReason({ ...c, google_review_summary: "Quiet, good for laptop work." })).toBe("new_reviews");
+  });
+
+  it("counts unknown merged tags, with a human label filling a gap", () => {
+    const cafe = { wifi_quality_llm: "fast", outlet_availability_llm: "unknown", noise_level_llm: "quiet",
+      laptop_policy_llm: "welcome", seating_availability_llm: null, seating_availability: "unknown" };
+    expect(unknownCount(cafe)).toBe(2);
+    expect(unknownCount({ ...cafe, human_labels: { outlet_availability: "most" } })).toBe(1);
   });
 });

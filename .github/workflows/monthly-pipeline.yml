@@ -74,6 +74,18 @@ jobs:
           GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
         run: node scripts/analyze-reviews.mjs --new-only
 
+      # Google's summary of all of a cafe's reviews, for cafes that have none
+      # yet. The tagger reads it, and a new summary queues the cafe for
+      # re-tagging (up to 100 cafes a run). After the first run this only
+      # touches newly discovered cafes.
+      - name: Fetch Google review summaries
+        if: ${{ !cancelled() }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
+        run: node scripts/analyze-reviews.mjs --summaries-only
+
       - name: Run pipeline
         if: ${{ !cancelled() }}
         env:

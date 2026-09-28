@@ -1,280 +1,252 @@
 # Needle Space
 
-Needle Space is a mobile-first web app for finding laptop-friendly cafes in Seattle metro (Seattle, Bellevue, Redmond, Kirkland).
+Find a cafe in Seattle you can actually work from.
 
-Think: "Google Maps, but for places you can actually get work done."
+**Live:** [needle-space.netlify.app](https://needle-space.netlify.app)
 
-## Product Overview
+Needle Space is a mobile-first web app for remote workers, students and freelancers in Seattle, Bellevue, Redmond and Kirkland. Map apps tell you a cafe's rating. Needle Space tells you what matters when you bring a laptop: WiFi, outlets, noise, whether laptops are welcome, and whether you'll find a seat.
 
-Needle Space helps remote workers, students, and freelancers choose cafes using work-specific signals that generic map apps usually miss.
+## What you can do
 
-- WiFi quality
-- Outlet availability
-- Noise level
-- Laptop policy
-- Open status + practical cafe details
+- **Search in plain English.** Try *“quiet spot in Bellevue for deep work”* or *“outlets and good pastries near Capitol Hill”*.
+- **Filter** by neighborhood, noise, outlets, laptop policy, productivity score and open now. Filters combine with search.
+- **Browse** about 465 cafes as a list or on a map.
+- **Open a cafe** to see its work tags, why each tag was given (a reviewer's quote, a photo, or a person's visit), hours and directions.
+- **Ask an AI assistant.** The same search is available to Claude and other assistants through a read-only [MCP server](#use-it-from-an-ai-assistant-mcp).
 
-The app combines a curated cafe database, filterable list/map browsing, and detail pages that reduce trial-and-error when picking a place to work.
+## How it works
 
-## MVP Features
-
-- Browse cafes in map and list views
-- Filter chips for WiFi, outlets, noise, laptop policy, and open-now behavior
-- Cafe detail pages with workspace attributes, address, hours, and links
-- Mobile-first UI
-- Supabase-backed cafe data
-- Monthly/periodic data refresh + review analysis scripts
-
-## AI Architecture
-
-Needle Space replaces a brittle regex tagger with a small, evaluated AI pipeline. The AI has two surfaces:
-
-- **Visible** — a single natural-language search bar (e.g. *"quiet rooftop with pastries near Cap Hill"*). No chat, no per-result explanations. The user types, vectors decide ordering, filter chips do hard intersection.
-- **Invisible** — every cafe is tagged offline by an LLM that reads its Google reviews and writes structured attributes (`wifi_quality`, `outlet_availability`, `noise_level`, `laptop_policy`, `seating_availability`) plus a per-attribute confidence score and evidence quotes.
-
-### Two-tier system
+Needle Space is a two-tier system. **All LLM work happens offline**, in a daily pipeline that turns reviews, Reddit threads and photos into structured tags. **Search never calls an LLM.** It embeds the query once and ranks cafes in Postgres. That is retrieval without generation: a search costs a fraction of a cent and can't hallucinate a cafe.
 
 ```
-┌─ Online (per query, <500ms, ~$0.0000002/query) ─────────────────┐
-│                                                                  │
-│   user types  →  /api/search  →  Voyage-3 embed (LRU-cached)    │
-│                       │           ↓                              │
-│                       │      pgvector cosine on 1024-dim         │
-│                       └─→ multi-value filter chips → SQL WHERE   │
-│                                  │                               │
-│                                  ▼                               │
-│                            top-30 cafes, ranked                  │
-└──────────────────────────────────────────────────────────────────┘
+ONLINE · every search · one embedding, no LLM
+  search bar ─→ /api/search ─→ place parser ─→ Voyage-3 embed ─→ match_cafes() in Postgres ─→ ranked cafes
+                 rate limit      "in Bellevue"   intent only,      cosine similarity inside
+                 8/min/visitor   → SQL filter    cached            place + chip filters
 
-┌─ Offline (monthly batch, ~$0.001/run) ──────────────────────────┐
-│                                                                  │
-│  load cafes ─→ fetch_review_corpus ─→ extract_attributes (LLM)   │
-│                                              ↓                   │
-│                                  extract_evidence_quotes (LLM)   │
-│                                              ↓                   │
-│                                       validate (Zod, conf≥0.5)   │
-│                                       │                          │
-│                              ok ──────┴───── fail (≤2 retries)   │
-│                                              ↓                   │
-│                                       embed_cafe (Voyage-3)      │
-│                                              ↓                   │
-│                                    write_to_supabase (atomic)    │
-└──────────────────────────────────────────────────────────────────┘
+OFFLINE · GitHub Actions, daily · all LLM work
+  Places refresh ─→ web research ─→ LangGraph tagger ─→ vision gap-fill ─→ quality gate ─→ finalize
+  hours, status,    Reddit + Yelp    Gemini 2.5 Flash    Gemini on the     coverage +       merge tags, score,
+  photos (cached)   (only re-tags    tags + grounded     cafe's photo      accuracy vs      embed (Voyage-3,
+                    on new evidence) quotes                                  a baseline       batched)
+
+IN PERSON · Visit mode (password-protected)
+  phone at the cafe ─→ tags, note, photos, "not a work spot" ─→ human labels that outrank the model
 ```
 
-The graph is a [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) state machine in `scripts/analyze-reviews-llm.mjs`. Splitting attribute extraction from evidence-quote extraction keeps each call narrow and cuts JSON drift; the retry edge (max 2 retries on Zod failure) is the portfolio-visible reliability primitive; atomic per-cafe writes prevent half-tagged rows.
+### Search
 
-### Model & infra choices
+1. The place parser pulls places out of the query (“in Bellevue”) and turns them into a hard SQL filter. Embeddings are good at vibe and bad at geography.
+2. Only the remaining intent is embedded with Voyage-3 (1024 dimensions). Repeat queries come from an in-memory cache, and each visitor gets 8 embeddings a minute so one person can't use up the shared budget.
+3. `match_cafes()` ranks cafes by cosine similarity (pgvector) inside the place and chip filters, reading a person's label first where one exists.
+4. Closed and hidden cafes are dropped, the open-now and productivity filters apply, and the top 30 are returned. If embedding fails, search falls back to filter-only ranking and says so.
 
-| Layer | Pick | Why |
-|---|---|---|
-| Pipeline LLM | **Gemini 2.5 Flash** | Forced function-calling for structured output; free tier (10 RPM / 250K TPM) covers a 252-cafe backfill at zero direct cost. |
-| Embeddings | **Voyage-3** (1024-dim) | Strong semantic retrieval at ~$0.06/1M tokens. ~$0.006 to embed all cafes once. |
-| Vector store | **pgvector** on Supabase | No new vendor, HNSW index, cosine distance. |
-| Agent runtime | **LangGraph.js** | Native retries via conditional edges, easy to inspect, no LangChain runtime needed in the hot path. |
+A full-text + vector hybrid (reciprocal rank fusion) is built and switched off with `SEARCH_HYBRID`. It turns on only if the nightly eval shows it ranks better.
 
-### Eval — regex tagging vs LLM tagging
+### The tagging graph
 
-We kept the original regex tagger (`scripts/analyze-reviews.mjs`) untouched and used its output as a comparison baseline. This is *not* human-verified ground truth — we discuss the caveat below — but it lets us measure where the LLM diverges and *why*.
+Each cafe runs through a [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) state machine in `scripts/analyze-reviews-llm.mjs`. It reads the stored reviews (most relevant first, then newest, so the same reviews make the length cut every run), Google's summary of all reviews, and the Reddit and Yelp research.
 
-**Run it yourself:** `node scripts/evaluate-tagging.mjs` (or with `--matrices` for per-attribute confusion matrices). Full output is committed at [`docs/EVAL.md`](./docs/EVAL.md).
+A cafe is tagged when it is new, and re-tagged only when new evidence arrives: web research that found something, or a review summary that mentions working there. Re-reading unchanged evidence makes tags drift, so nothing else is re-read.
 
-After running both the review-based pipeline and the photo-based vision pass:
+Keeping it free: each run handles at most 100 cafes and stops early if the API keeps failing, to stay within Gemini's free daily limit. The quote step only runs for tags that changed, and without the model's extra “thinking” step. Review summaries are fetched only for cafes that still have unknown tags, 100 a run, well inside Google's free monthly allowance.
 
-| Attribute | n | Agreement | Cohen's κ | Regex unk. | LLM unk. (after vision) | Δ from review-only |
-|---|---:|---:|---:|---:|---:|---:|
-| `wifi_quality` | 252 | 90.9% | 0.196 | 99% | 90% | — *(not visible from photos)* |
-| `outlet_availability` | 252 | 88.9% | 0.392 | 92% | 88% | **−3 pp** |
-| `noise_level` | 252 | 26.6% | 0.100 | 35% | 27% | — *(not visible from photos)* |
-| `laptop_policy` | 252 | 40.1% | 0.024 | 83% | **39%** | **−17 pp** |
-| `seating_availability` | 252 | 27.8% | 0.150 | 69% | **12%** | **−9 pp** |
+```
+fetchReviewCorpus ─(read failed)─→ stop, no LLM call
+       ↓
+extractAttributes   Gemini 2.5 Flash, forced function call, temperature 0
+       ↓
+validate            Zod enums; confidence below 0.5 becomes "unknown"
+   ├─ invalid, retries left → retryNode → extractAttributes
+   │                          (schema error: fed back to the model; API error: wait 15 s, 30 s)
+   ├─ retries used up → failValidation (counted as failed, nothing written)
+   └─ ok ↓
+extractEvidenceQuotes   quotes must appear verbatim in the reviews or Reddit text, or they are dropped
+       ↓
+writeToSupabase     one update: tags + confidence + quotes (no half-tagged rows)
+```
 
-The biggest portfolio finding: a single second pass with **Gemini Vision on each cafe's photo** dropped the `laptop_policy` unknown rate from 56% → 39% and `seating_availability` from 21% → 12%. For a *laptop-friendly cafe finder*, those are the most product-relevant attributes — and vision filled them where reviews were silent.
+Every run writes a trace (`traces/tag-run-*.json`) with each node's timing, retries, errors and token counts. Set `LANGSMITH_TRACING=true` to also send runs to LangSmith.
 
-Cohen's κ looks weak across the board — but the kappa is the wrong headline. The confusion matrices reveal the actual story:
+### Where a tag comes from
 
-- **`noise_level` — the regex over-fires.** It tagged 163 cafes as "quiet" by keyword match. The LLM, reading the same reviews, agreed on only **31** of them — reclassifying 80 to "moderate", 20 to "loud", and 32 to "unknown". The keyword-based regex says *"someone wrote 'quiet' in a review, ship it"*; the LLM weighs the whole corpus.
-- **`laptop_policy` — the regex caught zero negatives.** It found 44 cafes where laptops are "welcome" and **0** where they're "limited" or "not allowed". The LLM resolved **30** such cafes (24 limited + 6 not allowed) — directly material to a laptop-friendly cafe finder.
-- **`seating_availability` — same shape.** Regex: 0 "limited" cafes, 0 "none". LLM: **82 limited, 9 none**. The regex couldn't see the *absence* of seating signal; the LLM reads "always packed, hard to find a table" and classifies it correctly.
+The site shows one value per attribute, chosen in this order:
 
-**Vision pass adds a second source.** A separate pipeline (`scripts/visual-tag-cafes.mjs`) sends each cafe's photo to Gemini Vision and asks for the same attributes (outlets / seating / laptop policy). It only fills slots where reviews said "unknown" and vision is ≥0.7 confidence — never overwrites a confident text-derived tag. This single pass filled 74 attributes across the corpus, almost all on `laptop_policy` (~43 cafes) and `seating_availability` (~23 cafes). Vision works because Gemini also brings world knowledge — even an exterior 7-Eleven shot tells the model "this is not a laptop-friendly working cafe."
+1. **A person's label**, from the admin page or Visit mode.
+2. **The LLM tag**, from reviews and web research, or from the photo when reviews are silent.
+3. **The original keyword tag**, except for noise, where keywords proved unreliable (“quiet” matched vibe words).
 
-Why kappa underrates the LLM here: regex's "unknown" isn't a tag, it's *absence of evidence*. When the LLM commits where regex was silent, this metric scores it as "disagreement," but that *is* the value-add. The right next step is a human-labeled subset to compute true accuracy — see roadmap below.
+The model's own answer is kept beside each human label, so the eval can score it.
 
-### Cost ledger
+## Recent improvements (September 2026)
+
+A full system review, followed by six releases (PRs #13–#18), all live:
+
+- **Security:** there is one Google server key, and it is never stored in the database. The map uses a separate browser key limited to the site's own addresses. The admin pages need a password. The search log is private.
+- **Search:** a per-visitor rate limit; location chips are now applied inside the vector query, where before they were applied after it and dropped matches; similarity logging to set a “no close match” floor; hybrid ranking behind a flag.
+- **Pipeline reliability:**
+  - Each cafe is embedded once, in batches: 472 cafes in 18 minutes, where it used to take hours.
+  - Rate limits are waited out instead of dropping cafes.
+  - A partial run now fails loudly instead of reporting success.
+  - Research re-tags a cafe only when its evidence changed.
+- **Trust:**
+  - Evidence quotes are checked against their sources.
+  - The quality gate adds up small daily runs and keeps a history.
+  - A nightly eval scores tag accuracy and search ranking.
+  - Every stored score now matches the score on the card.
+- **People in the loop:** Visit mode lets someone in the cafe record tags, a note and photos from a phone, and hide places that aren't work spots.
+- **AI access:** a read-only MCP server.
+- **Tests:** 69 → 140, with lint and typecheck in CI.
+
+The full before-and-after, with diagrams, is in [`docs/architecture.html`](./docs/architecture.html).
+
+## Evaluation
+
+What we measure today:
+
+- **Tag accuracy against human labels** (`scripts/evaluate-accuracy.mjs`), run nightly. This is the number that matters. It needs at least 20 labeled cafes before it is reported or used to block a pipeline run; 4 are labeled so far.
+- **Search ranking** (`scripts/evaluate-retrieval.mjs`): Hit@k, Recall@k, nDCG@k and MRR on a set of golden queries, for vector-only and hybrid ranking and for the production route.
+- **Coverage** (`scripts/quality-metrics.mjs`): the share of “unknown” tags and tags with evidence, compared with a baseline before each finalize.
+
+**Earlier comparison, May 2026, 252 cafes.** Before any human labels existed, the LLM was compared with the original keyword tagger (`scripts/evaluate-tagging.mjs`, full output in [`docs/EVAL.md`](./docs/EVAL.md)). This measures agreement with a flawed baseline, not accuracy.
+
+| Attribute | Agreement | Cohen's κ | Keyword “unknown” | LLM “unknown” (after vision) |
+|---|---:|---:|---:|---:|
+| `wifi_quality` | 90.9% | 0.196 | 99% | 90% |
+| `outlet_availability` | 88.9% | 0.392 | 92% | 88% |
+| `noise_level` | 26.6% | 0.100 | 35% | 27% |
+| `laptop_policy` | 40.1% | 0.024 | 83% | 39% |
+| `seating_availability` | 27.8% | 0.150 | 69% | 12% |
+
+What it showed:
+
+- **The keyword tagger over-fired on “quiet”.** It called 163 cafes quiet. Reading the same reviews, the LLM agreed on 31.
+- **Keywords found no negatives.** The keyword tagger never tagged laptops as limited or seating as scarce. The LLM found 30 cafes with laptop limits and 91 with limited or no seating.
+- **A vision pass on each cafe's photo cut “unknown” laptop policy from 56% to 39%.** Laptop policy is the most important attribute for this product.
+- **High agreement can mean nothing.** Most of the 90.9% WiFi agreement is both taggers saying “unknown”.
+
+## Cost
 
 | | Cost |
 |---|---|
-| Review-LLM backfill (252 cafes, 6-node LangGraph) | **~$0.006** (Voyage embeddings; Gemini Flash is free tier) |
-| Vision-tag backfill (252 cafes, 1 photo each) | **~$0.25** (Gemini Vision; one pass) |
-| Photo curation (best interior shot per cafe via Gemini Vision + Google Places) | **~$13** (one-time, mostly Google Places photo API) |
-| One online NL search query (cache miss) | **~$0.0000002** (Voyage `embed`, 1024-dim) |
-| Monthly hot-path cost @ 10K queries (mostly cache hits) | **<$0.01** |
+| One search (cache miss) | ~$0.0000002 (one Voyage embedding) |
+| Re-embedding the whole catalog | ~105,000 tokens, under $0.01 |
+| LLM tagging | Gemini 2.5 Flash free tier, paced at about 13 s per cafe |
+| Photo curation (one-time) | ~$13, mostly Google Places photo requests |
 
-Total monthly AI cost stays under $1 even at 100K queries.
+The ongoing AI cost is under $1 a month at current traffic.
 
-### Roadmap (v2)
+## Use it from an AI assistant (MCP)
 
-- **Human-verified subset (80–100 cafes).** Replaces the proxy regex baseline with real ground truth so we can report accuracy, not inter-rater agreement.
-- **Surface confidence + evidence quotes in the UI.** The `tagging_confidence` JSONB is already written by the pipeline; rendering it on cafe cards converts AI work from invisible to portfolio-visible.
-- **MCP server wrapping Google Maps + Places.** Lets external agents (e.g. Claude Desktop) query Needle Space cafes by attribute.
-- **Knowledge graph** linking neighborhoods → cafes → vibe attributes for graph-aware retrieval.
-
-### Use it from an AI assistant (MCP)
-
-`/api/mcp` is a read-only [Model Context Protocol](https://modelcontextprotocol.io) server over Streamable HTTP. Any MCP client can connect to `https://<your-site>/api/mcp`. In Claude, go to Settings → Connectors → Add custom connector.
+`https://needle-space.netlify.app/api/mcp` is a read-only [Model Context Protocol](https://modelcontextprotocol.io) server over Streamable HTTP. In Claude, go to **Settings → Connectors → Add custom connector** and paste the URL.
 
 | Tool | What it does |
 |---|---|
-| `search_cafes` | Natural-language query plus optional filters (neighborhoods, noise, outlets, laptops, open now, productivity ≥ 4). It runs the same code as the website search (`src/lib/search.ts`), with the same ranking, filters and rate limit. |
-| `get_cafe` | One cafe's address, hours, contact details, and each work tag with its source (a person's check, a review quote, a photo, or a keyword match). |
+| `search_cafes` | Natural-language query plus optional filters (neighborhoods, noise, outlets, laptops, open now, productivity ≥ 4). Runs the same code as the website search, with the same ranking, filters and rate limit. |
+| `get_cafe` | One cafe's address, hours, contact details, and each work tag with its source. |
 | `list_neighborhoods` | The areas covered. |
 
-It is stateless: no sessions or streams, one JSON reply per request. That fits serverless hosting. Agent searches go to `nl_query_log` with `filters.source = "mcp"`.
+It is stateless (one JSON reply per request), which suits serverless hosting. Agent searches are logged with `filters.source = "mcp"`.
 
-### Visit mode: update a cafe from your phone
+## Visit mode (admin)
 
-`/admin/visit` is for recording what you see while you're in a cafe. It uses the same `ADMIN_PASSWORD` as `/admin`. Open it on your phone and add it to your home screen.
+`/admin/visit` is a phone page for recording what you see while you're in a cafe. It uses the same `ADMIN_PASSWORD` as `/admin`.
 
-1. Tap **Find cafes near me**, or search by name. **Needs a visit** lists the unscored cafes first, then the ones that aren't verified yet.
-2. Tap the cafe's WiFi, outlets, noise, laptop policy and seating. Each tap saves straight away as a human label, which overrides the AI tags. The site's current tag is shown as a hint rather than pre-selected, so each tap is a real observation. The labels are also the answer key for `scripts/evaluate-accuracy.mjs`.
-3. Optionally add a note (shown on the cafe page) and photos. The phone shrinks each photo to 1600 px and removes its location data before uploading it to Storage under `cafe-photos/visits/<cafe id>/`. **Use it as the cafe's main photo** replaces the Google photo, and `curate-photos.mjs` won't swap it back.
-4. Tap **I was here** to stamp the visit date and mark the cafe verified. Tap **Not a work spot — hide it** for places like gas stations; hidden cafes drop out of every list, the search and the MCP server, and can be shown again from the same screen.
+1. Tap **Find cafes near me**, or search by name. **Needs a visit** lists unscored cafes first, then unverified ones.
+2. Tap what you see for WiFi, outlets, noise, laptop policy and seating. Each tap saves a human label. The current tag is shown as a hint, not pre-selected, so every tap is a real observation.
+3. Add a note (shown on the cafe page) and photos. The phone shrinks each photo to 1600 px and removes its location data before upload. A photo can become the cafe's main image.
+4. Tap **I was here** to mark the cafe visited and verified, or **Not a work spot, hide it** to remove it from lists, search and MCP. Hiding can be undone.
 
-Tags and notes appear on the site immediately. The productivity score and search index catch up on the next daily pipeline run.
+Tags and notes show on the site immediately. The score and search index catch up on the next daily pipeline run.
 
-## Tech Stack
+## Tech stack
 
-- Next.js (App Router)
-- React
-- TypeScript
-- Tailwind CSS
-- Supabase (PostgreSQL)
-- Google Maps JavaScript API
-- Google Places API (batch scripts only)
+| Layer | Choice | Why |
+|---|---|---|
+| App | Next.js 16 (App Router), React, TypeScript, Tailwind CSS | One codebase for pages and API routes |
+| Data | Supabase Postgres + pgvector, Supabase Storage for photos | No extra vector vendor; exact scan is fast at ~470 rows |
+| Embeddings | Voyage-3, 1024 dimensions | Strong retrieval at ~$0.06 per million tokens |
+| Tagging LLM | Gemini 2.5 Flash | Forced function calling for structured output; free tier covers the catalog |
+| Orchestration | LangGraph.js | Retries and stop conditions as explicit graph edges |
+| Maps and places | Google Maps JavaScript API, Google Places API (pipeline only) | |
+| Pipeline and CI | GitHub Actions: daily data pipeline, nightly eval, lint + typecheck + tests on every PR | |
+| Hosting | Netlify | |
 
-## Project Structure
-
-```text
-src/
-  app/                 # Routes and page UI
-  components/          # Reusable UI blocks
-  lib/                 # Data access, scoring, types
-scripts/               # Data pipeline / enrichment scripts
-docs/                  # Product and design docs
-```
-
-## Dependencies
-
-Core dependencies are managed in `package.json`:
-
-- `next`
-- `react`
-- `react-dom`
-- `@supabase/supabase-js`
-- `@googlemaps/js-api-loader`
-- `typescript`
-- `tailwindcss`
-- `eslint`
-- `eslint-config-next`
-
-Install all dependencies:
+## Run it locally
 
 ```bash
 npm install
+cp .env.example .env.local   # then fill in the values below
+npm run dev                  # http://localhost:3000
 ```
 
-## Environment Variables
-
-Create `.env.local` in the project root and provide values for:
+Without Supabase credentials the app runs on built-in sample data.
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY=
-GOOGLE_PLACES_SERVER_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-# AI pipeline (server/scripts only)
-GEMINI_API_KEY=
+SUPABASE_SERVICE_ROLE_KEY=            # server and scripts only
+NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY=  # the map
+GOOGLE_PLACES_SERVER_KEY=             # pipeline scripts only
 VOYAGE_API_KEY=
+GEMINI_API_KEY=
+TAVILY_API_KEY=                       # web research
+ADMIN_PASSWORD=                       # enables /admin outside `npm run dev`
+# optional: SEARCH_HYBRID=1, SEARCH_MIN_SIMILARITY=0.35, EMBED_TEXT_VERSION=v2, LANGSMITH_TRACING=true
 ```
-
-Use `.env.example` as the template.
 
 ### Google keys
 
-There are exactly two, and they must never be swapped.
+There are exactly two keys, and they must never be swapped.
 
 | Variable | Used by | Visibility | Restrict it in Google Cloud to |
 |---|---|---|---|
-| `GOOGLE_PLACES_SERVER_KEY` | data scripts and the GitHub Actions pipeline | secret: `.env.local` and GitHub secrets only | APIs: **Places API (New)** and **Places API** (legacy; `analyze-reviews.mjs` uses it for newest-first reviews) |
-| `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | the map on /explore | public: shipped to every visitor's browser | Websites: your Netlify domain(s) and `localhost:3000`; API: **Maps JavaScript API** only |
+| `GOOGLE_PLACES_SERVER_KEY` | pipeline scripts and GitHub Actions | secret | **Places API (New)** and **Places API** (legacy, for newest-first reviews) |
+| `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | the map | public, shipped to browsers | Websites: `https://needle-space.netlify.app/*`, `https://*--needle-space.netlify.app/*` (previews), `http://localhost:3000/*`. API: **Maps JavaScript API** only |
 
-The server key is never stored in the database (photo links are saved without it) and must never get a `NEXT_PUBLIC_` name. `GOOGLE_PLACES_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` are deprecated; the scripts ignore the first, and the map reads the second only until the hosting environment is renamed.
+The server key is never stored in the database (photo links are saved without it) and must never get a `NEXT_PUBLIC_` name. `GOOGLE_PLACES_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` are retired.
 
-Security notes:
-
-- Never commit `.env.local`.
-- `SUPABASE_SERVICE_ROLE_KEY` must stay server/script-only.
-- Restrict Google API keys by API scope and domain/IP in Google Cloud Console.
-
-## Run the App Locally
-
-Start development server:
-
-```bash
-npm run dev
-```
-
-Open `http://localhost:3000`.
-
-Production build check:
-
-```bash
-npm run build
-npm run start
-```
-
-## Lint and Basic Validation
-
-Run lint:
+### Checks
 
 ```bash
 npm run lint
-```
-
-Recommended pre-push checks:
-
-```bash
-npm run lint
+npx tsc --noEmit
+npm test          # Vitest
 npm run build
 ```
 
-## Data Pipeline Scripts
+## Database
 
-The scripts in `scripts/` are for batch refresh and enrichment:
+The schema lives in `supabase/migrations/`, applied in filename order in the Supabase SQL editor. Every migration is idempotent and ends with a check query. Paste the whole file and run it with nothing highlighted.
 
-- `node scripts/fetch-cafes.mjs` — pull cafes from Google Places and upsert into Supabase
-- `node scripts/discover-keywords.mjs --find "wifi" --suggest` — find keyword candidates (read-only)
-- `node scripts/analyze-reviews.mjs --dry-run` — preview regex-derived tagging (kept as eval baseline)
-- `node scripts/analyze-reviews.mjs` — write regex tagging outputs to Supabase
+This project has automatic Data API grants turned off. A new table or function needs an explicit `grant ... to service_role` before the server can use it, and `anon` gets nothing it doesn't need.
 
-**AI pipeline (replaces the regex tagger going forward):**
+## Data pipeline
 
-- `node scripts/embed-smoke-test.mjs` — round-trip one cafe through Voyage embed + pgvector cosine query
-- `node scripts/analyze-reviews-llm.mjs --dry-run --limit 5` — preview LangGraph tagging without writes
-- `node scripts/analyze-reviews-llm.mjs` — full LLM backfill (Gemini Flash + Voyage-3, atomic per-cafe writes)
-- `node scripts/curate-photos.mjs --limit 3` — vision-pick the best interior shot per cafe (Google Places multi-photo + Gemini Vision scoring)
-- `node scripts/visual-tag-cafes.mjs --limit 3` — extract outlet/seating/laptop signals from each cafe's photo to fill review-LLM gaps
-- `node scripts/evaluate-tagging.mjs` — regex vs LLM agreement table; add `--matrices` for confusion matrices, `--json` for machine output. Output saved to `docs/EVAL.md`.
+`npm run pipeline` runs the offline stages in order. Each stage skips work that is already fresh, and the pipeline stops at the first failing stage. The GitHub Action runs it daily. You can also start it by hand with extra arguments, such as `--all` to re-embed every cafe.
 
-For script workflow details, see `scripts/SCRIPTS.md`.
+| Script | What it does |
+|---|---|
+| `fetch-cafes.mjs`, `refresh-cafe-information.mjs` | Discover cafes and refresh hours and status from Google Places |
+| `cache-photos.mjs`, `curate-photos.mjs` | Cache photos in Storage; pick the best interior shot |
+| `analyze-reviews.mjs` | Fetch reviews and Google's review summary; keyword tags (kept as a baseline). `--summaries-only` fills in missing summaries |
+| `research-cafes.mjs` | Reddit and Yelp evidence via Tavily; re-tags only when evidence changed |
+| `analyze-reviews-llm.mjs` | The LangGraph tagger |
+| `visual-tag-cafes.mjs` | Fill tags from the cafe's photo where reviews are silent |
+| `quality-metrics.mjs` | The quality gate |
+| `finalize-cafes.mjs` | Merge tags, score, embed (10 cafes per request on Voyage's free tier) |
+| `evaluate-accuracy.mjs`, `evaluate-retrieval.mjs`, `compare-embedding-text.mjs` | Evals |
+
+More detail in [`scripts/SCRIPTS.md`](./scripts/SCRIPTS.md).
 
 ## Deployment
 
-This project is designed for Vercel + Supabase.
+The site is hosted on Netlify from `main`. Deploys are triggered by hand after a merge. Set the environment variables above in Netlify, and the pipeline secrets (`SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_PLACES_SERVER_KEY`, `VOYAGE_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`) in GitHub Actions. Apply any new migration before merging code that reads it.
 
-Before deploy:
+## Docs
 
-- Add all environment variables in Vercel Project Settings
-- Confirm Supabase table permissions (RLS/policies) match expected read/write behavior
+- [`docs/architecture.html`](./docs/architecture.html): the system before and after the September review, with diagrams
+- [`docs/PRD.md`](./docs/PRD.md): product requirements
+- [`docs/AI-PLAN-v1.md`](./docs/AI-PLAN-v1.md), [`docs/AI-PLAN-v2-research.md`](./docs/AI-PLAN-v2-research.md): AI design plans
+- [`docs/EVAL.md`](./docs/EVAL.md): the May 2026 tagging comparison
+- [`docs/LESSONS.md`](./docs/LESSONS.md): lessons learned

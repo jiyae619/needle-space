@@ -16,6 +16,10 @@
  *                                                            (skips the 2 paid Google calls/cafe for
  *                                                             cafes already fetched — run this after
  *                                                             fetch-cafes to keep the bill minimal)
+ *   node scripts/analyze-reviews.mjs --summaries-only      ← ONLY fetch Google's review summary for cafes
+ *                                                             that have none yet and still have unknown tags,
+ *                                                             most unknowns first, 100 a run (--limit N;
+ *                                                             --include-complete for cafes with no unknowns)
  *   node scripts/analyze-reviews.mjs --dry-run              ← preview only, no writes
  *   node scripts/analyze-reviews.mjs --cafe "Victrola"      ← test one cafe by name
  *   node scripts/analyze-reviews.mjs --dry-run --cafe "Elm" ← test + preview
@@ -32,6 +36,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.mjs";
+import { unknownCount } from "./_shared.mjs";
 
 // ---------------------------------------------------------------------------
 // Clients
@@ -45,6 +50,10 @@ const supabase   = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVI
 // ---------------------------------------------------------------------------
 const DRY_RUN    = process.argv.includes("--dry-run");
 const NEW_ONLY   = process.argv.includes("--new-only");
+const SUMMARIES_ONLY = process.argv.includes("--summaries-only");
+const INCLUDE_COMPLETE = process.argv.includes("--include-complete");
+const limitFlag = process.argv.indexOf("--limit");
+const SUMMARY_LIMIT = limitFlag !== -1 ? parseInt(process.argv[limitFlag + 1], 10) : 100;
 const cafeFlag   = process.argv.indexOf("--cafe");
 const FILTER_CAFE = cafeFlag !== -1 ? process.argv[cafeFlag + 1]?.toLowerCase() : null;
 
@@ -478,9 +487,77 @@ function computeProductivityScore(wifi, outlets, noise, laptop, seating, googleR
 }
 
 // ---------------------------------------------------------------------------
+// --summaries-only: Google's summary of ALL of a cafe's reviews, for cafes
+// that have none stored. The LLM tagger reads it (it otherwise sees only the
+// ~10 reviews we keep), and a new summary makes the cafe due for re-tagging.
+//
+// Only reviewSummary and editorialSummary are requested, which Google bills as
+// "Place Details Enterprise + Atmosphere" (1,000 free a month, then $25 per
+// 1,000). To stay well inside the free allowance and spend calls where they
+// help: only cafes that still have an unknown tag (a cafe whose five tags are
+// all known gains little), most unknowns first, at most 100 a run — the same
+// pace the tagger re-reads them at.
+//
+// A cafe Google has no summary for, or whose Place ID Google no longer
+// recognizes, is stored as "" so it is not asked again; any other error
+// leaves it for the next run.
+// ---------------------------------------------------------------------------
+async function fetchSummaries() {
+  console.log("📝 Needle Space — Google review summaries");
+  console.log(`   Mode: ${DRY_RUN ? "DRY RUN — no writes" : "LIVE — writing to Supabase"}\n`);
+  let q = supabase.from("cafes").select(
+    "id, name, google_place_id, google_review_count, human_labels, " +
+    "wifi_quality, outlet_availability, noise_level, laptop_policy, seating_availability, " +
+    "wifi_quality_llm, outlet_availability_llm, noise_level_llm, laptop_policy_llm, seating_availability_llm")
+    .is("google_review_summary", null)
+    .neq("business_status", "CLOSED_PERMANENTLY")
+    .eq("hidden", false)
+    .order("name");
+  if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
+  const { data: rows, error } = await q;
+  if (error) { console.error("❌", error.message); process.exit(1); }
+  const withGaps = rows
+    .map(c => ({ ...c, unknowns: unknownCount(c) }))
+    .filter(c => INCLUDE_COMPLETE || c.unknowns > 0)
+    .sort((a, b) => b.unknowns - a.unknowns || (b.google_review_count ?? 0) - (a.google_review_count ?? 0));
+  const cafes = withGaps.slice(0, SUMMARY_LIMIT);
+  console.log(`📋 ${rows.length} cafe(s) without a stored summary; ${withGaps.length} still have unknown tags` +
+    `${INCLUDE_COMPLETE ? " (--include-complete: all)" : ""}. Fetching ${cafes.length} this run (limit ${SUMMARY_LIMIT}).`);
+  if (!cafes.length) return;
+
+  const counts = { saved: 0, none: 0, failed: 0 };
+  for (const [i, cafe] of cafes.entries()) {
+    if (i > 0) await new Promise(r => setTimeout(r, 200));
+    const res = await fetch(`https://places.googleapis.com/v1/places/${cafe.google_place_id}`, {
+      headers: { "X-Goog-Api-Key": GOOGLE_KEY, "X-Goog-FieldMask": "reviewSummary,editorialSummary" },
+    });
+    if (res.status === 429) { console.log("⛔ Google rate limit — stopping; the rest wait for the next run."); break; }
+    if (!res.ok && res.status !== 404) {
+      console.log(`   ✗ ${cafe.name}: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 120)}`);
+      counts.failed++;
+      continue;
+    }
+    const data = res.ok ? await res.json() : {};
+    const summary = data.reviewSummary?.text?.text?.trim() || "";
+    const editorial = data.editorialSummary?.text?.trim() || "";
+    console.log(`   ${summary ? "✓" : "–"} ${cafe.name}${res.status === 404 ? " (Place ID no longer valid)" : summary ? "" : " (no summary from Google)"}`);
+    if (summary) counts.saved++; else counts.none++;
+    if (DRY_RUN) continue;
+    const update = { google_review_summary: summary, reviews_checked_at: new Date().toISOString() };
+    if (editorial) update.google_editorial_summary = editorial;
+    const { error: upErr } = await supabase.from("cafes").update(update).eq("id", cafe.id);
+    if (upErr) { console.log(`   ✗ ${cafe.name}: ${upErr.message}`); counts.failed++; }
+  }
+  console.log(`\nSaved: ${counts.saved}   No summary: ${counts.none}   Failed: ${counts.failed}`);
+  // Every request failing points at the key or the API setup, not at the cafes.
+  if (counts.failed > 0 && counts.saved + counts.none === 0) process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
+  if (SUMMARIES_ONLY) return fetchSummaries();
   const modeLabel = DRY_RUN ? "DRY RUN — preview only, no writes" : "LIVE — writing to Supabase";
   console.log(`🔍 Needle Space — Review Analysis`);
   console.log(`   Mode: ${modeLabel}`);

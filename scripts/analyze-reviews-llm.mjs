@@ -38,10 +38,10 @@
  * only for tags that cleared the confidence floor — not for values a retry is
  * about to reject.
  *
- * NOTE: fetchReviewCorpus reads cafe_reviews.text only. google_review_summary
- * (Google's synthesis of ALL reviews) is defined in a migration but not yet
- * populated by any script, so it is intentionally NOT read here. Wiring it in
- * is a follow-up that also needs fetch-cafes.mjs to capture reviewSummary.
+ * Inputs: the stored reviews (cafe_reviews, in a fixed order: Google's "most
+ * relevant" first, then newest, so the ~6K-character cap keeps the same
+ * reviews every run), Google's summary of ALL reviews (cafes.google_review_summary,
+ * filled by analyze-reviews.mjs --summaries-only), and the web research.
  *
  * Atomicity: writeToSupabase is a single update containing tags, confidence
  * JSON and llm_tagged_at. If anything earlier fails, we don't leave a
@@ -51,17 +51,15 @@
  * its MERGED tags (human + text + vision), in batches. Embedding here as well
  * cost a second Voyage call per cafe whose result finalize always overwrote.
  *
- * Which cafes get tagged: those never tagged, PLUS those whose web research
- * landed AFTER their last tag AND actually found something. That second group
- * matters — research-cafes.mjs refreshes on its own 30-day cadence, and a tag
- * written before that evidence arrived never read it. Skipping on "has a tag at
- * all" stranded 255 of 464 cafes holding research the tagger had never seen.
+ * Which cafes get tagged (scripts/_shared.mjs taggingReason): those never
+ * tagged, plus those with evidence that arrived after their last tag — web
+ * research that found something, or reviews / a Google review summary fetched
+ * since. Re-tagging without new evidence measurably loses tags, so nothing
+ * else is re-read. --force still re-tags everything.
  *
- * Both halves of the test earn their keep. Re-tagging cafes that DO hold unread
- * evidence gained 0.59 tags each in the 2026-08-13 backfill; re-tagging cafes
- * whose research came back empty LOST 0.35 each, because the LLM jitters around
- * the 0.5 confidence floor and marginal values flip to 'unknown'. Reading
- * nothing twice costs coverage. --force still re-tags everything.
+ * At most MAX_CAFES_PER_RUN cafes a run (default 100, --max-cafes N): each
+ * cafe takes two Gemini calls, and the free tier allows about 250 a day. A
+ * large batch of new evidence is worked through over several daily runs.
  *
  * Usage:
  *   node scripts/analyze-reviews-llm.mjs --dry-run                      ← preview, no writes
@@ -88,7 +86,7 @@ import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
 import { z } from "zod";
 import { GoogleGenAI, FunctionCallingConfigMode } from "@google/genai";
 import { env } from "./_env.mjs";
-import { groundQuotes, createRunTrace } from "./_shared.mjs";
+import { groundQuotes, createRunTrace, taggingReason, reviewSummaryBlock } from "./_shared.mjs";
 import { mkdirSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
@@ -125,6 +123,7 @@ const DELAY_MS         = typeof flag("--delay-ms") === "string" ? parseInt(flag(
 // Skip cafes already tagged AND whose evidence has not moved since. --force re-tags everything.
 const FORCE_RETAG      = !!flag("--force");
 const MAX_RETRIES      = 2;
+const MAX_CAFES_PER_RUN = typeof flag("--max-cafes") === "string" ? parseInt(flag("--max-cafes"), 10) : 100;
 const TRACE_TO_FILE    = !flag("--no-trace");
 // Backoff before retrying after an API failure (429 / 5xx / network). Retrying
 // a rate limit immediately just spends the retry budget on a second 429.
@@ -211,7 +210,8 @@ GUIDELINES
 - Never invent signals. If no source says it, it isn't there.
 
 EVIDENCE SOURCES
-- REVIEWS come from Google. You may also get a WEB RESEARCH block: Reddit threads where locals discuss working from Seattle cafes, plus a Yelp free-WiFi signal.
+- REVIEWS come from Google. You may also get GOOGLE'S SUMMARY OF ALL REVIEWS, written by Google from every review (not only the ones shown). It reflects the overall pattern, so use it to judge what is typical, but it is generated text: apply the same confidence rules and never treat one vague phrase as strong evidence.
+- You may also get a WEB RESEARCH block: Reddit threads where locals discuss working from Seattle cafes, plus a Yelp free-WiFi signal.
 - Reddit "best cafes to work from" mentions are strong signals for laptop_policy and seating, and are often the ONLY source for wifi_quality and outlet_availability — Google reviewers rarely grade WiFi or outlets, but Reddit threads do.
 - A Yelp free-WiFi listing means WiFi is present, so wifi_quality is not "none"; it does NOT reveal speed. Prefer "moderate" at modest confidence (~0.55) unless a source indicates fast or slow.
 - Weigh all sources together under the confidence rules above. The same bar applies: still never invent signals absent from every source.
@@ -245,6 +245,7 @@ const State = Annotation.Root({
   apiError:         Annotation({ default: () => null }),  // last LLM call failed (not a schema problem)
   reviewsLoaded:    Annotation({ default: () => false }),
   quotesDropped:    Annotation({ default: () => 0 }),
+  quotesSkipped:    Annotation({ default: () => false }),  // tags unchanged: kept the old quotes, no Gemini call
   lastError:        Annotation({ default: () => null }),  // prior validation error, fed into the retry prompt
   retryCount:       Annotation({ default: () => 0, reducer: (_, n) => n }),
   written:          Annotation({ default: () => false }),
@@ -263,7 +264,12 @@ async function fetchReviewCorpus(state) {
   const { data, error } = await supabase
     .from("cafe_reviews")
     .select("text")
-    .eq("google_place_id", cafe.google_place_id);
+    .eq("google_place_id", cafe.google_place_id)
+    // A fixed order, so the prompt's length cap keeps the same reviews on
+    // every run: Google's "most relevant" set first, then newest first.
+    .order("source_sort", { ascending: false })
+    .order("publish_time", { ascending: false, nullsFirst: false })
+    .order("author_name", { ascending: true });
   if (error) return { errors: [`fetch_review_corpus: ${error.message}`] };
   const reviews = (data ?? []).map(r => r.text).filter(Boolean);
   return { reviews, reviewsLoaded: true };
@@ -331,7 +337,7 @@ function buildRedditProseBlock(cafe) {
   return lines.length ? lines.join("\n\n") : null;
 }
 
-async function callGeminiWithTool(systemPrompt, userText, tool) {
+async function callGeminiWithTool(systemPrompt, userText, tool, { thinkingBudget } = {}) {
   const response = await gemini.models.generateContent({
     model: GEMINI_MODEL,
     contents: [{ role: "user", parts: [{ text: userText }] }],
@@ -345,6 +351,9 @@ async function callGeminiWithTool(systemPrompt, userText, tool) {
         },
       },
       temperature: 0,  // deterministic tagging
+      // 2.5 Flash "thinks" before answering unless told not to; thinking
+      // tokens bill as output. Set per call where the task doesn't need it.
+      ...(thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget } } : {}),
     },
   });
   trace.llmCall(response.usageMetadata);
@@ -380,6 +389,7 @@ async function extractAttributes(state) {
     "REVIEWS:",
     buildReviewBlock(reviews),
     "",
+    ...(reviewSummaryBlock(cafe.google_review_summary) ? [reviewSummaryBlock(cafe.google_review_summary), ""] : []),
     buildWebBlock(cafe),
   ];
   // On a retry, tell the model exactly why the last attempt was rejected so it
@@ -407,8 +417,32 @@ async function extractAttributes(state) {
   }
 }
 
+const ATTR_KEYS = ["wifi_quality", "outlet_availability", "noise_level", "laptop_policy", "seating_availability"];
+
 async function extractEvidenceQuotes(state) {
   const { cafe, reviews, validatedTags } = state;
+
+  // Only ask for quotes where they could differ from the last run: attributes
+  // whose value changed, or with no usable quote yet. An unchanged tag keeps
+  // its quotes if they still check out against the sources (quotes stored
+  // before grounding existed may not). Google's summary is never quoted.
+  // A re-tag that changes nothing skips this Gemini call entirely.
+  const sources = [...(reviews ?? []), ...(cafe?.web_research_snippets?.results ?? []).map(r => r?.snippet ?? "")];
+  const prior = cafe.tagging_confidence ?? {};
+  const oldGrounded = groundQuotes(Object.fromEntries(ATTR_KEYS.map(a =>
+    [a, prior[a]?.source === "text" ? (prior[a].evidence ?? []) : []])), sources).kept;
+  const kept = {};
+  const wanted = [];
+  for (const attr of ATTR_KEYS) {
+    const value = validatedTags?.[attr]?.value;
+    const oldQuotes = oldGrounded[attr] ?? [];
+    if (!value || value === "unknown") kept[attr] = [];
+    else if (value === cafe[`${attr}_llm`] && oldQuotes.length) kept[attr] = oldQuotes;
+    else wanted.push(attr);
+  }
+  if (!MOCK && validatedTags && wanted.length === 0) {
+    return { evidenceQuotes: kept, quotesSkipped: true };
+  }
 
   if (MOCK || !validatedTags) {
     const sample = (reviews ?? []).slice(0, 2).map(r => r.slice(0, 80));
@@ -423,13 +457,13 @@ async function extractEvidenceQuotes(state) {
     };
   }
 
-  const tagsSummary = Object.entries(validatedTags)
-    .map(([k, v]) => `- ${k}: ${v?.value} (confidence ${v?.confidence})`).join("\n");
+  const tagsSummary = wanted
+    .map(k => `- ${k}: ${validatedTags[k]?.value} (confidence ${validatedTags[k]?.confidence})`).join("\n");
   const redditProse = buildRedditProseBlock(cafe);
   const userText = [
     `Cafe: ${cafe.name}${cafe.neighborhood ? ` (${cafe.neighborhood})` : ""}`,
     "",
-    "TAGS ALREADY ASSIGNED:",
+    "TAGS TO FIND QUOTES FOR (return an empty array for every other attribute):",
     tagsSummary,
     "",
     "REVIEWS:",
@@ -438,22 +472,21 @@ async function extractEvidenceQuotes(state) {
   ].join("\n");
 
   try {
-    const { input } = await callGeminiWithTool(SYSTEM_PROMPT_QUOTES, userText, QUOTES_TOOL);
-    const sources = [...(reviews ?? []), ...(cafe?.web_research_snippets?.results ?? []).map(r => r?.snippet ?? "")];
-    const { kept, dropped } = groundQuotes(input, sources);
+    // Picking verbatim quotes is lookup, not judgement, and every quote is
+    // checked against the sources below, so this call runs without thinking.
+    const { input } = await callGeminiWithTool(SYSTEM_PROMPT_QUOTES, userText, QUOTES_TOOL, { thinkingBudget: 0 });
+    const { kept: grounded, dropped } = groundQuotes(input, sources);
     if (dropped.length) {
       console.log(`     ✂️  dropped ${dropped.length} quote(s) not found in the sources: ` +
         dropped.map(d => `${d.attr}: "${String(d.quote).slice(0, 60)}"`).join("; "));
     }
+    for (const attr of wanted) kept[attr] = grounded[attr] ?? [];
     return { evidenceQuotes: kept, quotesDropped: dropped.length };
   } catch (e) {
     // Quotes are nice-to-have, not blocking. Fall back to empty arrays so the
     // pipeline still writes the tags.
     return {
-      evidenceQuotes: {
-        wifi_quality: [], outlet_availability: [], noise_level: [],
-        laptop_policy: [], seating_availability: [],
-      },
+      evidenceQuotes: { ...Object.fromEntries(ATTR_KEYS.map(a => [a, []])), ...kept },
       errors: [`extract_evidence_quotes (non-fatal): ${e.message}`],
     };
   }
@@ -613,7 +646,7 @@ async function main() {
 
   let q = supabase
     .from("cafes")
-    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, web_research_at, visual_tagged_at, web_research_snippets, yelp_free_wifi, tagging_confidence, outlet_availability_llm, seating_availability_llm, laptop_policy_llm")
+    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, web_research_at, visual_tagged_at, web_research_snippets, yelp_free_wifi, tagging_confidence, wifi_quality_llm, outlet_availability_llm, noise_level_llm, seating_availability_llm, laptop_policy_llm, google_review_summary, reviews_checked_at")
     .order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
   // NOTE: LIMIT is applied AFTER the staleness filter below, not here — a
@@ -623,29 +656,17 @@ async function main() {
   const { data: rows, error } = await q;
   if (error) { console.error("❌", error.message); process.exit(1); }
 
-  // Stale = research landed after the last tag AND that research actually found
-  // something, so there is genuinely new evidence to read.
-  //
-  // The evidence half of that test is not a nicety. research-cafes.mjs stamps
-  // web_research_at even when Reddit and Yelp turn up nothing, so "research is
-  // newer" alone also selects cafes with nothing new to say. Re-tagging those
-  // measurably LOSES information: across the 2026-08-13 backfill, cafes holding
-  // unread evidence gained 0.59 tags each, while cafes without it lost 0.35 —
-  // the LLM jitters around the 0.5 confidence floor and marginal values flip to
-  // 'unknown'. Reading nothing twice is not free.
-  const hasEvidence = (c) => {
-    const s = c.web_research_snippets;
-    return (Array.isArray(s) ? s.length > 0 : !!(s && Object.keys(s).length > 0)) ||
-           c.yelp_free_wifi === true;
-  };
-  const isStale = (c) => !!c.llm_tagged_at && !!c.web_research_at &&
-    new Date(c.web_research_at) > new Date(c.llm_tagged_at) && hasEvidence(c);
-  const untagged = (rows ?? []).filter(c => !c.llm_tagged_at);
-  const stale    = (rows ?? []).filter(isStale);
+  const reasons = new Map((rows ?? []).map(c => [c.id, taggingReason(c)]));
+  const count = (r) => (rows ?? []).filter(c => reasons.get(c.id) === r).length;
+  // Never-tagged cafes first, then the rest in name order.
+  const due = (rows ?? []).filter(c => reasons.get(c.id))
+    .sort((a, b) => (reasons.get(a.id) === "untagged" ? 0 : 1) - (reasons.get(b.id) === "untagged" ? 0 : 1));
 
-  let cafes = (FORCE_RETAG || FILTER_CAFE) ? (rows ?? []) : [...untagged, ...stale];
+  let cafes = (FORCE_RETAG || FILTER_CAFE) ? (rows ?? []) : due;
   const skipped = (rows?.length ?? 0) - cafes.length;
-  if (LIMIT) cafes = cafes.slice(0, LIMIT);
+  const cap = LIMIT ?? (FORCE_RETAG || FILTER_CAFE ? null : MAX_CAFES_PER_RUN);
+  const deferred = cap && cafes.length > cap ? cafes.length - cap : 0;
+  if (cap) cafes = cafes.slice(0, cap);
 
   if (!cafes.length) {
     console.log("No cafes need tagging (all tagged, and no evidence is newer than its tag). Use --force to re-tag.");
@@ -654,8 +675,9 @@ async function main() {
 
   const why = FORCE_RETAG ? " (--force: re-tagging everything)"
             : FILTER_CAFE ? ""
-            : ` (${untagged.length} never tagged, ${stale.length} tagged before their research landed; ${skipped} up to date)`;
+            : ` (${count("untagged")} never tagged, ${count("new_research")} with new web research, ${count("new_reviews")} with new reviews or a review summary; ${skipped} up to date)`;
   console.log(`📋 Processing ${cafes.length} cafe${cafes.length > 1 ? "s" : ""}${why}...`);
+  if (deferred) console.log(`   ${deferred} more are due and wait for the next run (cap ${cap} a run for the Gemini free tier; --max-cafes to change).`);
   if (DELAY_MS > 0) {
     const est = Math.max(1, Math.round((cafes.length * DELAY_MS) / 60000));
     console.log(`   Pacing ${DELAY_MS}ms/cafe (~${est}m for ${cafes.length}). On a paid Gemini tier? Pass --delay-ms 0.`);
@@ -663,10 +685,19 @@ async function main() {
   console.log();
 
   const graph = buildGraph();
-  const counts = { written: 0, dryRunOk: 0, retried: 0, failed: 0, quotesDropped: 0 };
+  const counts = { written: 0, dryRunOk: 0, retried: 0, failed: 0, quotesDropped: 0, quotesSkipped: 0, deferred: 0 };
 
   let i = 0;
+  // Three cafes in a row failing on the API (not on bad output) almost always
+  // means the daily quota is spent. Stop instead of failing every remaining
+  // cafe; they are still due and the next run picks them up.
+  let apiFailStreak = 0;
   for (const cafe of cafes) {
+    if (apiFailStreak >= 3) {
+      console.log(`⛔ Gemini failed for 3 cafes in a row — likely out of daily quota. Stopping; ${cafes.length - i} cafe(s) wait for the next run.`);
+      counts.deferred = cafes.length - i;
+      break;
+    }
     if (i > 0 && DELAY_MS > 0) await new Promise(r => setTimeout(r, DELAY_MS));
     i++;
     console.log(`━━━ ${cafe.name} (${cafe.neighborhood ?? "?"})`);
@@ -684,6 +715,7 @@ async function main() {
         console.log(`     ${wrote ? "⚠️ " : "❌"} ${final.errors.join(" | ")}`);
       }
       counts.quotesDropped += final.quotesDropped ?? 0;
+      if (final.quotesSkipped) counts.quotesSkipped++;
       if (final.retryCount > 0) {
         console.log(`     🔁 retried ${final.retryCount}× before validating`);
         counts.retried++;
@@ -699,6 +731,7 @@ async function main() {
       if (final.written) counts.written++;
       else if (DRY_RUN && final.validatedTags) counts.dryRunOk++;
       else counts.failed++;
+      apiFailStreak = !final.validatedTags && final.apiError ? apiFailStreak + 1 : 0;
     } catch (e) {
       console.log(`     💥 graph crashed: ${e.message}`);
       trace.endCafe("crashed", { error: String(e.message).slice(0, 300) });
@@ -714,6 +747,7 @@ async function main() {
   console.log(`Retried:    ${counts.retried}  (also counted in Written/Dry-run OK)`);
   console.log(`Failed:     ${counts.failed}`);
   console.log(`Quotes dropped (not found in sources): ${counts.quotesDropped}`);
+  console.log(`Quote calls skipped (tags unchanged): ${counts.quotesSkipped}`);
 
   const run = trace.toJSON();
   const s = run.summary;
@@ -729,7 +763,8 @@ async function main() {
     writeFileSync(file, JSON.stringify(run, null, 2) + "\n");
     console.log(`Trace:      ${file}`);
   }
-  const accounted = counts.written + counts.dryRunOk + counts.failed;
+  if (counts.deferred) console.log(`Deferred:   ${counts.deferred} (stopped early; still due)`);
+  const accounted = counts.written + counts.dryRunOk + counts.failed + counts.deferred;
   if (accounted !== cafes.length) {
     console.log(`⚠️  Unreconciled: ${cafes.length - accounted} cafe(s) neither written, dry-run-OK, nor failed — investigate.`);
   }
