@@ -120,6 +120,18 @@ Total monthly AI cost stays under $1 even at 100K queries.
 - **MCP server wrapping Google Maps + Places.** Lets external agents (e.g. Claude Desktop) query Needle Space cafes by attribute.
 - **Knowledge graph** linking neighborhoods → cafes → vibe attributes for graph-aware retrieval.
 
+### Use it from an AI assistant (MCP)
+
+`/api/mcp` is a read-only [Model Context Protocol](https://modelcontextprotocol.io) server over Streamable HTTP. Any MCP client can connect to `https://<your-site>/api/mcp`. In Claude, go to Settings → Connectors → Add custom connector.
+
+| Tool | What it does |
+|---|---|
+| `search_cafes` | Natural-language query plus optional filters (neighborhoods, noise, outlets, laptops, open now, productivity ≥ 4). It runs the same code as the website search (`src/lib/search.ts`), with the same ranking, filters and rate limit. |
+| `get_cafe` | One cafe's address, hours, contact details, and each work tag with its source (a person's check, a review quote, a photo, or a keyword match). |
+| `list_neighborhoods` | The areas covered. |
+
+It is stateless: no sessions or streams, one JSON reply per request. That fits serverless hosting. Agent searches go to `nl_query_log` with `filters.source = "mcp"`.
+
 ## Tech Stack
 
 - Next.js (App Router)

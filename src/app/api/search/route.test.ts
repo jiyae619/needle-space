@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Cafe } from "@/lib/types";
 
 const calls: { rpc: Record<string, unknown>[]; rpcNames: string[]; tableFilters: string[][] } = { rpc: [], rpcNames: [], tableFilters: [] };
-let rpcRows: { id: string; similarity?: number }[] = [];
+let rpcRows: { id: string; similarity?: number | null }[] = [];
 let rateLimitAllows = true;
 let embedCalls = 0;
 let tableRows: Partial<Cafe>[] = [];
