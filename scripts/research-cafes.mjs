@@ -35,6 +35,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.mjs";
+import { researchFingerprint } from "./_shared.mjs";
 
 const TAVILY_KEY = env.TAVILY_API_KEY;
 const supabase   = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -163,31 +164,42 @@ async function main() {
   console.log(`   Cadence:      skip if researched within ${STALE_DAYS} days${FORCE ? " (--force overrides)" : ""}`);
   console.log();
 
-  let q = supabase
-    .from("cafes")
-    .select("id, name, neighborhood, web_research_at")
-    .order("name");
-  if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
+  // web_research_checked_at / web_research_hash come from
+  // 20260929010000_research_fingerprint.sql. Without them, fall back to the old
+  // behaviour (every re-check counts as new evidence) and say so.
+  const load = (cols) => {
+    let q = supabase.from("cafes").select(cols).order("name");
+    if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
+    return q;
+  };
   // NOTE: LIMIT is applied AFTER the staleness filter below, not here. Applying
   // it at the query level would take the first N cafes alphabetically and then
   // drop the fresh ones — so `--limit 5` could research 0 cafes and always the
   // same alphabetical head.
 
-  const { data: cafes, error } = await q;
+  let { data: cafes, error } = await load("id, name, neighborhood, web_research_at, web_research_checked_at, web_research_hash");
+  const CHANGE_AWARE = !error;
+  if (!CHANGE_AWARE) {
+    console.warn("   ⚠️  web_research_checked_at/web_research_hash missing — apply 20260929010000_research_fingerprint.sql. Every re-check will trigger a re-tag.\n");
+    ({ data: cafes, error } = await load("id, name, neighborhood, web_research_at"));
+  }
   if (error) { console.error("❌", error.message); process.exit(1); }
   if (!cafes?.length) { console.log("No cafes match."); return; }
 
   const now = Date.now();
   let targets = FORCE
     ? cafes
-    : cafes.filter(c => !c.web_research_at || (now - new Date(c.web_research_at).getTime()) > STALE_MS);
+    : cafes.filter(c => {
+        const checked = c.web_research_checked_at ?? c.web_research_at;
+        return !checked || (now - new Date(checked).getTime()) > STALE_MS;
+      });
   const skipped = cafes.length - targets.length;
   if (LIMIT) targets = targets.slice(0, LIMIT);  // cap AFTER staleness → N cafes that actually need research
   console.log(`📋 ${targets.length} cafe${targets.length > 1 ? "s" : ""} to research` +
               (skipped > 0 ? ` (${skipped} skipped — fresh within ${STALE_DAYS} days)` : "") +
               "\n");
 
-  let written = 0, noReddit = 0, failed = 0, yelpHits = 0;
+  let written = 0, unchanged = 0, noReddit = 0, failed = 0, yelpHits = 0;
 
   for (const cafe of targets) {
     const query = buildQuery(cafe);
@@ -225,26 +237,34 @@ async function main() {
       ? { query, answer: result.answer || null, results: reddit }
       : null;  // explicit null = "researched, no usable reddit signal"
 
-    const { error: upErr } = await supabase
-      .from("cafes")
-      .update({
-        web_research_snippets: payload,
-        web_research_at:       new Date().toISOString(),
-        yelp_free_wifi:        yelpFreeWifi,
-      })
-      .eq("id", cafe.id);
+    // Only new evidence moves web_research_at, which is what makes the tagger
+    // re-read this cafe. A re-check that found the same thing just records
+    // that it looked.
+    const stamp = new Date().toISOString();
+    const hash = researchFingerprint(reddit, yelpFreeWifi);
+    const changed = !CHANGE_AWARE || hash !== cafe.web_research_hash;
+    const update = changed
+      ? { web_research_snippets: payload, web_research_at: stamp, yelp_free_wifi: yelpFreeWifi }
+      : {};
+    if (CHANGE_AWARE) Object.assign(update, { web_research_checked_at: stamp, web_research_hash: hash });
+
+    const { error: upErr } = await supabase.from("cafes").update(update).eq("id", cafe.id);
     if (upErr) {
       console.log(`    ❌ write failed: ${upErr.message}\n`);
       failed++;
-    } else {
-      console.log(`    💾 saved\n`);
+    } else if (changed) {
+      console.log(`    💾 saved (new evidence)\n`);
       written++;
+    } else {
+      console.log(`    = unchanged since last check (tags will not be re-read)\n`);
+      unchanged++;
     }
     await new Promise(r => setTimeout(r, 200));
   }
 
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`${DRY_RUN ? "Would write" : "Wrote"}:     ${written}`);
+  console.log(`Unchanged:  ${unchanged}  (checked, same evidence — no re-tag)`);
   console.log(`Yelp free-wifi hits:  ${yelpHits}`);
   console.log(`No reddit signal:     ${noReddit}`);
   if (failed > 0) console.log(`Failed:               ${failed}`);

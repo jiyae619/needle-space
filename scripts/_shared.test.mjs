@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, embedTextV2, describeCafe, cityOf, scoreRanking, summarize } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, embedTextV2, describeCafe, cityOf, scoreRanking, summarize } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -129,5 +129,20 @@ describe("retrieval scoring", () => {
   it("averages per-query scores", () => {
     const s = summarize([{ hit: true, rank: 1, recall: 1, ndcg: 1 }, { hit: false, rank: null, recall: 0, ndcg: 0 }]);
     expect(s).toEqual({ hit_at_k: 0.5, recall_at_k: 0.5, ndcg_at_k: 0.5, mrr: 0.5 });
+  });
+});
+
+describe("researchFingerprint", () => {
+  const a = { url: "https://reddit.com/r/Seattle/1", snippet: "Fast wifi, lots of outlets." };
+  const b = { url: "https://reddit.com/r/Seattle/2", snippet: "Quiet in the mornings." };
+
+  it("ignores result order and cosmetic differences", () => {
+    expect(researchFingerprint([a, b], false)).toBe(researchFingerprint([b, { ...a, snippet: "fast WiFi,  lots of outlets" }], false));
+  });
+
+  it("changes when the evidence changes", () => {
+    expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([a, b], false));
+    expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([a], true));
+    expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([{ ...a, snippet: "Laptops banned now." }], false));
   });
 });

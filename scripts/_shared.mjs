@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 /**
  * Needle Space — logic shared by the offline scripts.
  *
@@ -217,4 +219,18 @@ export function groundQuotes(quotesByAttr, sourceTexts) {
     }
   }
   return { kept, dropped };
+}
+
+/**
+ * Fingerprint of a cafe's web research, for change detection. Built from the
+ * Reddit results (url + snippet, order-independent) and the Yelp flag only.
+ * Tavily's `answer` is left out on purpose: it is AI-written and worded
+ * differently on every call, so including it would make every re-check look
+ * like new evidence.
+ */
+export function researchFingerprint(results, yelpFreeWifi) {
+  const items = (results ?? [])
+    .map(r => `${(r?.url ?? "").trim()}\n${normalizeForMatch(r?.snippet ?? "")}`)
+    .sort();
+  return createHash("sha256").update(JSON.stringify({ items, yelp: yelpFreeWifi === true })).digest("hex").slice(0, 32);
 }
