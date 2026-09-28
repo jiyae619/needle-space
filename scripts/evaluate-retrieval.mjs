@@ -29,6 +29,9 @@
  *   node scripts/evaluate-retrieval.mjs             ← table + triage output
  *   node scripts/evaluate-retrieval.mjs --k 5       ← score top-5 instead of top-10
  *   node scripts/evaluate-retrieval.mjs --json      ← machine-readable output
+ *   node scripts/evaluate-retrieval.mjs --hybrid    ← rank with match_cafes_hybrid
+ *       (full-text + vector, RRF) instead of vector only. Compare the two before
+ *       turning on SEARCH_HYBRID=1 in production.
  *   node scripts/evaluate-retrieval.mjs --via-api   ← measure the REAL request
  *       path (needs `npm run dev`); includes the route's location filtering,
  *       which the direct match_cafes path cannot see. Paced at 21s/query for
@@ -57,6 +60,11 @@ if (!Number.isInteger(K) || K < 1) { console.error("--k must be a positive integ
 // Route each query through the running app rather than calling match_cafes
 // directly, so the eval sees what a user sees. See searchViaApi below.
 const VIA_API   = argv.includes("--via-api");
+const HYBRID    = argv.includes("--hybrid");
+if (HYBRID && VIA_API) {
+  console.error("--hybrid ranks via the database directly; for the app path set SEARCH_HYBRID=1 on the server instead.");
+  process.exit(2);
+}
 const flagVal   = (n, d) => { const i = argv.indexOf(n); return i !== -1 && argv[i+1] ? argv[i+1] : d; };
 const API_BASE  = flagVal("--api-base", "http://localhost:3000").replace(/\/$/, "");
 // Voyage free tier is 3 RPM and the route embeds one query per request.
@@ -182,13 +190,15 @@ async function run() {
       try { names = (await searchViaApi(q.query)).slice(0, K); }
       catch (e) { console.error(`/api/search failed for "${q.query}": ${e.message}`); process.exit(1); }
     } else {
-      const { data, error } = await supabase.rpc("match_cafes", {
+      const fn = HYBRID ? "match_cafes_hybrid" : "match_cafes";
+      const { data, error } = await supabase.rpc(fn, {
         query_embedding: vectors[i],
+        ...(HYBRID ? { query_text: q.query } : {}),
         match_count: K,
         p_wifi_in: null, p_noise_in: null, p_outlets_in: null,
         p_laptop_in: null, p_seating_in: null, p_verified_only: false,
       });
-      if (error) { console.error(`match_cafes failed for "${q.query}": ${error.message}`); process.exit(1); }
+      if (error) { console.error(`${fn} failed for "${q.query}": ${error.message}`); process.exit(1); }
       names = (data ?? []).map(r => ({ id: r.id, name: r.name, neighborhood: r.neighborhood }));
     }
 
@@ -221,6 +231,7 @@ async function run() {
   const scored = results.filter(r => r.mode === "labeled");
   const summary = {
     k: K,
+    ranking: VIA_API ? "api" : HYBRID ? "hybrid" : "vector",
     labeled_queries: scored.length,
     triage_queries: results.length - scored.length,
     hit_at_k: scored.length ? scored.filter(r => r.hit).length / scored.length : null,
@@ -233,7 +244,7 @@ async function run() {
   if (JSON_OUT) { console.log(JSON.stringify({ summary, results }, null, 2)); return; }
 
   if (scored.length) {
-    console.log(`\n# Retrieval eval — ${scored.length} labeled queries, k=${K}\n`);
+    console.log(`\n# Retrieval eval — ${scored.length} labeled queries, k=${K}, ranking: ${summary.ranking}\n`);
     console.log(`Hit@${K}: ${(summary.hit_at_k * 100).toFixed(1)}%   Recall@${K}: ${(summary.recall_at_k * 100).toFixed(1)}%   ` +
       `nDCG@${K}: ${summary.ndcg_at_k.toFixed(3)}   MRR: ${summary.mrr.toFixed(3)}   zero-result: ${(summary.zero_result_rate * 100).toFixed(1)}%\n`);
     console.log("| # | query | first hit rank | recall | nDCG | top result |");

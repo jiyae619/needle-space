@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Cafe } from "@/lib/types";
 
-const calls: { rpc: Record<string, unknown>[]; tableFilters: string[][] } = { rpc: [], tableFilters: [] };
+const calls: { rpc: Record<string, unknown>[]; rpcNames: string[]; tableFilters: string[][] } = { rpc: [], rpcNames: [], tableFilters: [] };
 let rpcRows: { id: string; similarity?: number }[] = [];
 let rateLimitAllows = true;
 let embedCalls = 0;
@@ -38,6 +38,7 @@ vi.mock("@supabase/supabase-js", () => ({
     rpc: (name: string, args: Record<string, unknown>) => {
       if (name === "rate_limit_hit") return Promise.resolve({ data: rateLimitAllows, error: null });
       calls.rpc.push(args);
+      calls.rpcNames.push(name);
       return Promise.resolve({ data: rpcRows, error: null });
     },
     from: () => builder(),
@@ -61,7 +62,8 @@ const post = async (body: unknown) =>
   (await POST(new Request("http://x/api/search", { method: "POST", body: JSON.stringify(body) }))).json();
 
 beforeEach(() => {
-  calls.rpc = []; calls.tableFilters = []; rpcRows = []; tableRows = []; embedFails = false;
+  calls.rpc = []; calls.rpcNames = []; calls.tableFilters = []; rpcRows = []; tableRows = []; embedFails = false;
+  delete process.env.SEARCH_HYBRID; delete process.env.SEARCH_MIN_SIMILARITY;
   rateLimitAllows = true; embedCalls = 0;
 });
 
@@ -124,5 +126,32 @@ describe("/api/search", () => {
     tableRows = [cafe("a"), cafe("b")];
     const r = await post({ query: "quiet corner", filters: {} });
     expect(r.top_similarity).toBe(0.61);
+  });
+
+  it("uses vector ranking by default", async () => {
+    await post({ query: "quiet corner", filters: {} });
+    expect(calls.rpcNames).toEqual(["match_cafes"]);
+  });
+
+  it("fuses full-text and vector ranking when SEARCH_HYBRID=1, with place stripped from the text", async () => {
+    process.env.SEARCH_HYBRID = "1";
+    rpcRows = [{ id: "a", similarity: 0.5 }];
+    tableRows = [cafe("a")];
+    const r = await post({ query: "oat milk rooftop in Bellevue", filters: {} });
+    expect(calls.rpcNames).toEqual(["match_cafes_hybrid"]);
+    expect(calls.rpc[0].query_text).toBe("oat milk rooftop");
+    expect(calls.rpc[0].p_city_in).toEqual(["Bellevue"]);
+    expect(r.ranking).toBe("hybrid");
+  });
+
+  it("keeps a full-text-only hit even below the similarity floor", async () => {
+    process.env.SEARCH_HYBRID = "1";
+    process.env.SEARCH_MIN_SIMILARITY = "0.5";
+    rpcRows = [{ id: "word", similarity: null }, { id: "weak", similarity: 0.2 }, { id: "close", similarity: 0.7 }];
+    tableRows = [cafe("word"), cafe("weak"), cafe("close")];
+    const r = await post({ query: "oat milk", filters: {} });
+    // The ids the route asks the database for are the ones that survive.
+    expect(calls.tableFilters[0]).toContain('in:["id",["word","close"]]');
+    expect(r.top_similarity).toBe(0.7);
   });
 });
