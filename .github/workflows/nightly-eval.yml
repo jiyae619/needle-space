@@ -32,9 +32,9 @@ jobs:
       VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -68,7 +68,7 @@ jobs:
             const p = (x) => x == null ? "—" : (x * 100).toFixed(1) + "%";
             console.log(`Hit@${r.k} ${p(r.hit_at_k)} · Recall@${r.k} ${p(r.recall_at_k)} · nDCG@${r.k} ${r.ndcg_at_k?.toFixed(3)} · MRR ${r.mrr?.toFixed(3)} · ${r.labeled_queries} labeled queries`);'; } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: eval-${{ github.run_id }}
