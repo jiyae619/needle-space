@@ -28,7 +28,7 @@
  *   node scripts/finalize-cafes.mjs                    ← refresh cafes that changed
  *   node scripts/finalize-cafes.mjs --all              ← refresh every tagged cafe
  *   node scripts/finalize-cafes.mjs --delay-ms 0       ← paid Voyage tier (no pacing)
- *   node scripts/finalize-cafes.mjs --batch-size 50    ← cafes per Voyage request (default 25)
+ *   node scripts/finalize-cafes.mjs --batch-size 50    ← cafes per Voyage request (default 10)
  *   node scripts/finalize-cafes.mjs --all --text v2    ← re-embed with the v2 text (plain sentences
  *                                                       + Google review summary). Decide with
  *                                                       scripts/compare-embedding-text.mjs first.
@@ -60,17 +60,17 @@ const DRY_RUN     = !!flag("--dry-run");
 const ALL         = !!flag("--all");
 const FILTER_CAFE = typeof flag("--cafe") === "string" ? flag("--cafe") : null;
 const LIMIT       = typeof flag("--limit") === "string" ? parseInt(flag("--limit"), 10) : null;
-// Cafes embedded per Voyage request. The free tier without billing allows
-// 3 requests and 10K tokens a minute; one cafe's text is ~300 tokens, so 25
-// per request with ~21s between requests stays under both. One cafe per
-// request (the old way) took ~2.7 hours for the catalog; batches take minutes.
 // Which embedding text to build. v1 stays the default until
 // scripts/compare-embedding-text.mjs shows v2 ranks the golden queries better.
 // Switching needs --all, or old and new vectors would be mixed in one index.
 const TEXT_VERSION = typeof flag("--text") === "string" ? flag("--text") : (env.EMBED_TEXT_VERSION || "v1");
 if (!["v1", "v2"].includes(TEXT_VERSION)) { console.error("--text must be v1 or v2"); process.exit(2); }
 const buildEmbedText = TEXT_VERSION === "v2" ? embedTextV2 : embedText;
-const BATCH_SIZE  = typeof flag("--batch-size") === "string" ? parseInt(flag("--batch-size"), 10) : 25;
+// Cafes embedded per Voyage request. Without billing, Voyage allows 3 requests
+// and 10K tokens a minute. One cafe's text is up to ~300 tokens (most of it the
+// 800-character review snippet), so 10 cafes every 21s is ~3K tokens a request
+// and under ~9K a minute. 25 per request was ~20K a minute and lost batches.
+const BATCH_SIZE  = typeof flag("--batch-size") === "string" ? parseInt(flag("--batch-size"), 10) : 10;
 const FREE_TIER_DELAY_MS = 21000;
 const DELAY_MS    = typeof flag("--delay-ms") === "string" ? parseInt(flag("--delay-ms"), 10) : FREE_TIER_DELAY_MS;
 
@@ -82,11 +82,12 @@ if (!Number.isInteger(BATCH_SIZE) || BATCH_SIZE < 1 || BATCH_SIZE > 128) {
   process.exit(2);
 }
 
-// Without billing, Voyage also caps tokens at 10K a minute, and batches vary in
-// length, so the fixed delay above occasionally lands over it. A 429 is waited
-// out (the window is a minute) and the same batch retried, rather than dropped.
+// Batches vary in length, so a run can still land over the token cap. A 429 is
+// waited out (the window is a minute) and the same batch retried, not dropped.
 const RATE_LIMIT_WAIT_MS = 61000;
 const RATE_LIMIT_RETRIES = 3;
+
+let tokensUsed = 0;
 
 async function embedBatch(texts) {
   let res;
@@ -101,6 +102,7 @@ async function embedBatch(texts) {
       await new Promise(r => setTimeout(r, RATE_LIMIT_WAIT_MS));
     }
   }
+  tokensUsed += res.usage?.totalTokens ?? 0;
   const vecs = new Array(texts.length);
   for (const d of res.data ?? []) vecs[d.index ?? 0] = d.embedding;
   vecs.forEach((v, i) => {
@@ -214,6 +216,7 @@ async function main() {
   console.log(`Re-scored:  ${counts.rescored} (score changed)`);
   console.log(`No score:   ${counts.noScore} (all attrs unknown; re-embedded + bookmarked anyway)`);
   console.log(`Failed:     ${counts.failed}`);
+  console.log(`Voyage:     ${tokensUsed.toLocaleString("en-US")} tokens`);
   // A partial finalize must not read as success in the pipeline summary.
   // Failed cafes keep their old vector; the same command run again retries them.
   if (counts.failed > 0) process.exitCode = 1;
