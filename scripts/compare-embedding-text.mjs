@@ -35,7 +35,7 @@ import {
 const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf(n); return i !== -1 && argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[i + 1] : d; };
 const K = parseInt(flag("--k", "10"), 10);
-const BATCH = parseInt(flag("--batch-size", "25"), 10);
+const BATCH = parseInt(flag("--batch-size", "10"), 10);
 const DELAY_MS = parseInt(flag("--delay-ms", "21000"), 10);
 const LIMIT = flag("--limit", null) ? parseInt(flag("--limit"), 10) : null;
 const JSON_OUT = argv.includes("--json");
