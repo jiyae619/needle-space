@@ -381,7 +381,6 @@ async function fetchGoogleData(placeId) {
   }
   const data = await res.json();
 
-  const reviewTexts = (data.reviews || []).map(r => r.text?.text || "").filter(Boolean);
   const editorialSummary = data.editorialSummary?.text || "";
   const reviewSummary = data.reviewSummary?.text?.text || "";
 
