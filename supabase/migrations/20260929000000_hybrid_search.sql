@@ -32,40 +32,13 @@ comment on column cafes.search_text is
   'Plain text indexed for full-text search (search_tsv). Written by scripts/finalize-cafes.mjs.';
 
 -- ---------------------------------------------------------------------------
--- 2. The chip and place filters as one function, so the hybrid query applies
---    exactly the rules match_cafes does (human > LLM > keyword; noise never
---    falls back to the keyword column; closed cafes excluded).
+-- 2. An earlier draft of this file created a helper, cafe_passes_filters(),
+--    and called it from match_cafes_hybrid. The Supabase SQL editor could not
+--    see the helper while creating the caller, so the filters are now written
+--    inline below. Drop the helper if a partial run left it behind.
 -- ---------------------------------------------------------------------------
-create or replace function public.cafe_passes_filters(
-  c                 public.cafes,
-  p_wifi_in         text[],
-  p_noise_in        text[],
-  p_outlets_in      text[],
-  p_laptop_in       text[],
-  p_seating_in      text[],
-  p_verified_only   boolean,
-  p_city_in         text[],
-  p_neighborhood_in text[]
-)
-returns boolean
-language sql stable as $$
-  select c.business_status <> 'CLOSED_PERMANENTLY'
-    and (p_wifi_in    is null or coalesce(c.human_labels->>'wifi_quality',
-         nullif(c.wifi_quality_llm, 'unknown'), c.wifi_quality) = any(p_wifi_in))
-    and (p_noise_in   is null or coalesce(c.human_labels->>'noise_level',
-         nullif(c.noise_level_llm, 'unknown')) = any(p_noise_in))
-    and (p_outlets_in is null or coalesce(c.human_labels->>'outlet_availability',
-         nullif(c.outlet_availability_llm, 'unknown'), c.outlet_availability) = any(p_outlets_in))
-    and (p_laptop_in  is null or coalesce(c.human_labels->>'laptop_policy',
-         nullif(c.laptop_policy_llm, 'unknown'), c.laptop_policy) = any(p_laptop_in))
-    and (p_seating_in is null or coalesce(c.human_labels->>'seating_availability',
-         nullif(c.seating_availability_llm, 'unknown'), c.seating_availability) = any(p_seating_in))
-    and (not coalesce(p_verified_only, false) or c.verified = true)
-    and (p_city_in is null or exists (
-          select 1 from unnest(p_city_in) as ct
-          where c.address ilike '%, ' || ct || ', WA %'))
-    and (p_neighborhood_in is null or c.neighborhood = any(p_neighborhood_in))
-$$;
+drop function if exists public.cafe_passes_filters(
+  public.cafes, text[], text[], text[], text[], text[], boolean, text[], text[]);
 
 -- ---------------------------------------------------------------------------
 -- 3. Hybrid ranking. Words are OR-ed (any shared word counts) and ranked by
@@ -95,10 +68,26 @@ returns table (
   rrf_score    float
 )
 language sql stable as $$
+  -- Same filter rules as match_cafes: human > LLM > keyword, noise never falls
+  -- back to the keyword column, closed cafes excluded.
   with filtered as (
     select c.* from public.cafes c
-    where public.cafe_passes_filters(c, p_wifi_in, p_noise_in, p_outlets_in, p_laptop_in,
-            p_seating_in, p_verified_only, p_city_in, p_neighborhood_in)
+    where c.business_status <> 'CLOSED_PERMANENTLY'
+      and (p_wifi_in    is null or coalesce(c.human_labels->>'wifi_quality',
+           nullif(c.wifi_quality_llm, 'unknown'), c.wifi_quality) = any(p_wifi_in))
+      and (p_noise_in   is null or coalesce(c.human_labels->>'noise_level',
+           nullif(c.noise_level_llm, 'unknown')) = any(p_noise_in))
+      and (p_outlets_in is null or coalesce(c.human_labels->>'outlet_availability',
+           nullif(c.outlet_availability_llm, 'unknown'), c.outlet_availability) = any(p_outlets_in))
+      and (p_laptop_in  is null or coalesce(c.human_labels->>'laptop_policy',
+           nullif(c.laptop_policy_llm, 'unknown'), c.laptop_policy) = any(p_laptop_in))
+      and (p_seating_in is null or coalesce(c.human_labels->>'seating_availability',
+           nullif(c.seating_availability_llm, 'unknown'), c.seating_availability) = any(p_seating_in))
+      and (not coalesce(p_verified_only, false) or c.verified = true)
+      and (p_city_in is null or exists (
+            select 1 from unnest(p_city_in) as ct
+            where c.address ilike '%, ' || ct || ', WA %'))
+      and (p_neighborhood_in is null or c.neighborhood = any(p_neighborhood_in))
   ),
   q as (
     -- websearch_to_tsquery ANDs the words; swap to OR so partial matches rank.
