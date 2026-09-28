@@ -58,6 +58,7 @@ const argv      = process.argv.slice(2);
 const PLAN      = argv.includes("--plan");
 const CONTINUE  = argv.includes("--continue-on-error");
 const forwarded = argv.filter(a => !ORCHESTRATOR_FLAGS.has(a));
+const DRY_RUN   = forwarded.includes("--dry-run");
 
 // The gate sits BEFORE finalize on purpose. finalize is the synthesiser — it
 // re-embeds and re-scores from the merged tags, which is the point where a bad
@@ -78,6 +79,13 @@ const STAGES = [
   { key: "finalize", label: "5/5  Finalize (re-embed + re-score)",  script: "scripts/finalize-cafes.mjs" },
 ];
 
+// A dry run must leave no trace: the gate still measures, but doesn't record
+// its outcome, because a recorded "pass" moves the start of the next real
+// gate's cohort.
+const argsFor = (stage) => stage.gate
+  ? (DRY_RUN ? stage.args.filter(a => a !== "--record") : stage.args)
+  : forwarded;
+
 console.log("🚚 Needle Space — pipeline orchestrator");
 console.log(`   Forwarded args: ${forwarded.length ? forwarded.join(" ") : "(none)"}`);
 console.log(`   On stage error: ${CONTINUE ? "continue" : "STOP"}`);
@@ -86,7 +94,7 @@ console.log();
 if (PLAN) {
   console.log("Planned stages (in order):");
   for (const s of STAGES) {
-    const a = s.gate ? s.args : forwarded;
+    const a = argsFor(s);
     console.log(`   ${s.label}  →  node ${s.script} ${a.join(" ")}`.trimEnd());
   }
   console.log("\n(--plan: nothing was run.)");
@@ -101,7 +109,7 @@ for (const stage of STAGES) {
   // A gate takes its own fixed arguments; the pipeline's --limit/--cafe/--force
   // flags describe which cafes to WORK on and would silently narrow what the
   // gate scores.
-  const stageArgs = stage.gate ? stage.args : forwarded;
+  const stageArgs = argsFor(stage);
   const res = spawnSync(process.execPath, [stage.script, ...stageArgs], { stdio: "inherit" });
   const ok  = res.status === 0;
   results.push({ key: stage.key, ok, status: res.status, signal: res.signal });

@@ -88,5 +88,6 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
 - `npm run build` — build for production
 - `npm run lint` and `npx tsc --noEmit` — lint and typecheck
 - `npm test` — Vitest unit and route tests
-- `npm run pipeline` — run the offline pipeline (`npm run pipeline -- --all` re-embeds every cafe)
+- `npm run pipeline` — run the offline pipeline (`npm run pipeline -- --all` re-embeds every cafe; `-- --dry-run --limit 5` writes nothing)
+- To test a branch's pipeline changes: Actions → Monthly data pipeline → Run workflow → pick the branch → tick "Dry run"
 - `npx supabase` — interact with Supabase locally

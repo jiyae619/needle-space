@@ -237,6 +237,8 @@ This project has automatic Data API grants turned off. A new table or function n
 | `finalize-cafes.mjs` | Merge tags, score, embed (10 cafes per request on Voyage's free tier) |
 | `evaluate-accuracy.mjs`, `evaluate-retrieval.mjs`, `compare-embedding-text.mjs` | Evals |
 
+To test pipeline changes before merging, open **Actions → Monthly data pipeline → Run workflow**, pick the PR's branch, and tick **Dry run**. Every step runs on at most 5 cafes and calls the APIs as usual, but nothing is written to the database and the quality gate records nothing.
+
 More detail in [`scripts/SCRIPTS.md`](./scripts/SCRIPTS.md).
 
 ## Deployment
