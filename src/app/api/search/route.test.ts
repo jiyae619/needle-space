@@ -105,6 +105,15 @@ describe("/api/search", () => {
     expect(calls.tableFilters[0].some(f => f.startsWith("limit"))).toBe(false);
   });
 
+  it("leaves out cafes hidden in visit mode, in both search paths", async () => {
+    await post({ query: "", filters: { outlets: "any_outlets" } });
+    expect(calls.tableFilters[0]).toContain('eq:["hidden",false]');
+    rpcRows = [{ id: "v1", similarity: 0.8 }];
+    tableRows = [cafe("v1")];
+    await post({ query: "quiet cafe", filters: {} });
+    expect(calls.tableFilters.at(-1)).toContain('eq:["hidden",false]');
+  });
+
   it("never returns a keyed Google photo URL", async () => {
     tableRows = [cafe("p1", { photo_url: "https://places.googleapis.com/v1/x/media?key=SECRET" })];
     const r = await post({ query: "", filters: { laptop: "welcome" } });

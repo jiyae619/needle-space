@@ -1,8 +1,13 @@
 import { supabase } from "./supabase";
-import { Cafe, Filters, CAFE_COLUMNS, withoutKeyedPhoto } from "./types";
+import { Cafe, Filters, CAFE_COLUMNS, CAFE_DETAIL_COLUMNS, withoutKeyedPhoto } from "./types";
 import { SAMPLE_CAFES } from "./sample-data";
+import { VISIT_COLUMNS, type VisitCafe } from "./visit";
 
 const USE_SAMPLE_DATA = !process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("supabase.co");
+
+// Cafes marked "not a work spot" in /admin/visit stay in the table but are
+// never listed, searched, or opened on the public site.
+const visible = (cafe: Cafe) => cafe.business_status !== "CLOSED_PERMANENTLY" && !cafe.hidden;
 
 // Fetches all cafes for the Explore list. Once the user searches or picks a
 // chip, HomeClient asks /api/search instead.
@@ -17,6 +22,7 @@ export async function getCafes(): Promise<Cafe[]> {
   const { data, error } = await supabase
     .from("cafes")
     .select(CAFE_COLUMNS)
+    .eq("hidden", false)
     .order("productivity_score", { ascending: false, nullsFirst: false });
 
   if (error) {
@@ -24,7 +30,7 @@ export async function getCafes(): Promise<Cafe[]> {
     return [];
   }
   console.log("[getCafes] Got", data?.length ?? 0, "cafes");
-  return ((data as unknown as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY").map(withoutKeyedPhoto);
+  return ((data as unknown as Cafe[]) || []).filter(visible).map(withoutKeyedPhoto);
 }
 
 // Used by /treasure (Surprise me). Returns all cafes scoring above the
@@ -41,13 +47,14 @@ export async function getCafesAboveScore(minScore: number): Promise<Cafe[]> {
     .from("cafes")
     .select(CAFE_COLUMNS)
     .gt("productivity_score", minScore)
+    .eq("hidden", false)
     .order("productivity_score", { ascending: false, nullsFirst: false })
     .order("id", { ascending: true });
   if (error) {
     console.error("[getCafesAboveScore] Supabase error:", error.message);
     return [];
   }
-  return ((data as unknown as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY").map(withoutKeyedPhoto);
+  return ((data as unknown as Cafe[]) || []).filter(visible).map(withoutKeyedPhoto);
 }
 
 export async function getVerifiedCafes(): Promise<Cafe[]> {
@@ -60,12 +67,13 @@ export async function getVerifiedCafes(): Promise<Cafe[]> {
     .from("cafes")
     .select(CAFE_COLUMNS)
     .eq("verified", true)
+    .eq("hidden", false)
     .order("id", { ascending: true });
   if (error) {
     console.error("Supabase error:", error.message);
     return [];
   }
-  return ((data as unknown as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY").map(withoutKeyedPhoto);
+  return ((data as unknown as Cafe[]) || []).filter(visible).map(withoutKeyedPhoto);
 }
 
 // Calls the /api/search route. Used by HomeClient when the user types in the
@@ -102,11 +110,25 @@ export async function getCafeById(id: string): Promise<Cafe | null> {
 
   const { data, error } = await supabase
     .from("cafes")
-    .select(CAFE_COLUMNS)
+    .select(CAFE_DETAIL_COLUMNS)
     .eq("id", id)
+    .eq("hidden", false)
     .single();
 
   if (error) return null;
   const cafe = data as unknown as Cafe | null;
-  return !cafe || cafe.business_status === "CLOSED_PERMANENTLY" ? null : withoutKeyedPhoto(cafe);
+  return cafe && visible(cafe) ? withoutKeyedPhoto(cafe) : null;
+}
+
+// Every cafe for /admin/visit, hidden ones included so they can be un-hidden.
+export async function getVisitCafes(): Promise<VisitCafe[]> {
+  if (USE_SAMPLE_DATA) return SAMPLE_CAFES as VisitCafe[];
+  const { data, error } = await supabase.from("cafes").select(VISIT_COLUMNS).order("name");
+  if (error) {
+    console.error("[getVisitCafes] Supabase error:", error.message);
+    return [];
+  }
+  return ((data as unknown as VisitCafe[]) || [])
+    .filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY")
+    .map(withoutKeyedPhoto);
 }
