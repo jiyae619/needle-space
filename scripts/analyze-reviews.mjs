@@ -405,6 +405,13 @@ async function fetchNewestReviews(placeId) {
   const res = await fetch(url.toString());
   if (!res.ok) return [];
   const data = await res.json();
+  // The legacy API reports a blocked key as HTTP 200 + status REQUEST_DENIED.
+  // Say so once instead of quietly returning no "newest" reviews forever.
+  if (data.status && !["OK", "ZERO_RESULTS", "NOT_FOUND"].includes(data.status) && !fetchNewestReviews.warned) {
+    fetchNewestReviews.warned = true;
+    console.warn(`   ⚠️  Legacy Places API returned ${data.status}${data.error_message ? `: ${data.error_message}` : ""}. ` +
+      `Newest reviews are skipped. Allow "Places API" (legacy) on GOOGLE_PLACES_SERVER_KEY in Google Cloud.`);
+  }
 
   return (data.result?.reviews || []).map(r => ({
     author_name: r.author_name || null,
