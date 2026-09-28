@@ -41,6 +41,11 @@ export interface Cafe {
   // Values a person confirmed in /admin. Wins over *_llm and the keyword tags.
   human_labels?: HumanLabels | null;
   human_labeled_at?: string | null;
+  // Set in /admin/visit. Hidden cafes are left out of every public view.
+  hidden?: boolean;
+  visit_note?: string | null;
+  visited_at?: string | null;
+  visit_photos?: string[];
   // The 1024-dim embedding stays server-side; we don't normally ship it to the browser.
   cafe_embedding?: number[] | null;
 }
@@ -60,6 +65,9 @@ export const CAFE_COLUMNS = [
   "llm_tagged_at", "human_labels", "human_labeled_at",
   "last_synced_at", "created_at",
 ].join(", ");
+
+// The cafe page also shows what was recorded on an in-person visit.
+export const CAFE_DETAIL_COLUMNS = `${CAFE_COLUMNS}, visit_note, visited_at, visit_photos`;
 
 // A direct Places media URL carries the server API key (scripts/fetch-cafes.mjs
 // writes one for every newly discovered cafe until cache-photos replaces it).

@@ -157,8 +157,12 @@ async function main() {
   if (!FORCE && !CAFE) q = q.is("curated_photo_at", null);
   if (LIMIT) q = q.limit(LIMIT);
 
-  const { data: cafes, error } = await q;
+  const { data: rows, error } = await q;
   if (error) { console.error("❌", error.message); process.exit(1); }
+  // A photo taken on a visit (/admin/visit) was picked by a person; even
+  // --force never swaps it for a Google photo.
+  const cafes = (rows ?? []).filter(c => !c.photo_url?.includes("/cafe-photos/visits/"));
+  if (rows?.length > cafes.length) console.log(`   ${rows.length - cafes.length} cafe(s) use a visit photo — skipped`);
   if (!cafes?.length) {
     console.log("No cafes need curating. Use --force to re-curate.");
     process.exit(0);

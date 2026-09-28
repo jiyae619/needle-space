@@ -141,7 +141,7 @@ export async function runSearch(
 
       if (ids.length > 0) {
         const { data: rows, error: fetchErr } = await supabase
-          .from("cafes").select(CAFE_COLUMNS).in("id", ids);
+          .from("cafes").select(CAFE_COLUMNS).in("id", ids).eq("hidden", false);
         if (fetchErr) throw new Error(`reading cafes: ${fetchErr.message}`);
         // Preserve the ranking from the database.
         const order = new Map(ids.map((id, i) => [id, i]));
@@ -169,6 +169,7 @@ export async function runSearch(
     // open-now are applied below, the same as the semantic path.
     let q = supabase.from("cafes").select(CAFE_COLUMNS)
       .neq("business_status", "CLOSED_PERMANENTLY")
+      .eq("hidden", false)
       .order("productivity_score", { ascending: false, nullsFirst: false });
     if (rpcArgs.p_noise_in)   q = q.or(mergedFilter("noise_level",         rpcArgs.p_noise_in));
     if (rpcArgs.p_outlets_in) q = q.or(mergedFilter("outlet_availability", rpcArgs.p_outlets_in));
