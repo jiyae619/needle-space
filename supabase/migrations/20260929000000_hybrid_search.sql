@@ -43,7 +43,13 @@ drop function if exists public.cafe_passes_filters(
 -- ---------------------------------------------------------------------------
 -- 3. Hybrid ranking. Words are OR-ed (any shared word counts) and ranked by
 --    ts_rank_cd; each list keeps its top p_pool before fusion.
+--
+--    The body reads search_tsv, created above in this same file. Skip the
+--    create-time body check (as pg_dump does) so the function never depends
+--    on the editor seeing that column yet; step 4 runs it to prove it works.
 -- ---------------------------------------------------------------------------
+set check_function_bodies = off;
+
 create or replace function public.match_cafes_hybrid(
   query_embedding   vector(1024),
   query_text        text,
@@ -119,4 +125,18 @@ language sql stable as $$
   limit match_count;
 $$;
 
+reset check_function_bodies;
+
 notify pgrst, 'reload schema';
+
+-- ---------------------------------------------------------------------------
+-- 4. Check. Expect one row, all true. Runs the function for real (text-only,
+--    no embedding), which proves the body is valid against this database.
+-- ---------------------------------------------------------------------------
+select
+  exists (select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'cafes' and column_name = 'search_tsv') as search_index_ready,
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'match_cafes_hybrid') = 1                   as hybrid_function_ready,
+  (select count(*) >= 0 from public.match_cafes_hybrid(null, 'coffee', 1))                 as hybrid_function_runs,
+  not exists (select 1 from pg_proc where proname = 'cafe_passes_filters')                 as old_helper_removed;
