@@ -4,9 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Admin endpoint — local-only. Updates a single cafe's verified flag and any
-// supplied LLM attribute overrides. No auth for now; relies on the route
-// being unlinked from nav. If this ships to prod, gate behind a session cookie.
+// Admin endpoint. Updates a single cafe's verified flag and any supplied LLM
+// attribute overrides. Gated by src/proxy.ts (ADMIN_PASSWORD, or dev only).
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

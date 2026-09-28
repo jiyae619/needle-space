@@ -1,11 +1,11 @@
 import { supabase } from "./supabase";
-import { Cafe, Filters } from "./types";
+import { Cafe, Filters, CAFE_COLUMNS, withoutKeyedPhoto } from "./types";
 import { SAMPLE_CAFES } from "./sample-data";
 
 const USE_SAMPLE_DATA = !process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("supabase.co");
 
-// Fetches all cafes. Filtering happens client-side in HomeClient via useMemo
-// (faster UX — no DB round-trip when toggling chips).
+// Fetches all cafes for the Explore list. Once the user searches or picks a
+// chip, HomeClient asks /api/search instead.
 export async function getCafes(): Promise<Cafe[]> {
   if (USE_SAMPLE_DATA) {
     console.log("[getCafes] USE_SAMPLE_DATA is true. SUPABASE_URL =", process.env.NEXT_PUBLIC_SUPABASE_URL);
@@ -16,7 +16,7 @@ export async function getCafes(): Promise<Cafe[]> {
 
   const { data, error } = await supabase
     .from("cafes")
-    .select("*")
+    .select(CAFE_COLUMNS)
     .order("productivity_score", { ascending: false, nullsFirst: false });
 
   if (error) {
@@ -24,7 +24,7 @@ export async function getCafes(): Promise<Cafe[]> {
     return [];
   }
   console.log("[getCafes] Got", data?.length ?? 0, "cafes");
-  return ((data as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY");
+  return ((data as unknown as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY").map(withoutKeyedPhoto);
 }
 
 // Used by /treasure (Surprise me). Returns all cafes scoring above the
@@ -39,7 +39,7 @@ export async function getCafesAboveScore(minScore: number): Promise<Cafe[]> {
 
   const { data, error } = await supabase
     .from("cafes")
-    .select("*")
+    .select(CAFE_COLUMNS)
     .gt("productivity_score", minScore)
     .order("productivity_score", { ascending: false, nullsFirst: false })
     .order("id", { ascending: true });
@@ -47,7 +47,7 @@ export async function getCafesAboveScore(minScore: number): Promise<Cafe[]> {
     console.error("[getCafesAboveScore] Supabase error:", error.message);
     return [];
   }
-  return ((data as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY");
+  return ((data as unknown as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY").map(withoutKeyedPhoto);
 }
 
 export async function getVerifiedCafes(): Promise<Cafe[]> {
@@ -58,14 +58,14 @@ export async function getVerifiedCafes(): Promise<Cafe[]> {
   // requests, which breaks SSR↔client hydration consistency.
   const { data, error } = await supabase
     .from("cafes")
-    .select("*")
+    .select(CAFE_COLUMNS)
     .eq("verified", true)
     .order("id", { ascending: true });
   if (error) {
     console.error("Supabase error:", error.message);
     return [];
   }
-  return ((data as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY");
+  return ((data as unknown as Cafe[]) || []).filter(cafe => cafe.business_status !== "CLOSED_PERMANENTLY").map(withoutKeyedPhoto);
 }
 
 // Calls the /api/search route. Used by HomeClient when the user types in the
@@ -101,10 +101,11 @@ export async function getCafeById(id: string): Promise<Cafe | null> {
 
   const { data, error } = await supabase
     .from("cafes")
-    .select("*")
+    .select(CAFE_COLUMNS)
     .eq("id", id)
     .single();
 
   if (error) return null;
-  return data?.business_status === "CLOSED_PERMANENTLY" ? null : data as Cafe;
+  const cafe = data as unknown as Cafe | null;
+  return !cafe || cafe.business_status === "CLOSED_PERMANENTLY" ? null : withoutKeyedPhoto(cafe);
 }

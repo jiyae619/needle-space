@@ -17,10 +17,8 @@
  *   An /admin attribute edit sets finalized_at back to NULL, so it's caught too.
  *   --all ignores the rule and refreshes every tagged cafe.
  *
- * Embedding + scoring math mirror analyze-reviews-llm.mjs (embedCafe) and
- * recompute-merged-scores.mjs, so a finalized row is identical to a freshly
- * tagged one — the only difference is that the tag values are the MERGED
- * (vision-inclusive) ones.
+ * Embedding + scoring math live in scripts/_shared.mjs (tested against the
+ * app's src/lib/score.ts), so the stored score equals the score on the card.
  *
  * Usage:
  *   node scripts/finalize-cafes.mjs --dry-run
@@ -36,6 +34,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { VoyageAIClient } from "voyageai";
 import { env } from "./_env.mjs";
+import { mergedValues, computeMergedScore, embedText } from "./_shared.mjs";
 
 // --- env ---
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -57,63 +56,8 @@ const LIMIT       = typeof flag("--limit") === "string" ? parseInt(flag("--limit
 const FREE_TIER_DELAY_MS = 21000;
 const DELAY_MS    = typeof flag("--delay-ms") === "string" ? parseInt(flag("--delay-ms"), 10) : FREE_TIER_DELAY_MS;
 
-// --- scoring (mirrors recompute-merged-scores.mjs / src/lib/score.ts) ---
-const SCORE_POINTS = {
-  wifi:    { fast: 5, moderate: 3, slow: 1, none: 1, unknown: 2.5 },
-  outlets: { every_table: 5, most: 4, limited: 2, none: 1, unknown: 2.5 },
-  noise:   { quiet: 5, moderate: 3, loud: 1, unknown: 2.5 },
-  laptop:  { welcome: 5, limited: 2, not_allowed: 1, unknown: 2.5 },
-  seating: { ample: 5, adequate: 3, limited: 2, none: 1, unknown: 2.5 },
-};
-const W = { wifi: 0.25, outlets: 0.20, noise: 0.20, laptop: 0.15, seating: 0.20 };
-const ATTRS = [
-  ["wifi_quality", "wifi"], ["outlet_availability", "outlets"], ["noise_level", "noise"],
-  ["laptop_policy", "laptop"], ["seating_availability", "seating"],
-];
-
-function mergeVal(cafe, dbKey) {
-  const llm = cafe[`${dbKey}_llm`];
-  const regex = cafe[dbKey] ?? "unknown";
-  return (llm && llm !== "unknown") ? llm : regex;
-}
-function mergedValues(cafe) {
-  const v = {};
-  for (const [dbKey, shortKey] of ATTRS) v[shortKey] = mergeVal(cafe, dbKey);
-  return v;
-}
-function computeMergedScore(cafe, merged) {
-  const allUnknown = Object.values(merged).every(x => x === "unknown");
-  if (allUnknown && cafe.productivity_score == null) return null;
-  const raw =
-    SCORE_POINTS.wifi[merged.wifi]       * W.wifi +
-    SCORE_POINTS.outlets[merged.outlets] * W.outlets +
-    SCORE_POINTS.noise[merged.noise]     * W.noise +
-    SCORE_POINTS.laptop[merged.laptop]   * W.laptop +
-    SCORE_POINTS.seating[merged.seating] * W.seating;
-  const blended = cafe.google_rating ? raw * 0.75 + cafe.google_rating * 0.25 : raw;
-  return Math.round(blended * 10) / 10;
-}
-
-// --- embedding text (mirrors analyze-reviews-llm.mjs embedCafe, but MERGED tags) ---
-function embedText(cafe, merged, reviews) {
-  // Slice by code points, not UTF-16 units — see the same guard in
-  // analyze-reviews-llm.mjs: a half-sliced emoji is invalid UTF-8 and Voyage
-  // 400s on it, which silently drops the cafe from the re-embed.
-  const corpusSnippet = Array.from((reviews ?? []).slice(0, 5).join(" ")).slice(0, 800).join("");
-  // Omit punted attributes — see the same filter in analyze-reviews-llm.mjs.
-  // "wifi=unknown" in the embedding clusters cafes by what we failed to learn.
-  const tagSummary = ATTRS
-    .filter(([, shortKey]) => merged[shortKey] && merged[shortKey] !== "unknown")
-    .map(([dbKey, shortKey]) => `${dbKey}=${merged[shortKey]}`).join(", ");
-  return [
-    cafe.name,
-    cafe.neighborhood,
-    cafe.address,
-    (cafe.vibe_keywords ?? []).join(", "),
-    tagSummary,
-    corpusSnippet,
-  ].filter(Boolean).join(" — ");
-}
+// Merge, score and embedding text come from scripts/_shared.mjs, which is
+// tested against src/lib/score.ts so the stored score matches the card.
 
 async function embed(text) {
   const res = await voyage.embed({ input: text, model: "voyage-3", inputType: "document" });

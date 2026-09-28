@@ -4,7 +4,7 @@
  * (LLM-first, regex fallback) so the persisted score matches what the
  * UI shows on the card, breakdown, and chips.
  *
- * Mirrors src/lib/score.ts:computeMergedScore exactly.
+ * Uses scripts/_shared.mjs, which is tested against src/lib/score.ts.
  *
  * Usage:
  *   node scripts/recompute-merged-scores.mjs           # live update
@@ -18,6 +18,7 @@ import { createClient } from "@supabase/supabase-js";
 import { writeFileSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { env } from "./_env.mjs";
+import { computeMergedScore } from "./_shared.mjs";
 
 if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (set them in the environment or .env.local)");
@@ -26,44 +27,6 @@ if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
 const DRY_RUN = process.argv.includes("--dry-run");
-
-const SCORE_POINTS = {
-  wifi:    { fast: 5, moderate: 3, slow: 1, none: 1, unknown: 2.5 },
-  outlets: { every_table: 5, most: 4, limited: 2, none: 1, unknown: 2.5 },
-  noise:   { quiet: 5, moderate: 3, loud: 1, unknown: 2.5 },
-  laptop:  { welcome: 5, limited: 2, not_allowed: 1, unknown: 2.5 },
-  seating: { ample: 5, adequate: 3, limited: 2, none: 1, unknown: 2.5 },
-};
-const W = { wifi: 0.25, outlets: 0.20, noise: 0.20, laptop: 0.15, seating: 0.20 };
-
-const ATTRS = [
-  ["wifi_quality",        "wifi"],
-  ["outlet_availability", "outlets"],
-  ["noise_level",         "noise"],
-  ["laptop_policy",       "laptop"],
-  ["seating_availability","seating"],
-];
-
-function merge(cafe, dbKey) {
-  const llm = cafe[`${dbKey}_llm`];
-  const regex = cafe[dbKey] ?? "unknown";
-  return (llm && llm !== "unknown") ? llm : regex;
-}
-
-function computeMergedScore(cafe) {
-  const vals = {};
-  for (const [dbKey, shortKey] of ATTRS) vals[shortKey] = merge(cafe, dbKey);
-  const allUnknown = Object.values(vals).every(v => v === "unknown");
-  if (allUnknown && cafe.productivity_score == null) return null;
-  const raw =
-    SCORE_POINTS.wifi[vals.wifi]       * W.wifi +
-    SCORE_POINTS.outlets[vals.outlets] * W.outlets +
-    SCORE_POINTS.noise[vals.noise]     * W.noise +
-    SCORE_POINTS.laptop[vals.laptop]   * W.laptop +
-    SCORE_POINTS.seating[vals.seating] * W.seating;
-  const blended = cafe.google_rating ? raw * 0.75 + cafe.google_rating * 0.25 : raw;
-  return Math.round(blended * 10) / 10;
-}
 
 console.log(`🧮 Recomputing productivity_score from Strategy C merged values`);
 console.log(`   Mode: ${DRY_RUN ? "DRY RUN — preview only" : "LIVE — writing to DB"}\n`);

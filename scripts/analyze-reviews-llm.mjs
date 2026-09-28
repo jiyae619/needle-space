@@ -21,11 +21,18 @@
  * Topology:
  *   START
  *     → fetchReviewCorpus       (Supabase: cafe_reviews.text — see NOTE below)
+ *         └─ read failed → END  (never tag from an empty corpus: that would
+ *                                 overwrite good tags with "unknown")
  *     → extractAttributes       (LLM: 5 enums + confidence; sees reviews + v2 web research)
  *     → validate                (Zod + confidence >= 0.5)
  *         ├─ ok        → extractEvidenceQuotes → embedCafe → writeToSupabase → END
- *         ├─ retry     → retryNode → extractAttributes  (max 2; last error fed back into the prompt)
+ *         ├─ retry     → retryNode → extractAttributes  (max 2; a schema error is fed back
+ *         │                                              into the prompt, an API error backs off)
  *         └─ exhausted → failValidation → END  (records an error so the run summary counts the cafe)
+ *
+ * Evidence quotes are grounded: each must appear in the reviews / Reddit text
+ * it claims to quote (scripts/_shared.mjs groundQuotes), or it is dropped
+ * before it can be shown on a card as a reviewer's words.
  *
  * Evidence-quote extraction runs AFTER validation so quotes are produced once,
  * only for tags that cleared the confidence floor — not for values a retry is
@@ -60,7 +67,7 @@
  *   node scripts/analyze-reviews-llm.mjs                                ← live, untagged + stale
  *
  * Optional flags:
- *   --mock               ← skip Anthropic calls, use Day-2 hardcoded JSON
+ *   --mock               ← skip Gemini calls, use Day-2 hardcoded JSON
  *   --force-retry-once   ← (mock only) first call returns invalid data
  *                          to exercise the retry edge end-to-end
  *   --delay-ms 0         ← disable pacing (paid Voyage tier only; default paces for free tier)
@@ -72,6 +79,7 @@ import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
 import { z } from "zod";
 import { GoogleGenAI, FunctionCallingConfigMode } from "@google/genai";
 import { env } from "./_env.mjs";
+import { groundQuotes } from "./_shared.mjs";
 
 // ---------------------------------------------------------------------------
 // env
@@ -106,6 +114,9 @@ const DELAY_MS         = typeof flag("--delay-ms") === "string" ? parseInt(flag(
 // Skip cafes already tagged AND whose evidence has not moved since. --force re-tags everything.
 const FORCE_RETAG      = !!flag("--force");
 const MAX_RETRIES      = 2;
+// Backoff before retrying after an API failure (429 / 5xx / network). Retrying
+// a rate limit immediately just spends the retry budget on a second 429.
+const API_RETRY_BASE_MS = 15000;
 
 // ---------------------------------------------------------------------------
 // Validation schema (the contract Day 3's real LLM call must return)
@@ -219,6 +230,9 @@ const State = Annotation.Root({
   evidenceQuotes:   Annotation(),         // { [attr]: string[] }
   validatedTags:    Annotation(),         // Zod-parsed object (after validate)
   validationError:  Annotation({ default: () => null }),
+  apiError:         Annotation({ default: () => null }),  // last LLM call failed (not a schema problem)
+  reviewsLoaded:    Annotation({ default: () => false }),
+  quotesDropped:    Annotation({ default: () => 0 }),
   lastError:        Annotation({ default: () => null }),  // prior validation error, fed into the retry prompt
   retryCount:       Annotation({ default: () => 0, reducer: (_, n) => n }),
   embedding:        Annotation(),
@@ -241,7 +255,7 @@ async function fetchReviewCorpus(state) {
     .eq("google_place_id", cafe.google_place_id);
   if (error) return { errors: [`fetch_review_corpus: ${error.message}`] };
   const reviews = (data ?? []).map(r => r.text).filter(Boolean);
-  return { reviews };
+  return { reviews, reviewsLoaded: true };
 }
 
 function buildReviewBlock(reviews) {
@@ -328,7 +342,7 @@ async function callGeminiWithTool(systemPrompt, userText, tool) {
   return { input: call.args, usage: response.usageMetadata };
 }
 
-// Day 3: real Haiku call with forced tool-use. Falls back to mocked JSON
+// Gemini call with forced function calling. Falls back to mocked JSON
 // when --mock is set (useful for offline graph debugging without API spend).
 async function extractAttributes(state) {
   const { cafe, reviews, retryCount, lastError } = state;
@@ -359,7 +373,7 @@ async function extractAttributes(state) {
   // On a retry, tell the model exactly why the last attempt was rejected so it
   // can self-correct — otherwise a temperature-0 re-run just reproduces the
   // same invalid output.
-  if (retryCount > 0 && lastError) {
+  if (retryCount > 0 && lastError && !state.apiError) {
     parts.push(
       "",
       `CORRECTION: your previous attempt failed schema validation — ${lastError}. Return only values from the allowed enums for every attribute.`,
@@ -372,9 +386,12 @@ async function extractAttributes(state) {
     if (usage) {
       console.log(`     · Gemini tokens: in=${usage.promptTokenCount ?? "?"} out=${usage.candidatesTokenCount ?? "?"}`);
     }
-    return { rawAttributes: input };
+    return { rawAttributes: input, apiError: null };
   } catch (e) {
-    return { errors: [`extract_attributes: ${e.message}`] };
+    // Clear rawAttributes so validate cannot re-check a previous attempt's
+    // output, and mark this as an API failure so the retry backs off instead
+    // of telling the model its (non-existent) answer broke the schema.
+    return { rawAttributes: null, apiError: e.message, errors: [`extract_attributes: ${e.message}`] };
   }
 }
 
@@ -410,7 +427,13 @@ async function extractEvidenceQuotes(state) {
 
   try {
     const { input } = await callGeminiWithTool(SYSTEM_PROMPT_QUOTES, userText, QUOTES_TOOL);
-    return { evidenceQuotes: input };
+    const sources = [...(reviews ?? []), ...(cafe?.web_research_snippets?.results ?? []).map(r => r?.snippet ?? "")];
+    const { kept, dropped } = groundQuotes(input, sources);
+    if (dropped.length) {
+      console.log(`     ✂️  dropped ${dropped.length} quote(s) not found in the sources: ` +
+        dropped.map(d => `${d.attr}: "${String(d.quote).slice(0, 60)}"`).join("; "));
+    }
+    return { evidenceQuotes: kept, quotesDropped: dropped.length };
   } catch (e) {
     // Quotes are nice-to-have, not blocking. Fall back to empty arrays so the
     // pipeline still writes the tags + embedding.
@@ -425,6 +448,7 @@ async function extractEvidenceQuotes(state) {
 }
 
 async function validate(state) {
+  if (state.apiError) return { validationError: `LLM call failed: ${state.apiError}` };
   const parsed = TagsSchema.safeParse(state.rawAttributes);
   if (!parsed.success) {
     return { validationError: parsed.error.issues.map(i => i.message).join("; ") };
@@ -441,6 +465,11 @@ async function validate(state) {
 }
 
 async function retryNode(state) {
+  if (state.apiError) {
+    const wait = API_RETRY_BASE_MS * 2 ** state.retryCount;
+    console.log(`     ⏳ LLM call failed; retrying in ${Math.round(wait / 1000)}s`);
+    await new Promise(r => setTimeout(r, wait));
+  }
   // Preserve the error so extractAttributes can feed it back into the prompt;
   // clear validationError so the re-run's validate starts from a clean slate.
   return {
@@ -587,7 +616,8 @@ function buildGraph() {
     .addNode("embedCafe",             embedCafe)
     .addNode("writeToSupabase",       writeToSupabase)
     .addEdge(START,                       "fetchReviewCorpus")
-    .addEdge("fetchReviewCorpus",         "extractAttributes")
+    .addConditionalEdges("fetchReviewCorpus", (state) =>
+      state.reviewsLoaded ? "extractAttributes" : END)
     .addEdge("extractAttributes",         "validate")
     .addConditionalEdges("validate", (state) => {
       if (!state.validationError) return "extractEvidenceQuotes";
@@ -664,7 +694,7 @@ async function main() {
   console.log();
 
   const graph = buildGraph();
-  const counts = { written: 0, dryRunOk: 0, retried: 0, failed: 0 };
+  const counts = { written: 0, dryRunOk: 0, retried: 0, failed: 0, quotesDropped: 0 };
 
   let i = 0;
   for (const cafe of cafes) {
@@ -680,6 +710,7 @@ async function main() {
         const wrote = final.written || (DRY_RUN && final.validatedTags && final.embedding);
         console.log(`     ${wrote ? "⚠️ " : "❌"} ${final.errors.join(" | ")}`);
       }
+      counts.quotesDropped += final.quotesDropped ?? 0;
       if (final.retryCount > 0) {
         console.log(`     🔁 retried ${final.retryCount}× before validating`);
         counts.retried++;
@@ -708,6 +739,7 @@ async function main() {
   console.log(`Dry-run OK: ${counts.dryRunOk}`);
   console.log(`Retried:    ${counts.retried}  (also counted in Written/Dry-run OK)`);
   console.log(`Failed:     ${counts.failed}`);
+  console.log(`Quotes dropped (not found in sources): ${counts.quotesDropped}`);
   const accounted = counts.written + counts.dryRunOk + counts.failed;
   if (accounted !== cafes.length) {
     console.log(`⚠️  Unreconciled: ${cafes.length - accounted} cafe(s) neither written, dry-run-OK, nor failed — investigate.`);
