@@ -699,6 +699,31 @@ h1, h2, h3, .font-display {
   cursor: not-allowed;
 }
 
+/* Visit mode (/admin/visit) — phone-first, so tap targets are at least 44px. */
+.gs-visit-tap { min-height: 44px; }
+.gs-visit-chip {
+  min-height: 44px;
+  padding: 0.6rem 1rem;
+  font-size: 0.875rem;
+  border-color: var(--gs-rule);
+}
+.gs-visit-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  background: var(--gs-paper);
+  color: var(--gs-ink);
+}
+.gs-visit-badge[data-tone="good"]  { background: var(--gs-good-bg); color: var(--gs-good); }
+.gs-visit-badge[data-tone="warn"]  { background: var(--gs-warn-bg); color: var(--gs-warn); }
+.gs-visit-badge[data-tone="muted"] { background: transparent; color: var(--gs-kraft); border: 1px solid var(--gs-rule); }
+
 /* Utility — drives ScoreBreakdown labels and any kraft-toned secondary text
    that used to inline `style={{ color: 'var(--gs-kraft)' }}`. */
 .gs-kraft { color: var(--gs-kraft); }

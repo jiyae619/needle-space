@@ -132,6 +132,17 @@ Total monthly AI cost stays under $1 even at 100K queries.
 
 It is stateless: no sessions or streams, one JSON reply per request. That fits serverless hosting. Agent searches go to `nl_query_log` with `filters.source = "mcp"`.
 
+### Visit mode: update a cafe from your phone
+
+`/admin/visit` is for recording what you see while you're in a cafe. It uses the same `ADMIN_PASSWORD` as `/admin`. Open it on your phone and add it to your home screen.
+
+1. Tap **Find cafes near me**, or search by name. **Needs a visit** lists the unscored cafes first, then the ones that aren't verified yet.
+2. Tap the cafe's WiFi, outlets, noise, laptop policy and seating. Each tap saves straight away as a human label, which overrides the AI tags. The site's current tag is shown as a hint rather than pre-selected, so each tap is a real observation. The labels are also the answer key for `scripts/evaluate-accuracy.mjs`.
+3. Optionally add a note (shown on the cafe page) and photos. The phone shrinks each photo to 1600 px and removes its location data before uploading it to Storage under `cafe-photos/visits/<cafe id>/`. **Use it as the cafe's main photo** replaces the Google photo, and `curate-photos.mjs` won't swap it back.
+4. Tap **I was here** to stamp the visit date and mark the cafe verified. Tap **Not a work spot — hide it** for places like gas stations; hidden cafes drop out of every list, the search and the MCP server, and can be shown again from the same screen.
+
+Tags and notes appear on the site immediately. The productivity score and search index catch up on the next daily pipeline run.
+
 ## Tech Stack
 
 - Next.js (App Router)

@@ -29,6 +29,8 @@ export default async function CafeDetailPage({
     cafe.name + " " + cafe.address
   )}&query_place_id=${cafe.google_place_id}`;
   const photo = safePhotoUrl(cafe.photo_url);
+  // The main photo is already the hero; don't show it twice. Newest first.
+  const visitPhotos = [...(cafe.visit_photos ?? [])].reverse().filter(url => url !== photo);
 
   return (
     <article className="max-w-3xl mx-auto px-4 py-4 pb-16">
@@ -87,6 +89,30 @@ export default async function CafeDetailPage({
       <section className="gs-detail-section">
         <ScoreBreakdown cafe={cafe} />
       </section>
+
+      {/* What was recorded in person via /admin/visit. */}
+      {(cafe.visit_note || visitPhotos.length > 0) && (
+        <section className="gs-detail-section">
+          <h2 className="gs-detail-heading">From a visit</h2>
+          {cafe.visited_at && (
+            <p className="text-xs gs-num mb-2" style={{ color: "var(--gs-kraft)" }}>
+              {new Date(cafe.visited_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+            </p>
+          )}
+          {cafe.visit_note && (
+            <p className="text-sm whitespace-pre-line" style={{ color: "var(--gs-ink)" }}>{cafe.visit_note}</p>
+          )}
+          {visitPhotos.length > 0 && (
+            <div className="flex gap-3 overflow-x-auto mt-4 -mx-4 px-4 pb-2 snap-x">
+              {visitPhotos.map(url => (
+                <div key={url} className="relative w-56 aspect-[4/3] shrink-0 rounded overflow-hidden snap-start bg-[var(--gs-paper)]">
+                  <Image src={url} alt={`At ${cafe.name}`} fill sizes="224px" className="object-cover" unoptimized />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Location & Info — borderless editorial section with horizontal rule. */}
       <section className="gs-detail-section">
