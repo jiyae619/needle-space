@@ -6,9 +6,15 @@
  * query it embeds the text (Voyage-3, same model/inputType as the live
  * /api/search route), calls the match_cafes RPC with no filters, and checks
  * where the expected cafes landed. Reports:
- *   - Recall@k   (% of queries with at least one expected cafe in the top k)
+ *   - Hit@k      (% of queries with at least one expected cafe in the top k;
+ *                 this was labelled "Recall@k" before, which overstated it)
+ *   - Recall@k   (share of each query's expected cafes found in the top k, averaged)
+ *   - nDCG@k     (rewards expected cafes ranked higher; 1.0 = all of them at the top)
  *   - MRR        (mean reciprocal rank of the first expected hit; 1.0 = always #1)
  *   - zero-result rate
+ *
+ * A query may list `expected_ids` (cafe UUIDs) instead of, or as well as,
+ * `expected` names. IDs are unambiguous; prefer them for new labels.
  *
  * Queries with an empty `expected` list run in TRIAGE mode instead: their
  * top-5 results are printed so you can eyeball them and fill in `expected`.
@@ -47,6 +53,7 @@ const argv = process.argv.slice(2);
 const JSON_OUT = argv.includes("--json");
 const kIdx = argv.indexOf("--k");
 const K = kIdx !== -1 ? parseInt(argv[kIdx + 1], 10) : 10;
+if (!Number.isInteger(K) || K < 1) { console.error("--k must be a positive integer"); process.exit(2); }
 // Route each query through the running app rather than calling match_cafes
 // directly, so the eval sees what a user sees. See searchViaApi below.
 const VIA_API   = argv.includes("--via-api");
@@ -61,8 +68,19 @@ const API_DELAY_MS = parseInt(flagVal("--api-delay-ms", "21000"), 10);
 const golden = JSON.parse(
   readFileSync(resolve(process.cwd(), "scripts/golden-queries.json"), "utf-8"),
 ).queries;
-const labeled = golden.filter(q => q.expected?.length > 0);
-const triage  = golden.filter(q => !q.expected?.length);
+const expectedCount = (q) => (q.expected?.length ?? 0) + (q.expected_ids?.length ?? 0);
+const labeled = golden.filter(q => expectedCount(q) > 0);
+const triage  = golden.filter(q => expectedCount(q) === 0);
+
+// Each expected entry (a name or an id) is one relevant item. Returns the
+// index of the entry a result satisfies, or -1.
+function matchExpected(result, q) {
+  const ids = q.expected_ids ?? [];
+  const byId = ids.indexOf(result.id);
+  if (byId !== -1) return byId;
+  const byName = (q.expected ?? []).findIndex(exp => nameMatches(result, exp));
+  return byName === -1 ? -1 : ids.length + byName;
+}
 
 // ---------------------------------------------------------------------------
 // embed all queries in one batched Voyage call (mirrors src/lib/embeddings.ts:
@@ -118,7 +136,9 @@ const nameMatches = (result, expectedName) => {
 async function searchViaApi(query) {
   const res = await fetch(`${API_BASE}/api/search`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    // x-needle-eval keeps these queries out of nl_query_log, which the golden
+    // set is grown from.
+    headers: { "Content-Type": "application/json", "x-needle-eval": "1" },
     body: JSON.stringify({ query }),
   });
   if (!res.ok) throw new Error(`${API_BASE} returned ${res.status}: ${(await res.text()).slice(0, 160)}`);
@@ -131,7 +151,7 @@ async function searchViaApi(query) {
       (json.semantic_fallback_reason ? ` ("${json.semantic_fallback_reason}")` : "") +
       ` — increase --api-delay-ms if this is Voyage rate limiting.`);
   }
-  return (json.cafes ?? []).map(c => ({ name: c.name, neighborhood: c.neighborhood }));
+  return (json.cafes ?? []).map(c => ({ id: c.id, name: c.name, neighborhood: c.neighborhood }));
 }
 
 async function run() {
@@ -146,7 +166,7 @@ async function run() {
   if (namesErr) { console.error("Supabase error:", namesErr.message); process.exit(1); }
   const dbNames = (allCafes ?? []);
   for (const q of labeled) {
-    for (const exp of q.expected) {
+    for (const exp of q.expected ?? []) {
       if (!dbNames.some(n => nameMatches(n, exp))) {
         console.warn(`⚠ expected "${exp}" (query: "${q.query}") matches no cafe name in the DB`);
       }
@@ -169,21 +189,31 @@ async function run() {
         p_laptop_in: null, p_seating_in: null, p_verified_only: false,
       });
       if (error) { console.error(`match_cafes failed for "${q.query}": ${error.message}`); process.exit(1); }
-      names = (data ?? []).map(r => ({ name: r.name, neighborhood: r.neighborhood }));
+      names = (data ?? []).map(r => ({ id: r.id, name: r.name, neighborhood: r.neighborhood }));
     }
 
-    if (!q.expected?.length) {
+    if (expectedCount(q) === 0) {
       results.push({ query: q.query, mode: "triage", top: names.slice(0, 5).map(n => n.name) });
       continue;
     }
-    // Rank of the first result that matches ANY expected name (1-based).
-    let rank = null;
-    for (let r = 0; r < names.length; r++) {
-      if (q.expected.some(exp => nameMatches(names[r], exp))) { rank = r + 1; break; }
-    }
+    // Walk the ranking once: first-hit rank, distinct expected items found,
+    // and DCG with binary relevance (each expected item counts once).
+    let rank = null, dcg = 0;
+    const found = new Set();
+    names.forEach((n, r) => {
+      const e = matchExpected(n, q);
+      if (e === -1 || found.has(e)) return;
+      found.add(e);
+      if (rank === null) rank = r + 1;
+      dcg += 1 / Math.log2(r + 2);
+    });
+    const total = expectedCount(q);
+    let idcg = 0;
+    for (let r = 0; r < Math.min(total, K); r++) idcg += 1 / Math.log2(r + 2);
     results.push({
-      query: q.query, mode: "labeled", expected: q.expected,
+      query: q.query, mode: "labeled", expected: [...(q.expected ?? []), ...(q.expected_ids ?? [])],
       rank, hit: rank !== null, zeroResults: names.length === 0,
+      recall: found.size / total, ndcg: idcg ? dcg / idcg : 0,
       top: names.slice(0, 5).map(n => n.name),
     });
   }
@@ -193,7 +223,9 @@ async function run() {
     k: K,
     labeled_queries: scored.length,
     triage_queries: results.length - scored.length,
-    recall_at_k: scored.length ? scored.filter(r => r.hit).length / scored.length : null,
+    hit_at_k: scored.length ? scored.filter(r => r.hit).length / scored.length : null,
+    recall_at_k: scored.length ? scored.reduce((s, r) => s + r.recall, 0) / scored.length : null,
+    ndcg_at_k: scored.length ? scored.reduce((s, r) => s + r.ndcg, 0) / scored.length : null,
     mrr: scored.length ? scored.reduce((s, r) => s + (r.rank ? 1 / r.rank : 0), 0) / scored.length : null,
     zero_result_rate: scored.length ? scored.filter(r => r.zeroResults).length / scored.length : null,
   };
@@ -202,11 +234,12 @@ async function run() {
 
   if (scored.length) {
     console.log(`\n# Retrieval eval — ${scored.length} labeled queries, k=${K}\n`);
-    console.log(`Recall@${K}: ${(summary.recall_at_k * 100).toFixed(1)}%   MRR: ${summary.mrr.toFixed(3)}   zero-result: ${(summary.zero_result_rate * 100).toFixed(1)}%\n`);
-    console.log("| # | query | first hit rank | top result |");
-    console.log("|---|---|---:|---|");
+    console.log(`Hit@${K}: ${(summary.hit_at_k * 100).toFixed(1)}%   Recall@${K}: ${(summary.recall_at_k * 100).toFixed(1)}%   ` +
+      `nDCG@${K}: ${summary.ndcg_at_k.toFixed(3)}   MRR: ${summary.mrr.toFixed(3)}   zero-result: ${(summary.zero_result_rate * 100).toFixed(1)}%\n`);
+    console.log("| # | query | first hit rank | recall | nDCG | top result |");
+    console.log("|---|---|---:|---:|---:|---|");
     scored.forEach((r, i) => {
-      console.log(`| ${i + 1} | ${r.query} | ${r.rank ?? "MISS"} | ${r.top[0] ?? "(none)"} |`);
+      console.log(`| ${i + 1} | ${r.query} | ${r.rank ?? "MISS"} | ${(r.recall * 100).toFixed(0)}% | ${r.ndcg.toFixed(2)} | ${r.top[0] ?? "(none)"} |`);
     });
   } else {
     console.log("\nNo labeled queries yet — every entry in golden-queries.json has an empty `expected`.");

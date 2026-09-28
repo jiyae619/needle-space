@@ -151,7 +151,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
 
     let cancelled = false;
     setIsSearching(true);
-    searchCafes(searchQuery, filters).then(({ cafes, error, semantic_fallback_reason, semantic_used }) => {
+    searchCafes(searchQuery, filters).then(({ cafes, error, semantic_fallback_reason, semantic_fallback_code, semantic_used }) => {
       if (cancelled) return;
       if (error) {
         console.error("[search] fallback to in-memory:", error);
@@ -164,7 +164,9 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
         // Only flag the fallback when the user actually typed a query — a
         // filter-only request legitimately doesn't need semantic search.
         if (searchQuery.trim() && !semantic_used && semantic_fallback_reason) {
-          setSemanticFallback(semantic_fallback_reason);
+          setSemanticFallback(semantic_fallback_code === "client_rate_limit"
+            ? "You're searching quickly, so smart search is paused for a minute. Showing top-rated cafes for your place and filters."
+            : "Smart search is busy — showing top-rated cafes for your place and filters instead.");
         } else {
           setSemanticFallback(null);
         }
@@ -266,7 +268,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
           className="px-4 mb-1 text-[11px] tracking-wide"
           style={{ color: "var(--gs-kraft)" }}
         >
-          {searchError ?? "Smart search is busy — showing top-rated cafes for your place and filters instead."}
+          {searchError ?? semanticFallback}
         </p>
       )}
 

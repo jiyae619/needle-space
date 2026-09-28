@@ -28,7 +28,8 @@ import { env } from "./_env.mjs";
 // ---------------------------------------------------------------------------
 // Load env
 // ---------------------------------------------------------------------------
-const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY; // server key first; API_KEY is the browser Maps key (referrer-locked, 403s from Node)
+const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY;
+if (!GOOGLE_KEY) { console.error("GOOGLE_PLACES_SERVER_KEY is not set (environment or .env.local)."); process.exit(1); }
 const supabase   = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
 // ---------------------------------------------------------------------------

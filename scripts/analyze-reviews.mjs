@@ -11,7 +11,8 @@
  *
  * Usage:
  *   node scripts/analyze-reviews.mjs                        ← run all, write to Supabase
- *   node scripts/analyze-reviews.mjs --new-only            ← ONLY cafes with no stored reviews yet
+ *   node scripts/analyze-reviews.mjs --new-only            ← ONLY cafes with no stored reviews yet,
+ *                                                            skipping ones checked in the last 30 days
  *                                                            (skips the 2 paid Google calls/cafe for
  *                                                             cafes already fetched — run this after
  *                                                             fetch-cafes to keep the bill minimal)
@@ -35,7 +36,8 @@ import { env } from "./_env.mjs";
 // ---------------------------------------------------------------------------
 // Clients
 // ---------------------------------------------------------------------------
-const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY; // server key first; API_KEY is the browser Maps key (referrer-locked, 403s from Node)
+const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY;
+if (!GOOGLE_KEY) { console.error("GOOGLE_PLACES_SERVER_KEY is not set (environment or .env.local)."); process.exit(1); }
 const supabase   = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
 // ---------------------------------------------------------------------------
@@ -363,7 +365,11 @@ async function fetchGoogleData(placeId) {
       ].join(","),
     },
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    // Was silent: a rejected key looked exactly like "no reviews found".
+    console.warn(`    ⚠️  Places API (New) returned HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 160)}`);
+    return null;
+  }
   const data = await res.json();
 
   const reviewTexts = (data.reviews || []).map(r => r.text?.text || "").filter(Boolean);
@@ -404,6 +410,13 @@ async function fetchNewestReviews(placeId) {
   const res = await fetch(url.toString());
   if (!res.ok) return [];
   const data = await res.json();
+  // The legacy API reports a blocked key as HTTP 200 + status REQUEST_DENIED.
+  // Say so once instead of quietly returning no "newest" reviews forever.
+  if (data.status && !["OK", "ZERO_RESULTS", "NOT_FOUND"].includes(data.status) && !fetchNewestReviews.warned) {
+    fetchNewestReviews.warned = true;
+    console.warn(`   ⚠️  Legacy Places API returned ${data.status}${data.error_message ? `: ${data.error_message}` : ""}. ` +
+      `Newest reviews are skipped. Allow "Places API" (legacy) on GOOGLE_PLACES_SERVER_KEY in Google Cloud.`);
+  }
 
   return (data.result?.reviews || []).map(r => ({
     author_name: r.author_name || null,
@@ -473,16 +486,20 @@ async function main() {
   console.log(`   Sources: Places API v1 (relevant) + Legacy API (newest) + stored corpus`);
   console.log();
 
-  let query = supabase
-    .from("cafes")
-    .select("id, name, address, google_place_id, lat, lng, google_rating")
-    .order("name");
-
-  if (FILTER_CAFE) {
-    query = query.ilike("name", `%${FILTER_CAFE}%`);
+  const baseCols = "id, name, address, google_place_id, lat, lng, google_rating";
+  const load = (cols) => {
+    let q = supabase.from("cafes").select(cols).order("name");
+    if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
+    return q;
+  };
+  // reviews_checked_at comes from supabase/migrations/20260928010000_reviews_checked_marker.sql.
+  // Before that is applied, run as before (and say so) rather than fail.
+  let { data: loadedCafes, error } = await load(`${baseCols}, reviews_checked_at`);
+  const HAS_MARKER = !error;
+  if (!HAS_MARKER) {
+    console.warn("   ⚠️  cafes.reviews_checked_at missing — apply 20260928010000_reviews_checked_marker.sql. Checked cafes will be re-fetched.");
+    ({ data: loadedCafes, error } = await load(baseCols));
   }
-
-  const { data: loadedCafes, error } = await query;
   if (error) { console.error("❌ Supabase error:", error.message); process.exit(1); }
   if (loadedCafes.length === 0) { console.log("No cafes found matching that filter."); return; }
 
@@ -491,7 +508,13 @@ async function main() {
     const have = await placesWithStoredReviews();
     const before = cafes.length;
     cafes = cafes.filter(c => !have.has(c.google_place_id));
-    console.log(`   --new-only: ${before - cafes.length} cafes already have stored reviews (skipped, no Google calls), ${cafes.length} to fetch.`);
+    const withReviews = before - cafes.length;
+    // Cafes Google had nothing usable for: wait 30 days before asking again.
+    const RECHECK_MS = 30 * 24 * 60 * 60 * 1000;
+    const recent = (c) => c.reviews_checked_at && Date.now() - new Date(c.reviews_checked_at).getTime() < RECHECK_MS;
+    const recentlyChecked = cafes.filter(recent).length;
+    cafes = cafes.filter(c => !recent(c));
+    console.log(`   --new-only: ${withReviews} cafes already have stored reviews, ${recentlyChecked} were checked in the last 30 days (both skipped, no Google calls), ${cafes.length} to fetch.`);
     if (cafes.length === 0) { console.log("\nNothing new to analyze. Done."); return; }
   }
 
@@ -507,6 +530,14 @@ async function main() {
       fetchGoogleData(cafe.google_place_id),
       fetchNewestReviews(cafe.google_place_id),
     ]);
+
+    // Record the check only when Google actually answered, so a key or quota
+    // problem never makes a cafe look "done".
+    if (HAS_MARKER && googleResult && !DRY_RUN) {
+      const { error: markErr } = await supabase.from("cafes")
+        .update({ reviews_checked_at: new Date().toISOString() }).eq("id", cafe.id);
+      if (markErr) console.warn(`    ⚠️  could not record reviews_checked_at: ${markErr.message}`);
+    }
 
     const relevantReviews = googleResult?.rawReviews || [];
     const summaryTexts = googleResult?.summaryTexts || [];

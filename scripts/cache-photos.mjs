@@ -32,7 +32,7 @@ import { env } from "./_env.mjs";
 
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 const BUCKET   = "cafe-photos";
-const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY;
+const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY;
 
 // ---- CLI ------------------------------------------------------------------
 const argv = process.argv.slice(2);
@@ -99,7 +99,7 @@ async function downloadPhoto(url) {
 // whose photo token has expired, so refresh it from the stable Place ID before
 // giving up on the photo.
 async function freshPhotoUrl(googlePlaceId) {
-  if (!GOOGLE_KEY) throw new Error("missing Google Places key to refresh photo reference");
+  if (!GOOGLE_KEY) throw new Error("GOOGLE_PLACES_SERVER_KEY is not set (needed to refresh the photo reference)");
   const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(googlePlaceId)}`, {
     headers: {
       "X-Goog-Api-Key": GOOGLE_KEY,
@@ -113,9 +113,17 @@ async function freshPhotoUrl(googlePlaceId) {
   return `https://places.googleapis.com/v1/${name}/media?maxHeightPx=400&key=${encodeURIComponent(GOOGLE_KEY)}`;
 }
 
+// Stored Places URLs carry no key (the table is public); add it only for the
+// request itself.
+function withKey(url) {
+  if (!isGooglePhoto(url) || /[?&]key=/.test(url)) return url;
+  if (!GOOGLE_KEY) throw new Error("GOOGLE_PLACES_SERVER_KEY is not set (needed to download the photo)");
+  return `${url}${url.includes("?") ? "&" : "?"}key=${encodeURIComponent(GOOGLE_KEY)}`;
+}
+
 async function downloadWithFreshReference(cafe) {
   try {
-    const result = await downloadPhoto(cafe.photo_url);
+    const result = await downloadPhoto(withKey(cafe.photo_url));
     return { ...result, refreshed: false };
   } catch (error) {
     // A 400 from Places means the embedded photo resource name is stale, not

@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
+import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { embedQuery } from "@/lib/embeddings";
+import { embedQuery, isQueryCached } from "@/lib/embeddings";
 import { extractLocation } from "@/lib/query-location";
 import { buildRpcArgs, resolveNeighborhoods, applyPostFilters } from "@/lib/search-filters";
 import { CAFE_COLUMNS, withoutKeyedPhoto, type Filters, type Cafe } from "@/lib/types";
@@ -23,18 +24,53 @@ const TOP_K = 30;
 const SEMANTIC_POOL = 100;
 // Every character is sent to Voyage; bound the cost of one request.
 const MAX_QUERY_CHARS = 200;
+// Embeddings one client may spend per minute. A person refining a search
+// makes 2–4; the Voyage free tier allows 3 per minute for everyone combined,
+// so without this one visitor can push every other visitor into the fallback.
+const EMBEDS_PER_MINUTE = 8;
+// Optional cosine-similarity floor for semantic results. Off until real
+// top_similarity values in nl_query_log show where "no close match" begins.
+const MIN_SIMILARITY = Number(process.env.SEARCH_MIN_SIMILARITY);
+
+type FallbackCode = "client_rate_limit" | "provider_rate_limit" | "error";
+
+function clientBucket(req: Request): string {
+  const ip = req.headers.get("x-nf-client-connection-ip")
+    ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    ?? req.headers.get("x-real-ip")
+    ?? "unknown";
+  // Hash so raw IP addresses are never stored.
+  return "search:" + createHash("sha256").update(ip).digest("hex").slice(0, 16);
+}
+
+// Fails open: if the limiter itself errors (e.g. migration not applied yet),
+// search must keep working.
+async function mayEmbed(req: Request): Promise<boolean> {
+  const { data, error } = await supabase.rpc("rate_limit_hit", {
+    p_bucket: clientBucket(req), p_limit: EMBEDS_PER_MINUTE, p_window_seconds: 60,
+  });
+  return error ? true : data !== false;
+}
 
 // Attributes whose keyword-tagger answer is not trusted as a fallback —
 // see src/lib/merge-tags.ts. Must match the display merge, or a cafe can
 // lose its "Quiet" pill while still matching the quiet chip.
 const NO_REGEX_FALLBACK = new Set(["noise_level"]);
 
-// Strategy C merge as a PostgREST .or(): the LLM tag matches, OR the LLM
-// punted (null / "unknown") and the regex tag matches.
-function mergedFilter(col: string, vals: string[]) {
+// Strategy C merge as a PostgREST .or(), mirroring match_cafes: a human label
+// matches; or there is none and the LLM tag matches; or neither exists (LLM
+// null / "unknown") and the keyword tag matches.
+export function mergedFilter(col: string, vals: string[]) {
   const inList = vals.map(v => `"${v}"`).join(",");
-  if (NO_REGEX_FALLBACK.has(col)) return `${col}_llm.in.(${inList})`;
-  return `${col}_llm.in.(${inList}),and(${col}_llm.is.null,${col}.in.(${inList})),and(${col}_llm.eq.unknown,${col}.in.(${inList}))`;
+  const human = `human_labels->>${col}`;
+  const parts = [`${human}.in.(${inList})`, `and(${human}.is.null,${col}_llm.in.(${inList}))`];
+  if (!NO_REGEX_FALLBACK.has(col)) {
+    parts.push(
+      `and(${human}.is.null,${col}_llm.is.null,${col}.in.(${inList}))`,
+      `and(${human}.is.null,${col}_llm.eq.unknown,${col}.in.(${inList}))`,
+    );
+  }
+  return parts.join(",");
 }
 
 export async function POST(req: Request) {
@@ -55,10 +91,15 @@ export async function POST(req: Request) {
   let cafes: Cafe[] = [];
   let semanticUsed = false;
   let semanticFallbackReason: string | undefined;
+  let semanticFallbackCode: FallbackCode | undefined;
+  let topSimilarity: number | null = null;
 
   // A query that is only a place ("Ballard") has no intent left to embed;
   // it is answered exactly by the location filter, with no Voyage call.
-  if (loc.text) {
+  if (loc.text && !isQueryCached(loc.text) && !(await mayEmbed(req))) {
+    semanticFallbackCode = "client_rate_limit";
+    semanticFallbackReason = `more than ${EMBEDS_PER_MINUTE} searches a minute from this client; showing filter-only results`;
+  } else if (loc.text) {
     try {
       const vector = await embedQuery(loc.text);
       const { data, error } = await supabase.rpc("match_cafes", {
@@ -69,7 +110,11 @@ export async function POST(req: Request) {
         p_neighborhood_in: neighborhoods,
       });
       if (error) throw new Error(error.message);
-      const ids: string[] = (data ?? []).map((r: { id: string }) => r.id);
+      const matches = (data ?? []) as { id: string; similarity: number }[];
+      topSimilarity = matches[0]?.similarity ?? null;
+      const ids = matches
+        .filter(m => !Number.isFinite(MIN_SIMILARITY) || m.similarity >= MIN_SIMILARITY)
+        .map(m => m.id);
 
       if (ids.length > 0) {
         const { data: rows, error: fetchErr } = await supabase
@@ -85,7 +130,9 @@ export async function POST(req: Request) {
       const msg = e instanceof Error ? e.message : String(e);
       // Voyage free tier = 3 RPM. On 429, degrade to filter-only ranking
       // so the UI keeps working; otherwise we'd 500 the whole search.
-      semanticFallbackReason = /429|rate limit/i.test(msg)
+      const limited = /429|rate limit/i.test(msg);
+      semanticFallbackCode = limited ? "provider_rate_limit" : "error";
+      semanticFallbackReason = limited
         ? "embedding rate-limited (free tier 3 RPM); showing filter-only results"
         : `embedding failed: ${msg.slice(0, 100)}`;
     }
@@ -114,13 +161,17 @@ export async function POST(req: Request) {
 
   // after() keeps the log write alive past the response on serverless hosts,
   // where an un-awaited promise can be frozen with the function.
-  if (query) {
+  // Eval runs mark themselves so they don't pollute the log that the golden
+  // query set is grown from.
+  if (query && req.headers.get("x-needle-eval") !== "1") {
     after(async () => {
       await supabase.from("nl_query_log").insert({
         query,
         filters,
         result_ids: cafes.map(c => c.id),
         latency_ms,
+        top_similarity: topSimilarity,
+        semantic_used: semanticUsed,
       });
     });
   }
@@ -130,5 +181,7 @@ export async function POST(req: Request) {
     latency_ms,
     semantic_used: semanticUsed,
     semantic_fallback_reason: semanticFallbackReason,
+    semantic_fallback_code: semanticFallbackCode,
+    top_similarity: topSimilarity,
   });
 }

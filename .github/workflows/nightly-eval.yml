@@ -1,0 +1,75 @@
+name: Nightly eval
+
+# Measures the live data every night and posts the numbers to the run summary:
+#   1. tag accuracy against human labels from /admin (scripts/evaluate-accuracy.mjs)
+#   2. search quality on the golden queries, twice:
+#      - direct: the vector index alone (one batched embedding call)
+#      - via the app: the production /api/search path, including place
+#        filtering, on a local build of this commit
+# It reports; it does not block anything. The pipeline's own quality gate is
+# what stops a bad tagging run (scripts/quality-metrics.mjs).
+
+on:
+  schedule:
+    - cron: "0 11 * * *"   # after the 09:00 data pipeline
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-eval
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tag accuracy vs human labels
+        run: |
+          mkdir -p eval-out
+          node scripts/evaluate-accuracy.mjs --json > eval-out/accuracy.json
+          node scripts/evaluate-accuracy.mjs --matrices | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Search quality — vector index only
+        run: |
+          node scripts/evaluate-retrieval.mjs --json > eval-out/retrieval-direct.json
+          { echo; echo "## Search — vector index only"; node scripts/evaluate-retrieval.mjs | sed -n '/^# Retrieval eval/,/^$/p;/^Hit@/p'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build the app
+        run: npm run build
+
+      # The route embeds one query per request and Voyage's free tier allows 3 a
+      # minute, so queries are paced 21s apart (~9 minutes for 24 queries).
+      # x-needle-eval keeps them out of nl_query_log.
+      - name: Search quality — production path
+        run: |
+          npx next start -p 3000 > next.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:3000/ && break; sleep 2; done
+          node scripts/evaluate-retrieval.mjs --via-api --api-base http://localhost:3000 --json > eval-out/retrieval-api.json
+          { echo; echo "## Search — production path"; node -e '
+            const r = require("./eval-out/retrieval-api.json").summary;
+            const p = (x) => x == null ? "—" : (x * 100).toFixed(1) + "%";
+            console.log(`Hit@${r.k} ${p(r.hit_at_k)} · Recall@${r.k} ${p(r.recall_at_k)} · nDCG@${r.k} ${r.ndcg_at_k?.toFixed(3)} · MRR ${r.mrr?.toFixed(3)} · ${r.labeled_queries} labeled queries`);'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eval-${{ github.run_id }}
+          path: eval-out/

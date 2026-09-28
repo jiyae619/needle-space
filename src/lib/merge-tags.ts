@@ -30,13 +30,40 @@ export type AttrKey =
 const DISTRUSTED_FALLBACK: ReadonlySet<AttrKey> = new Set<AttrKey>(["noise_level"]);
 
 /**
- * Strategy C merge — prefer the LLM column when it committed to a non-"unknown"
- * value, fall back to the keyword column otherwise, EXCEPT where that fallback
- * is distrusted (see above), in which case the answer is "unknown".
+ * Strategy C merge — a person's label from /admin wins; then the LLM column
+ * when it committed to a non-"unknown" value; then the keyword column, EXCEPT
+ * where that fallback is distrusted (see above), in which case "unknown".
  */
 export function mergeTag(cafe: Cafe, key: AttrKey): string {
+  const human = cafe.human_labels?.[key];
+  if (human && human !== "unknown") return human;
   const llm = cafe[`${key}_llm` as keyof Cafe] as string | null | undefined;
   if (llm && llm !== "unknown") return llm;
   if (DISTRUSTED_FALLBACK.has(key)) return "unknown";
   return (cafe[key] as string | null | undefined) ?? "unknown";
+}
+
+export type TagProvenance =
+  | { source: "human" }
+  | { source: "text"; confidence: number | null; quote: string | null }
+  | { source: "vision"; confidence: number | null; reason: string | null }
+  | { source: "keyword" }
+  | { source: "none" };
+
+/**
+ * Where the merged value for an attribute came from, for the "why this tag"
+ * line on the cafe page. Follows the same precedence as mergeTag.
+ */
+export function tagProvenance(cafe: Cafe, key: AttrKey): TagProvenance {
+  const human = cafe.human_labels?.[key];
+  if (human && human !== "unknown") return { source: "human" };
+  const llm = cafe[`${key}_llm` as keyof Cafe] as string | null | undefined;
+  if (llm && llm !== "unknown") {
+    const tc = cafe.tagging_confidence?.[key];
+    const confidence = typeof tc?.confidence === "number" ? tc.confidence : null;
+    if (tc?.source === "vision") return { source: "vision", confidence, reason: tc.reason ?? null };
+    return { source: "text", confidence, quote: tc?.evidence?.[0]?.trim() || null };
+  }
+  if (mergeTag(cafe, key) !== "unknown") return { source: "keyword" };
+  return { source: "none" };
 }

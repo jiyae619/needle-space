@@ -31,7 +31,18 @@ describe("scripts/_shared.mjs matches the app's merge and score", () => {
         cafe[key] = pick(vals.filter(v => v));
         cafe[`${key}_llm`] = pick(vals);
       }
+      if (i % 3 === 0) cafe.human_labels = { noise_level: pick(["quiet", "loud", null]), wifi_quality: pick(["fast", null]) };
       expect(scriptScore(cafe)).toBe(appScore(cafe));
+    }
+  });
+
+  it("lets a human label win over both taggers, in the app and the scripts", () => {
+    for (const [key, vals] of Object.entries(VALUES)) {
+      for (const human of vals) {
+        const cafe = { [key]: vals[0], [`${key}_llm`]: vals[1], human_labels: human ? { [key]: human } : null };
+        expect(mergeVal(cafe, key)).toBe(mergeTag(cafe, key));
+        if (human && human !== "unknown") expect(mergeVal(cafe, key)).toBe(human);
+      }
     }
   });
 

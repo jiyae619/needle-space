@@ -38,6 +38,9 @@ export interface Cafe {
   seating_availability_llm?: Cafe["seating_availability"] | null;
   tagging_confidence?: TaggingConfidence | null;
   llm_tagged_at?: string | null;
+  // Values a person confirmed in /admin. Wins over *_llm and the keyword tags.
+  human_labels?: HumanLabels | null;
+  human_labeled_at?: string | null;
   // The 1024-dim embedding stays server-side; we don't normally ship it to the browser.
   cafe_embedding?: number[] | null;
 }
@@ -54,7 +57,7 @@ export const CAFE_COLUMNS = [
   "seating_availability", "productivity_score",
   "wifi_quality_llm", "outlet_availability_llm", "noise_level_llm",
   "laptop_policy_llm", "seating_availability_llm", "tagging_confidence",
-  "llm_tagged_at",
+  "llm_tagged_at", "human_labels", "human_labeled_at",
   "last_synced_at", "created_at",
 ].join(", ");
 
@@ -65,9 +68,19 @@ export function withoutKeyedPhoto<T extends { photo_url: string | null }>(cafe: 
   return cafe.photo_url?.includes("places.googleapis.com") ? { ...cafe, photo_url: null } : cafe;
 }
 
+export type HumanLabels = Partial<{
+  wifi_quality: Cafe["wifi_quality"];
+  outlet_availability: Cafe["outlet_availability"];
+  noise_level: Cafe["noise_level"];
+  laptop_policy: Cafe["laptop_policy"];
+  seating_availability: Cafe["seating_availability"];
+}>;
+
 export interface AttributeConfidence {
   confidence: number; // 0..1
-  evidence: string[]; // 1-2 short quotes from reviews
+  evidence: string[]; // 1-2 short quotes, checked against their source
+  source?: "text" | "vision";
+  reason?: string | null; // vision only: what the photo showed
 }
 
 export interface TaggingConfidence {

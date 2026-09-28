@@ -24,13 +24,13 @@
  *   npm run pipeline                             # research → LLM tag → vision → finalize (skips existing)
  *
  * Requirements:
- *   - .env.local: GOOGLE_PLACES_API_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *   - .env.local: GOOGLE_PLACES_SERVER_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 
 import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.mjs";
 
-const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY; // server key first; API_KEY is the browser Maps key (referrer-locked, 403s from Node)
+const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY;
 const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
 // Use service role key for writes — bypasses RLS, never used client-side
 const SUPABASE_SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
@@ -177,7 +177,10 @@ function buildHoursJson(openingHours) {
 function getPhotoUrl(photos) {
   if (!photos || photos.length === 0) return null;
   const ref = photos[0].name;
-  return `https://places.googleapis.com/v1/${ref}/media?maxHeightPx=400&key=${GOOGLE_KEY}`;
+  // No key in the stored URL: the cafes table is publicly readable.
+  // scripts/cache-photos.mjs adds the key at download time and swaps this for
+  // a Supabase Storage URL.
+  return `https://places.googleapis.com/v1/${ref}/media?maxHeightPx=400`;
 }
 
 async function processCafe(place, areaName) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mergeTag } from "./merge-tags";
+import { mergeTag, tagProvenance } from "./merge-tags";
 import type { Cafe } from "./types";
 
 const cafe = (attrs: Partial<Cafe>) => ({ id: "x", name: "Test", ...attrs }) as Cafe;
@@ -36,5 +36,31 @@ describe("mergeTag", () => {
 
   it("returns unknown when nothing has an answer", () => {
     expect(mergeTag(cafe({}), "laptop_policy")).toBe("unknown");
+  });
+});
+
+describe("tagProvenance", () => {
+  const base = { wifi_quality: "unknown", noise_level: "unknown" } as unknown as Cafe;
+
+  it("credits a person first", () => {
+    const c = { ...base, human_labels: { noise_level: "quiet" }, noise_level_llm: "loud" } as Cafe;
+    expect(tagProvenance(c, "noise_level")).toEqual({ source: "human" });
+  });
+
+  it("returns the review quote and confidence for a text tag", () => {
+    const c = { ...base, noise_level_llm: "quiet",
+      tagging_confidence: { noise_level: { confidence: 0.8, evidence: ["so quiet"], source: "text" } } } as Cafe;
+    expect(tagProvenance(c, "noise_level")).toEqual({ source: "text", confidence: 0.8, quote: "so quiet" });
+  });
+
+  it("returns the photo reason for a vision tag", () => {
+    const c = { ...base, seating_availability_llm: "ample",
+      tagging_confidence: { seating_availability: { confidence: 0.9, evidence: [], source: "vision", reason: "many tables" } } } as unknown as Cafe;
+    expect(tagProvenance(c, "seating_availability")).toEqual({ source: "vision", confidence: 0.9, reason: "many tables" });
+  });
+
+  it("names a keyword fallback, and none for distrusted noise", () => {
+    expect(tagProvenance({ ...base, wifi_quality: "fast" } as Cafe, "wifi_quality")).toEqual({ source: "keyword" });
+    expect(tagProvenance({ ...base, noise_level: "quiet" } as Cafe, "noise_level")).toEqual({ source: "none" });
   });
 });

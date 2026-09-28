@@ -4,22 +4,25 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Star, CheckCircle, ArrowRight, ArrowLeft } from "@phosphor-icons/react";
-import type { Cafe } from "@/lib/types";
+import type { Cafe, HumanLabels } from "@/lib/types";
 
-type AttrKey = "wifi_quality_llm" | "outlet_availability_llm" | "noise_level_llm" | "laptop_policy_llm";
+type AttrKey = keyof HumanLabels;
 
+// "Can't tell" clears the label; "unknown" is never stored as ground truth.
 const ATTR_OPTIONS: Record<AttrKey, readonly string[]> = {
-  wifi_quality_llm:        ["fast", "moderate", "slow", "none", "unknown"],
-  outlet_availability_llm: ["every_table", "most", "limited", "none", "unknown"],
-  noise_level_llm:         ["quiet", "moderate", "loud", "unknown"],
-  laptop_policy_llm:       ["welcome", "limited", "not_allowed", "unknown"],
+  wifi_quality:         ["fast", "moderate", "slow", "none"],
+  outlet_availability:  ["every_table", "most", "limited", "none"],
+  noise_level:          ["quiet", "moderate", "loud"],
+  laptop_policy:        ["welcome", "limited", "not_allowed"],
+  seating_availability: ["ample", "adequate", "limited", "none"],
 } as const;
 
 const ATTR_LABEL: Record<AttrKey, string> = {
-  wifi_quality_llm: "WiFi",
-  outlet_availability_llm: "Outlets",
-  noise_level_llm: "Noise",
-  laptop_policy_llm: "Laptops",
+  wifi_quality: "WiFi",
+  outlet_availability: "Outlets",
+  noise_level: "Noise",
+  laptop_policy: "Laptops",
+  seating_availability: "Seating",
 };
 
 function safePhotoUrl(url: string | null | undefined): string | null {
@@ -65,17 +68,16 @@ export default function AdminClient({ initialCafes }: { initialCafes: Cafe[] }) 
 
   const photo = safePhotoUrl(cafe.photo_url);
 
-  function currentValue(key: AttrKey): string {
-    return (cafe[key] ?? cafe[key.replace("_llm", "") as keyof Cafe] ?? "unknown") as string;
-  }
+  const labels: HumanLabels = cafe.human_labels ?? {};
+  const labeledCount = Object.keys(labels).length;
 
-  async function persist(updates: Record<string, unknown>) {
+  async function persist(updates: { labels?: Record<string, string | null>; verified?: boolean }) {
     setSaving(true);
     try {
       const res = await fetch("/api/admin/update-cafe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: cafe.id, updates }),
+        body: JSON.stringify({ id: cafe.id, ...updates }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { cafe: updated } = await res.json();
@@ -87,9 +89,9 @@ export default function AdminClient({ initialCafes }: { initialCafes: Cafe[] }) 
     }
   }
 
-  function setAttr(key: AttrKey, value: string) {
+  function setLabel(key: AttrKey, value: string | null) {
     if (saving) return;
-    persist({ [key]: value });
+    persist({ labels: { [key]: value } });
   }
 
   async function verifyAndNext() {
@@ -115,7 +117,7 @@ export default function AdminClient({ initialCafes }: { initialCafes: Cafe[] }) 
       <div className="flex items-center justify-between mb-6">
         <div>
           <p className="text-xs tracking-[0.25em] uppercase" style={{ color: "var(--gs-kraft)" }}>
-            Admin · Verify
+            Admin · Label
           </p>
           <p className="text-xs mt-0.5 gs-num" style={{ color: "var(--gs-kraft)" }}>
             {index + 1} of {total}
@@ -176,10 +178,16 @@ export default function AdminClient({ initialCafes }: { initialCafes: Cafe[] }) 
         </div>
       </div>
 
-      {/* Attribute editors */}
-      <div className="mt-10 space-y-6">
+      {/* Label editors. The model's answer stays hidden until you have
+          answered, so the label is your judgement, not a reaction to it. */}
+      <p className="mt-10 text-sm" style={{ color: "var(--gs-ink)" }}>
+        Answer from what you know of the cafe or its photos and reviews. Pick
+        &ldquo;Can&rsquo;t tell&rdquo; rather than guessing. {labeledCount} of 5 labeled.
+      </p>
+      <div className="mt-6 space-y-6">
         {(Object.keys(ATTR_OPTIONS) as AttrKey[]).map(key => {
-          const current = currentValue(key);
+          const current = labels[key] ?? null;
+          const model = (cafe[`${key}_llm` as keyof Cafe] as string | null | undefined) ?? "unknown";
           return (
             <fieldset key={key} className="border-0 p-0 m-0">
               <legend className="text-xs tracking-[0.22em] uppercase font-semibold mb-2" style={{ color: "var(--gs-kraft)" }}>
@@ -189,7 +197,7 @@ export default function AdminClient({ initialCafes }: { initialCafes: Cafe[] }) 
                 {ATTR_OPTIONS[key].map(opt => (
                   <button
                     key={opt}
-                    onClick={() => setAttr(key, opt)}
+                    onClick={() => setLabel(key, opt)}
                     disabled={saving}
                     aria-pressed={current === opt}
                     className={`gs-chip ${current === opt ? "gs-chip-active" : ""}`}
@@ -197,7 +205,19 @@ export default function AdminClient({ initialCafes }: { initialCafes: Cafe[] }) 
                     {opt.replace(/_/g, " ")}
                   </button>
                 ))}
+                <button
+                  onClick={() => setLabel(key, null)}
+                  disabled={saving || current === null}
+                  className="gs-chip disabled:opacity-40"
+                >
+                  Can&rsquo;t tell
+                </button>
               </div>
+              {current && (
+                <p className="text-xs mt-2 gs-num" style={{ color: model === current ? "var(--gs-good)" : "var(--gs-kraft)" }}>
+                  Model said: {model.replace(/_/g, " ")}{model === current ? " · agrees" : ""}
+                </p>
+              )}
             </fieldset>
           );
         })}
@@ -228,7 +248,9 @@ export default function AdminClient({ initialCafes }: { initialCafes: Cafe[] }) 
       </div>
 
       <p className="text-center text-xs mt-8" style={{ color: "var(--gs-kraft)" }}>
-        Changes save automatically as you tap. Admin route is unlinked from nav.
+        Labels save as you tap and show on the live site right away; scores and
+        search catch up after the next pipeline run. They are also the answer
+        key for the nightly eval.
       </p>
     </div>
   );

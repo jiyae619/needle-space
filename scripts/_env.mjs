@@ -32,3 +32,9 @@ const fromProcess = Object.fromEntries(
 );
 
 export const env = { ...parseEnvFile(resolve(process.cwd(), ".env.local")), ...fromProcess };
+
+// Google Places: the scripts read GOOGLE_PLACES_SERVER_KEY only.
+// GOOGLE_PLACES_API_KEY is deprecated and ignored; rename it rather than keep both.
+if (env.GOOGLE_PLACES_API_KEY && !env.GOOGLE_PLACES_SERVER_KEY) {
+  console.warn("⚠️  GOOGLE_PLACES_API_KEY is deprecated and ignored. Rename it to GOOGLE_PLACES_SERVER_KEY.");
+}
