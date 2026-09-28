@@ -21,7 +21,7 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
 - **Styling:** Tailwind CSS
 - **Hosting:** Netlify. Deploys are triggered by hand after merging to `main`.
 - **Automation:** GitHub Actions: daily data pipeline, nightly eval, lint + typecheck + tests on every PR
-- **Cost target:** $0/month using free tiers + Google Cloud $200 monthly credit
+- **Cost target:** $0/month using free tiers. Google Maps Platform has no $200 credit any more (since March 2025); each Places request type has its own free monthly allowance instead (e.g. 1,000 for "Place Details Enterprise + Atmosphere", which covers reviews and review summaries). Keep batch jobs inside those allowances.
 
 ## Scope
 ### Shipped
@@ -55,7 +55,8 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
   The merge exists in `src/lib/merge-tags.ts`, `scripts/_shared.mjs` and `match_cafes()` in SQL. Keep all three identical; `scripts/_shared.test.mjs` checks the JS copies against each other.
 - Daily pipeline (`npm run pipeline`, `scripts/run-pipeline.mjs`): web research → LLM tagging → vision gap-fill → quality gate → finalize. The workflow first refreshes Places info, caches photos, and fetches reviews for new cafes.
   - `analyze-reviews-llm.mjs` tags; it does not embed. It reads reviews in a fixed order plus `google_review_summary`, selects cafes with `taggingReason()` in `scripts/_shared.mjs` (never tagged, or evidence newer than the tag), handles at most 100 a run for the Gemini free tier, and stops after 3 consecutive API failures.
-  - `analyze-reviews.mjs --summaries-only` (a workflow step) fills in Google's review summary for cafes without one; a new summary queues the cafe for re-tagging.
+  - `analyze-reviews.mjs --summaries-only` (a workflow step) fills in Google's review summary for cafes without one that still have an unknown tag, most unknowns first, 100 a run. A new summary queues the cafe for re-tagging only if it mentions something about working there.
+  - To save Gemini calls, the quote step only asks about attributes whose value changed (or whose old quote no longer checks out), skips the call when nothing changed, and runs without "thinking".
   - `finalize-cafes.mjs` merges, scores and embeds once, 10 cafes per Voyage request (free tier: 3 requests and 10K tokens a minute), waits out 429s, and exits non-zero if any cafe fails.
   - `research-cafes.mjs` only re-tags a cafe when its evidence fingerprint changed.
 - Evals: `evaluate-accuracy.mjs` (vs human labels; gates at 20+ labels), `evaluate-retrieval.mjs` (golden queries), `evaluate-tagging.mjs` (LLM vs keyword baseline, historical).

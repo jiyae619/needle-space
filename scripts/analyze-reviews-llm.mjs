@@ -245,6 +245,7 @@ const State = Annotation.Root({
   apiError:         Annotation({ default: () => null }),  // last LLM call failed (not a schema problem)
   reviewsLoaded:    Annotation({ default: () => false }),
   quotesDropped:    Annotation({ default: () => 0 }),
+  quotesSkipped:    Annotation({ default: () => false }),  // tags unchanged: kept the old quotes, no Gemini call
   lastError:        Annotation({ default: () => null }),  // prior validation error, fed into the retry prompt
   retryCount:       Annotation({ default: () => 0, reducer: (_, n) => n }),
   written:          Annotation({ default: () => false }),
@@ -336,7 +337,7 @@ function buildRedditProseBlock(cafe) {
   return lines.length ? lines.join("\n\n") : null;
 }
 
-async function callGeminiWithTool(systemPrompt, userText, tool) {
+async function callGeminiWithTool(systemPrompt, userText, tool, { thinkingBudget } = {}) {
   const response = await gemini.models.generateContent({
     model: GEMINI_MODEL,
     contents: [{ role: "user", parts: [{ text: userText }] }],
@@ -350,6 +351,9 @@ async function callGeminiWithTool(systemPrompt, userText, tool) {
         },
       },
       temperature: 0,  // deterministic tagging
+      // 2.5 Flash "thinks" before answering unless told not to; thinking
+      // tokens bill as output. Set per call where the task doesn't need it.
+      ...(thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget } } : {}),
     },
   });
   trace.llmCall(response.usageMetadata);
@@ -413,8 +417,32 @@ async function extractAttributes(state) {
   }
 }
 
+const ATTR_KEYS = ["wifi_quality", "outlet_availability", "noise_level", "laptop_policy", "seating_availability"];
+
 async function extractEvidenceQuotes(state) {
   const { cafe, reviews, validatedTags } = state;
+
+  // Only ask for quotes where they could differ from the last run: attributes
+  // whose value changed, or with no usable quote yet. An unchanged tag keeps
+  // its quotes if they still check out against the sources (quotes stored
+  // before grounding existed may not). Google's summary is never quoted.
+  // A re-tag that changes nothing skips this Gemini call entirely.
+  const sources = [...(reviews ?? []), ...(cafe?.web_research_snippets?.results ?? []).map(r => r?.snippet ?? "")];
+  const prior = cafe.tagging_confidence ?? {};
+  const oldGrounded = groundQuotes(Object.fromEntries(ATTR_KEYS.map(a =>
+    [a, prior[a]?.source === "text" ? (prior[a].evidence ?? []) : []])), sources).kept;
+  const kept = {};
+  const wanted = [];
+  for (const attr of ATTR_KEYS) {
+    const value = validatedTags?.[attr]?.value;
+    const oldQuotes = oldGrounded[attr] ?? [];
+    if (!value || value === "unknown") kept[attr] = [];
+    else if (value === cafe[`${attr}_llm`] && oldQuotes.length) kept[attr] = oldQuotes;
+    else wanted.push(attr);
+  }
+  if (!MOCK && validatedTags && wanted.length === 0) {
+    return { evidenceQuotes: kept, quotesSkipped: true };
+  }
 
   if (MOCK || !validatedTags) {
     const sample = (reviews ?? []).slice(0, 2).map(r => r.slice(0, 80));
@@ -429,13 +457,13 @@ async function extractEvidenceQuotes(state) {
     };
   }
 
-  const tagsSummary = Object.entries(validatedTags)
-    .map(([k, v]) => `- ${k}: ${v?.value} (confidence ${v?.confidence})`).join("\n");
+  const tagsSummary = wanted
+    .map(k => `- ${k}: ${validatedTags[k]?.value} (confidence ${validatedTags[k]?.confidence})`).join("\n");
   const redditProse = buildRedditProseBlock(cafe);
   const userText = [
     `Cafe: ${cafe.name}${cafe.neighborhood ? ` (${cafe.neighborhood})` : ""}`,
     "",
-    "TAGS ALREADY ASSIGNED:",
+    "TAGS TO FIND QUOTES FOR (return an empty array for every other attribute):",
     tagsSummary,
     "",
     "REVIEWS:",
@@ -444,22 +472,21 @@ async function extractEvidenceQuotes(state) {
   ].join("\n");
 
   try {
-    const { input } = await callGeminiWithTool(SYSTEM_PROMPT_QUOTES, userText, QUOTES_TOOL);
-    const sources = [...(reviews ?? []), ...(cafe?.web_research_snippets?.results ?? []).map(r => r?.snippet ?? "")];
-    const { kept, dropped } = groundQuotes(input, sources);
+    // Picking verbatim quotes is lookup, not judgement, and every quote is
+    // checked against the sources below, so this call runs without thinking.
+    const { input } = await callGeminiWithTool(SYSTEM_PROMPT_QUOTES, userText, QUOTES_TOOL, { thinkingBudget: 0 });
+    const { kept: grounded, dropped } = groundQuotes(input, sources);
     if (dropped.length) {
       console.log(`     ✂️  dropped ${dropped.length} quote(s) not found in the sources: ` +
         dropped.map(d => `${d.attr}: "${String(d.quote).slice(0, 60)}"`).join("; "));
     }
+    for (const attr of wanted) kept[attr] = grounded[attr] ?? [];
     return { evidenceQuotes: kept, quotesDropped: dropped.length };
   } catch (e) {
     // Quotes are nice-to-have, not blocking. Fall back to empty arrays so the
     // pipeline still writes the tags.
     return {
-      evidenceQuotes: {
-        wifi_quality: [], outlet_availability: [], noise_level: [],
-        laptop_policy: [], seating_availability: [],
-      },
+      evidenceQuotes: { ...Object.fromEntries(ATTR_KEYS.map(a => [a, []])), ...kept },
       errors: [`extract_evidence_quotes (non-fatal): ${e.message}`],
     };
   }
@@ -619,7 +646,7 @@ async function main() {
 
   let q = supabase
     .from("cafes")
-    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, web_research_at, visual_tagged_at, web_research_snippets, yelp_free_wifi, tagging_confidence, outlet_availability_llm, seating_availability_llm, laptop_policy_llm, google_review_summary, reviews_checked_at")
+    .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, web_research_at, visual_tagged_at, web_research_snippets, yelp_free_wifi, tagging_confidence, wifi_quality_llm, outlet_availability_llm, noise_level_llm, seating_availability_llm, laptop_policy_llm, google_review_summary, reviews_checked_at")
     .order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
   // NOTE: LIMIT is applied AFTER the staleness filter below, not here — a
@@ -658,7 +685,7 @@ async function main() {
   console.log();
 
   const graph = buildGraph();
-  const counts = { written: 0, dryRunOk: 0, retried: 0, failed: 0, quotesDropped: 0, deferred: 0 };
+  const counts = { written: 0, dryRunOk: 0, retried: 0, failed: 0, quotesDropped: 0, quotesSkipped: 0, deferred: 0 };
 
   let i = 0;
   // Three cafes in a row failing on the API (not on bad output) almost always
@@ -688,6 +715,7 @@ async function main() {
         console.log(`     ${wrote ? "⚠️ " : "❌"} ${final.errors.join(" | ")}`);
       }
       counts.quotesDropped += final.quotesDropped ?? 0;
+      if (final.quotesSkipped) counts.quotesSkipped++;
       if (final.retryCount > 0) {
         console.log(`     🔁 retried ${final.retryCount}× before validating`);
         counts.retried++;
@@ -719,6 +747,7 @@ async function main() {
   console.log(`Retried:    ${counts.retried}  (also counted in Written/Dry-run OK)`);
   console.log(`Failed:     ${counts.failed}`);
   console.log(`Quotes dropped (not found in sources): ${counts.quotesDropped}`);
+  console.log(`Quote calls skipped (tags unchanged): ${counts.quotesSkipped}`);
 
   const run = trace.toJSON();
   const s = run.summary;

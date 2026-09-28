@@ -251,17 +251,31 @@ function hasWebEvidence(c) {
 
 const after = (a, b) => !!a && !!b && new Date(a) > new Date(b);
 
+// Words that tie a review summary to the five work attributes. A summary that
+// is only about pastries or latte art can't change a tag, so it doesn't earn
+// a re-tag (two Gemini calls).
+const WORK_SIGNAL = /\b(wi-?fi|internet|outlets?|plugs?|power|charg\w*|laptops?|work(ing)?|study(ing)?|remote|quiet|calm|peaceful|loud|noisy|noise|busy|crowded|packed|seat(s|ing)?|tables?|spacious|roomy|cramped|small|tiny|linger|hours? long)\b/i;
+
+export function summaryHasWorkSignal(summary) {
+  return WORK_SIGNAL.test(summary ?? "");
+}
+
+/** How many of the five merged tags are still "unknown" (0–5). */
+export function unknownCount(cafe) {
+  return Object.values(mergedValues(cafe)).filter(v => !v || v === "unknown").length;
+}
+
 /**
  * Why a cafe needs tagging, or null when its tag is current:
  *   "untagged"      never tagged
  *   "new_research"  web research found evidence after the last tag
  *   "new_reviews"   reviews or Google's review summary were fetched after the
- *                   last tag, and there is a summary to read
+ *                   last tag, and the summary says something about working there
  */
 export function taggingReason(c) {
   if (!c.llm_tagged_at) return "untagged";
   if (after(c.web_research_at, c.llm_tagged_at) && hasWebEvidence(c)) return "new_research";
-  if (after(c.reviews_checked_at, c.llm_tagged_at) && c.google_review_summary?.trim()) return "new_reviews";
+  if (after(c.reviews_checked_at, c.llm_tagged_at) && summaryHasWorkSignal(c.google_review_summary)) return "new_reviews";
   return null;
 }
 

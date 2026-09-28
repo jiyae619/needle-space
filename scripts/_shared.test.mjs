@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -207,5 +207,23 @@ describe("reviewSummaryBlock", () => {
 
   it("caps a long summary", () => {
     expect(reviewSummaryBlock("x".repeat(5000)).length).toBeLessThan(1400);
+  });
+});
+
+describe("cost guards", () => {
+  it("re-tags on a new summary only if it says something about working there", () => {
+    expect(summaryHasWorkSignal("Cozy spot with fast Wi-Fi and plenty of outlets.")).toBe(true);
+    expect(summaryHasWorkSignal("Popular for studying; gets crowded on weekends.")).toBe(true);
+    expect(summaryHasWorkSignal("Beloved for its croissants and seasonal lattes.")).toBe(false);
+    const c = { llm_tagged_at: "2026-09-01T00:00:00Z", reviews_checked_at: "2026-09-20T00:00:00Z" };
+    expect(taggingReason({ ...c, google_review_summary: "Known for croissants and friendly baristas." })).toBeNull();
+    expect(taggingReason({ ...c, google_review_summary: "Quiet, good for laptop work." })).toBe("new_reviews");
+  });
+
+  it("counts unknown merged tags, with a human label filling a gap", () => {
+    const cafe = { wifi_quality_llm: "fast", outlet_availability_llm: "unknown", noise_level_llm: "quiet",
+      laptop_policy_llm: "welcome", seating_availability_llm: null, seating_availability: "unknown" };
+    expect(unknownCount(cafe)).toBe(2);
+    expect(unknownCount({ ...cafe, human_labels: { outlet_availability: "most" } })).toBe(1);
   });
 });

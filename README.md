@@ -47,7 +47,9 @@ A full-text + vector hybrid (reciprocal rank fusion) is built and switched off w
 
 Each cafe runs through a [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) state machine in `scripts/analyze-reviews-llm.mjs`. It reads the stored reviews (most relevant first, then newest, so the same reviews make the length cut every run), Google's summary of all reviews, and the Reddit and Yelp research.
 
-A cafe is tagged when it is new, and re-tagged only when new evidence arrives: web research that found something, or reviews or a review summary fetched after its last tag. Re-reading unchanged evidence makes tags drift, so nothing else is re-read. Each run handles at most 100 cafes, to stay within Gemini's free daily limit, and stops early if the API keeps failing.
+A cafe is tagged when it is new, and re-tagged only when new evidence arrives: web research that found something, or a review summary that mentions working there. Re-reading unchanged evidence makes tags drift, so nothing else is re-read.
+
+Keeping it free: each run handles at most 100 cafes and stops early if the API keeps failing, to stay within Gemini's free daily limit. The quote step only runs for tags that changed, and without the model's extra “thinking” step. Review summaries are fetched only for cafes that still have unknown tags, 100 a run, well inside Google's free monthly allowance.
 
 ```
 fetchReviewCorpus ─(read failed)─→ stop, no LLM call
