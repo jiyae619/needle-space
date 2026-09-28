@@ -168,8 +168,8 @@ Create `.env.local` in the project root and provide values for:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
-GOOGLE_PLACES_API_KEY=
+NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY=
+GOOGLE_PLACES_SERVER_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 # AI pipeline (server/scripts only)
 GEMINI_API_KEY=
@@ -177,6 +177,17 @@ VOYAGE_API_KEY=
 ```
 
 Use `.env.example` as the template.
+
+### Google keys
+
+There are exactly two, and they must never be swapped.
+
+| Variable | Used by | Visibility | Restrict it in Google Cloud to |
+|---|---|---|---|
+| `GOOGLE_PLACES_SERVER_KEY` | data scripts and the GitHub Actions pipeline | secret: `.env.local` and GitHub secrets only | API: **Places API (New)** only |
+| `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | the map on /explore | public: shipped to every visitor's browser | Websites: your Netlify domain(s) and `localhost:3000`; API: **Maps JavaScript API** only |
+
+The server key is never stored in the database (photo links are saved without it) and must never get a `NEXT_PUBLIC_` name. `GOOGLE_PLACES_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` are deprecated; the scripts ignore the first, and the map reads the second only until the hosting environment is renamed.
 
 Security notes:
 

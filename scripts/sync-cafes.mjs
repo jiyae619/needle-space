@@ -64,7 +64,7 @@ async function main() {
 
   // Step 1 — free cost preview
   bar("▶  Step 1/4 — cost preview (free, no API calls)");
-  if (!run("node", ["scripts/fetch-cafes.mjs", "--plan"])) stop("cost-preview step failed (check .env.local has GOOGLE_PLACES_API_KEY)");
+  if (!run("node", ["scripts/fetch-cafes.mjs", "--plan"])) stop("cost-preview step failed (check .env.local has GOOGLE_PLACES_SERVER_KEY)");
 
   // Step 2 — fetch new cafes (paid)
   if (!await gate("Step 2/4 — fetch cafes",

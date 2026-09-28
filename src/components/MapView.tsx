@@ -78,10 +78,15 @@ export default function MapView({ cafes, selectedCafeId, onSelectCafe, hoveredCa
 
   // Load Google Maps script once (loadGoogleMaps is a no-op after the first call).
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    // Browser key: public by design (every visitor downloads it), so it must be
+    // locked in Google Cloud to this site's domains and the Maps JavaScript API.
+    // Never use GOOGLE_PLACES_SERVER_KEY here. The old variable name is read
+    // only until the hosting env is renamed; remove the fallback after that.
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY
+      ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
       if (process.env.NODE_ENV === "development") {
-        console.warn("[MapView] Missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in .env.local");
+        console.warn("[MapView] Missing NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY in .env.local");
       }
       notifyListeners("error");
       return;

@@ -18,7 +18,7 @@ import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.mjs";
 
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY || env.GOOGLE_PLACES_API_KEY;
+const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY;
 // The workflow checks daily. Refreshing at day 27 leaves a one-day cushion
 // for a delayed GitHub schedule while keeping Google-derived content fresh.
 const STALE_AFTER_MS = 27 * 24 * 60 * 60 * 1000;
@@ -86,7 +86,7 @@ async function discoverNewCafes() {
 }
 
 async function main() {
-  if (!GOOGLE_KEY) throw new Error("Missing Google Places API key");
+  if (!GOOGLE_KEY) throw new Error("GOOGLE_PLACES_SERVER_KEY is not set");
   const now = new Date();
   const { data, error } = await supabase
     .from("cafes")

@@ -48,7 +48,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY || secrets.GOOGLE_PLACES_API_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
         run: node scripts/refresh-cafe-information.mjs --delay-ms 500
 
       # New cafes arrive with a raw Places photo URL (stored without the key).
@@ -61,7 +61,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY || secrets.GOOGLE_PLACES_API_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
         run: node scripts/cache-photos.mjs
 
       # Newly discovered cafes have no review corpus yet. Existing places are
@@ -71,7 +71,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY || secrets.GOOGLE_PLACES_API_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
         run: node scripts/analyze-reviews.mjs --new-only
 
       - name: Run pipeline
