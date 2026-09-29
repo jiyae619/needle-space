@@ -61,7 +61,7 @@ function buildIcon(isSelected: boolean, isHovered: boolean, isWelcome: boolean):
   return {
     path: google.maps.SymbolPath.CIRCLE,
     scale: isSelected ? 9 : isHovered ? 10 : 7,
-    fillColor: isSelected ? "#E8521C" : "#292524",
+    fillColor: isSelected ? "#56684D" : "#33271F",
     fillOpacity: isSelected || isHovered ? 1 : isWelcome ? 1 : 0.4,
     strokeColor: "#ffffff",
     strokeWeight: isHovered ? 3.5 : 2.5,
