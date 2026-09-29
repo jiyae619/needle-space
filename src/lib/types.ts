@@ -105,6 +105,7 @@ export interface TaggingConfidence {
 // strings whose default is "any".
 export interface Filters {
   location:     string[]; // [] = any. Multi-select neighborhoods.
+  wifi:         "fast" | "fast_or_moderate" | "any";
   noise:        "quiet" | "quiet_or_moderate" | "any";
   outlets:      "every_table" | "any_outlets" | "any";
   laptop:       "welcome" | "welcome_or_limited" | "any";
@@ -116,6 +117,7 @@ export type FilterKey = keyof Filters;
 
 export const EMPTY_FILTERS: Filters = {
   location:     [],
+  wifi:         "any",
   noise:        "any",
   outlets:      "any",
   laptop:       "any",
@@ -134,6 +136,7 @@ export function isFilterEmpty<K extends FilterKey>(key: K, value: Filters[K]): b
 export const NEIGHBORHOODS = [
   "Ballard",
   "Bellevue",
+  "Belltown",
   "Capitol Hill",
   "Central District",
   "Columbia City",
@@ -144,7 +147,9 @@ export const NEIGHBORHOODS = [
   "Pioneer Square",
   "Queen Anne",
   "Redmond",
+  "South Lake Union",
   "University District",
+  "Wallingford",
   "West Seattle",
 ] as const;
 
@@ -164,6 +169,15 @@ export interface FilterDef<K extends FilterKey = FilterKey> {
 // Location is handled by a separate multi-select chip (LocationFilterChip).
 // FILTER_DEFS only covers the single-select chips.
 export const FILTER_DEFS: FilterDef[] = [
+  {
+    key: "wifi",
+    label: "Wi‑Fi",
+    options: [
+      { value: "fast",                label: "Fast only" },
+      { value: "fast_or_moderate",    label: "Fast or moderate" },
+      { value: "any",                 label: "Any" },
+    ],
+  },
   {
     key: "noise",
     label: "Noise",
