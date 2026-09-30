@@ -77,8 +77,16 @@ h1, h2, h3, .font-display {
   color: var(--gs-ink);
   transition: color 150ms var(--gs-ease);
 }
+.gs-nav-link[aria-current="page"] {
+  color: var(--gs-espresso);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 6px;
+}
 
 .gs-nav-pill {
+  border-radius: 6px;
   background-color: var(--gs-espresso);
   color: var(--gs-cream);
   transition: background-color 150ms var(--gs-ease);
@@ -579,7 +587,7 @@ h1, h2, h3, .font-display {
 .gs-input.gs-input-lg {
   padding: 0.95rem 1rem 0.95rem 2.85rem;
   font-size: 1rem;
-  border-radius: 12px;
+  border-radius: 8px;
 }
 
 .gs-input::placeholder { color: var(--gs-kraft); }
@@ -598,15 +606,17 @@ h1, h2, h3, .font-display {
   top: 50%;
   width: 40px;
   height: 40px;
-  /* Concentric: outer (input) radius is 12px, submit is inset 6px from
-     the right edge → inner radius = 12 − 6 = 6px. */
-  border-radius: 6px;
-  background: var(--gs-accent);
-  color: #fff;
+  /* Concentric: outer (input) radius is 8px, submit is inset 6px from
+     the right edge → inner radius = 8 − 6 = 2px, rounded up to 4px. */
+  border-radius: 4px;
+  /* Espresso like the nav pill and landing CTA, so every page shares one
+     primary-action color. */
+  background: var(--gs-espresso);
+  color: var(--gs-cream);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--gs-accent);
+  border: 1px solid var(--gs-espresso);
   cursor: pointer;
   transform: translateY(-50%);
   transition: background 0.15s var(--gs-ease), transform 0.1s var(--gs-ease);
@@ -621,7 +631,7 @@ h1, h2, h3, .font-display {
 }
 @media (hover: hover) {
   .gs-search-submit:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--gs-accent) 88%, black);
+    background: var(--gs-ink);
   }
 }
 
@@ -741,8 +751,8 @@ h1, h2, h3, .font-display {
   border-bottom: 1px solid var(--gs-rule);
 }
 .gs-section-eyebrow {
-  font-size: 0.65rem;
-  letter-spacing: 0.28em;
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
   text-transform: uppercase;
   color: var(--gs-kraft);
   font-weight: 600;
@@ -750,11 +760,11 @@ h1, h2, h3, .font-display {
 .gs-section-eyebrow strong {
   color: var(--gs-espresso);
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.25em;
 }
 .gs-section-count {
   font-size: 0.7rem;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.25em;
   text-transform: uppercase;
   color: var(--gs-kraft);
   font-variant-numeric: tabular-nums;
@@ -912,7 +922,7 @@ h1, h2, h3, .font-display {
 .gs-cta-eyebrow {
   font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.25em;
   text-transform: uppercase;
   color: var(--gs-kraft);
   margin-bottom: 0.75rem;
@@ -1085,4 +1095,38 @@ h1, h2, h3, .font-display {
   .gs-card, .gs-chip, .gs-btn-primary, .gs-card-cta, .gs-treasure-card, .gs-treasure-btn { transition: none; }
   /* Reduced-motion users still need to know the search is busy — fall back to opacity pulse. */
   .gs-spin { opacity: 0.6; }
+}
+
+/* ── Shared page frame ──────────────────────────────────────────
+   One width and gutter for the header, landing, and explore so every
+   page's left edge lines up with the logo. */
+.gs-page {
+  max-width: 80rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+@media (min-width: 640px) {
+  .gs-page { padding-inline: 1.5rem; }
+}
+
+/* One eyebrow style for every page: landing kicker, explore title,
+   search label, and the results mast. */
+.gs-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--gs-kraft);
+}
+
+/* Landing illustration. Capped on phones so the headline stays near the top. */
+.gs-hero-art svg {
+  display: block;
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+  margin-inline: auto;
+}
+@media (min-width: 1024px) {
+  .gs-hero-art svg { max-width: 440px; margin-inline: 0 0; margin-left: auto; }
 }

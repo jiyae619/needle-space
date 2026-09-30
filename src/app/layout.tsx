@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Fraunces, DM_Sans } from "next/font/google";
-import AlgorithmExplainer from "@/components/AlgorithmExplainer";
+import SiteNav from "@/components/SiteNav";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -31,7 +31,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {/* Header */}
         <header className="sticky top-0 z-50 gs-header border-b border-[var(--gs-rule)]">
-          <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="gs-page h-14 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -43,21 +43,7 @@ export default function RootLayout({
                 Needle Space
               </span>
             </Link>
-            <nav className="flex items-center gap-1 sm:gap-3 shrink-0">
-              <AlgorithmExplainer />
-              <a
-                href="/explore"
-                className="gs-nav-link text-[10px] sm:text-xs tracking-widest uppercase px-2 sm:px-2.5 py-1.5 rounded-sm"
-              >
-                Browse
-              </a>
-              <a
-                href="/treasure"
-                className="gs-nav-pill text-[10px] sm:text-xs tracking-widest uppercase px-2.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap"
-              >
-                Surprise me
-              </a>
-            </nav>
+            <SiteNav />
           </div>
         </header>
 

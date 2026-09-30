@@ -245,7 +245,19 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
+    // sm:px-2 + the children's own px-4 = the header's 24px gutter.
+    <div className="max-w-7xl mx-auto sm:px-2">
+      {/* Page title — same eyebrow + Fraunces pairing as the landing page. */}
+      <div className="px-4 pt-6 md:pt-10">
+        <p className="gs-eyebrow mb-2">Seattle · {initialCafes.length} working cafes</p>
+        <h1
+          className="font-display font-medium leading-[1.05] text-[var(--gs-espresso)]"
+          style={{ fontSize: "clamp(1.9rem, 5vw, 3.25rem)", fontVariationSettings: "var(--fv-display)" }}
+        >
+          Explore the index.
+        </h1>
+      </div>
+
       {/* NL search bar with AI badge */}
       <SearchBar
         value={searchQuery}
