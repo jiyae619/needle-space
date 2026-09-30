@@ -35,9 +35,9 @@ export default function RootLayout({
             <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/needle-space-icon-no-bcg.png"
+                src="/icon.png"
                 alt=""
-                className="h-7 sm:h-[34px] w-auto shrink-0"
+                className="h-7 w-7 sm:h-8 sm:w-8 rounded-[7px] shrink-0"
               />
               <span className="font-display font-medium text-base sm:text-[1.25rem] tracking-[-0.015em] text-[var(--gs-espresso)] whitespace-nowrap">
                 Needle Space

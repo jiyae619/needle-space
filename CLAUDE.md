@@ -90,6 +90,7 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
 ## Key Commands
 - `npm run dev` — start local development server (falls back to sample data without Supabase env)
 - `npm run build` — build for production
+- `npm run preview` — build, then serve the finished site on :3000. Use this to check changes: it needs far less memory than `npm run dev` (this Mac has 8 GB). `npm run dev` caps Node at 1.5 GB so a runaway compile fails fast instead of filling swap.
 - `npm run lint` and `npx tsc --noEmit` — lint and typecheck
 - `npm test` — Vitest unit and route tests
 - `npm run pipeline` — run the offline pipeline (`npm run pipeline -- --all` re-embeds every cafe; `-- --dry-run --limit 5` writes nothing)
