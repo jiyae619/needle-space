@@ -875,92 +875,6 @@ h1, h2, h3, .font-display {
   color: var(--gs-ink);
 }
 
-/* ── Onboarding fork CTA cards ──────────────────────────────── */
-.gs-card-cta {
-  display: flex;
-  flex-direction: column;
-  padding: 1.75rem 1.75rem 1.5rem;
-  background: transparent;
-  border: 1px solid var(--gs-rule);
-  border-radius: 8px;
-  position: relative;
-  min-height: 200px;
-  transition: background 0.18s var(--gs-ease), border-color 0.18s var(--gs-ease);
-  text-decoration: none;
-}
-
-@media (hover: hover) {
-  .gs-card-cta:hover {
-    background: color-mix(in srgb, var(--gs-paper) 60%, transparent);
-    border-color: var(--gs-kraft);
-  }
-  .gs-card-cta-accent:hover {
-    background: var(--gs-espresso);
-    border-color: var(--gs-espresso);
-  }
-  .gs-card-cta:hover .gs-cta-arrow {
-    transform: translateX(4px);
-  }
-}
-
-.gs-card-cta-accent {
-  background: var(--gs-espresso);
-  color: var(--gs-cream);
-  border-color: var(--gs-espresso);
-}
-
-.gs-cta-eyebrow {
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--gs-kraft);
-  margin-bottom: 0.75rem;
-}
-
-.gs-card-cta-accent .gs-cta-eyebrow {
-  color: var(--gs-cream);
-  opacity: 0.7;
-}
-
-.gs-cta-headline {
-  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
-  font-weight: 700;
-  font-size: 1.6rem;
-  line-height: 1.15;
-  color: var(--gs-espresso);
-}
-
-.gs-card-cta-accent .gs-cta-headline {
-  color: var(--gs-cream);
-}
-
-.gs-cta-sub {
-  font-size: 0.875rem;
-  color: var(--gs-kraft);
-  margin-top: 0.5rem;
-  flex: 1;
-}
-
-.gs-card-cta-accent .gs-cta-sub {
-  color: var(--gs-cream);
-  opacity: 0.75;
-}
-
-.gs-cta-arrow {
-  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
-  font-size: 1.5rem;
-  align-self: flex-end;
-  margin-top: 0.5rem;
-  color: var(--gs-espresso);
-  transition: transform 0.18s var(--gs-ease);
-}
-
-.gs-card-cta-accent .gs-cta-arrow {
-  color: var(--gs-cream);
-}
-
-
 /* ── Treasure swipe deck ────────────────────────────────────── */
 .gs-treasure-card {
   background: var(--gs-paper);
@@ -1082,7 +996,7 @@ h1, h2, h3, .font-display {
 
 @media (prefers-reduced-motion: reduce) {
   .gs-rise, .gs-popover, .gs-popover.is-closing, .gs-spin { animation: none; }
-  .gs-card, .gs-chip, .gs-btn-primary, .gs-card-cta, .gs-treasure-card, .gs-treasure-btn { transition: none; }
+  .gs-card, .gs-chip, .gs-btn-primary, .gs-treasure-card, .gs-treasure-btn { transition: none; }
   /* Reduced-motion users still need to know the search is busy — fall back to opacity pulse. */
   .gs-spin { opacity: 0.6; }
 }
