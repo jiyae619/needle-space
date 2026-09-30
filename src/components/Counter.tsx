@@ -290,8 +290,10 @@ export default function Counter({ cafes, nowIso, neighborhoods, fonts }: Counter
       aria-label={`${TITLES[k]}: ${opts(k)[order[k]].label}. Choose another.`}
       onClick={() => openMenu(k)}
     >
+      {/* While hinting, the real label stays (invisible) to hold the pill's width. */}
       <span className={`ct-roll${hint[k] ? " is-hinting" : ""}`}>
-        <span key={hint[k] ?? opts(k)[order[k]].label}>{hint[k] ?? opts(k)[order[k]].label}</span>
+        <span key={opts(k)[order[k]].label} className="ct-roll-word">{opts(k)[order[k]].label}</span>
+        {hint[k] && <span key={hint[k]} className="ct-roll-hint" aria-hidden="true">{hint[k]}</span>}
       </span>
       <svg className="ct-chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1.5 1.5 6 6.2l4.5-4.7" /></svg>
     </button>
