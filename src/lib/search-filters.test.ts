@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildRpcArgs, resolveNeighborhoods, inCities, applyPostFilters } from "./search-filters";
+import { buildRpcArgs, resolveNeighborhoods, inCities, applyPostFilters, matchesFilters } from "./search-filters";
 import { withoutKeyedPhoto, type Cafe } from "./types";
 
 function cafe(over: Partial<Cafe>): Cafe {
@@ -22,6 +22,11 @@ describe("buildRpcArgs", () => {
     expect(a.p_noise_in).toEqual(["quiet", "moderate"]);
     expect(a.p_outlets_in).toEqual(["every_table"]);
     expect(a.p_laptop_in).toEqual(["welcome"]);
+  });
+  it("maps the Wi-Fi picker so 'fast or moderate' keeps solid connections", () => {
+    expect(buildRpcArgs({ wifi: "fast" }).p_wifi_in).toEqual(["fast"]);
+    expect(buildRpcArgs({ wifi: "fast_or_moderate" }).p_wifi_in).toEqual(["fast", "moderate"]);
+    expect(buildRpcArgs({ wifi: "any" }).p_wifi_in).toBeNull();
   });
   it("sends no constraint for 'any'", () => {
     const a = buildRpcArgs({ noise: "any", outlets: "any", laptop: "any" });
@@ -88,5 +93,30 @@ describe("withoutKeyedPhoto", () => {
   it("keeps cached Supabase Storage URLs", () => {
     const url = "https://proj.supabase.co/storage/v1/object/public/cafe-photos/cafes/x.jpg";
     expect(withoutKeyedPhoto(cafe({ photo_url: url })).photo_url).toBe(url);
+  });
+});
+
+describe("matchesFilters", () => {
+  // The landing page counts matches in the browser. If this disagrees with the
+  // server's merge order, the page promises cafes /explore then doesn't show.
+  it("trusts a person's Wi-Fi label over the model's tag", () => {
+    const c = cafe({ wifi_quality_llm: "slow", human_labels: { wifi_quality: "fast" } });
+    expect(matchesFilters(c, { wifi: "fast" })).toBe(true);
+  });
+  it("falls back to the keyword Wi-Fi tag when the model said unknown", () => {
+    const c = cafe({ wifi_quality_llm: "unknown", wifi_quality: "fast" });
+    expect(matchesFilters(c, { wifi: "fast" })).toBe(true);
+  });
+  it("never lets the keyword noise tag make a cafe 'quiet'", () => {
+    const c = cafe({ noise_level_llm: "unknown", noise_level: "quiet" });
+    expect(matchesFilters(c, { noise: "quiet" })).toBe(false);
+  });
+  it("hides cafes marked hidden even when every filter matches", () => {
+    expect(matchesFilters(cafe({ hidden: true }), {})).toBe(false);
+  });
+  it("applies location like /explore does", () => {
+    const c = cafe({ neighborhood: "Kirkland" });
+    expect(matchesFilters(c, { location: ["Bellevue", "Kirkland"] })).toBe(true);
+    expect(matchesFilters(c, { location: ["Ballard"] })).toBe(false);
   });
 });

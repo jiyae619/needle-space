@@ -1,0 +1,1115 @@
+<title>Needle Space Counter</title>
+<meta name="description" content="Order a place to work: build a coffee-style order and watch 12 real Seattle-area work cafes print as tickets.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=Martian+Mono:wdth,wght@75..112.5,100..800&family=Permanent+Marker&display=swap">
+<style>
+/* One calm visual world: a sage cup stage beside a linen counter.
+   Palette drawn from cafe references (media.io "Matcha Pastry" + "Linen and Wood").
+   Deliberately single-theme — every color is painted explicitly. */
+:root{
+  color-scheme: light;
+  --sage-hi:#D8E1CE; --sage:#C9D5BD; --sage-lo:#B8C7AB; --sage-num:#B6C5A9;
+  --linen:#F3EEE4; --oat:#E6DDCF; --wood:#8B7058;
+  --moss:#56684D; --espresso:#33271F; --soft:#7A6554;
+  --paper:#FFFCF6; --paper-miss:#F0EAE0;
+  --rose:#9E5F58; --open:#3F6B3A;
+  --f-display:"Bricolage Grotesque","Avenir Next Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --f-marker:"Permanent Marker","Marker Felt","Chalkboard SE","Comic Sans MS",cursive;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --gut:clamp(16px,4vw,56px);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--linen)}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+body{margin:0;background:var(--linen);color:var(--espresso);font-family:var(--f-display);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--moss);outline-offset:3px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ── Layout ─────────────────────────────────────────────── */
+.page{display:grid;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1000px){
+  .page{grid-template-columns:minmax(380px,41fr) 59fr;align-items:start}
+  .stage{position:sticky;top:env(safe-area-inset-top,0px);height:100vh;height:100dvh}
+}
+
+/* ── Cup stage ──────────────────────────────────────────── */
+.stage{
+  position:relative;display:flex;flex-direction:column;overflow:hidden;
+  padding-block:16px 18px;padding-inline:clamp(16px,2.4vw,32px);
+  background:radial-gradient(115% 75% at 50% 48%,var(--sage-hi) 0%,var(--sage) 55%,var(--sage-lo) 100%);
+  color:var(--espresso);
+}
+.stage-top{position:relative;z-index:3;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.brand{text-decoration:none;color:var(--espresso);line-height:1}
+.brand b{display:block;font-weight:800;font-stretch:75%;font-size:1.65rem;letter-spacing:-.03em}
+.brand small{display:block;margin-top:5px;font:600 .6rem/1.2 var(--f-mono);font-stretch:87.5%;letter-spacing:.09em;text-transform:uppercase}
+.stage-nav{display:flex;gap:6px;flex:none}
+.chip{font:700 .64rem/1 var(--f-mono);font-stretch:87.5%;letter-spacing:.08em;text-transform:uppercase;color:var(--espresso);background:transparent;border:1.5px solid var(--espresso);padding:9px 11px;border-radius:3px;text-decoration:none;cursor:pointer;transition:background-color .2s,color .2s}
+@media (hover:hover){.chip:hover{background:var(--espresso);color:var(--sage-hi)}}
+.cup-wrap{position:relative;flex:1;min-height:360px;margin-inline:calc(-1*clamp(16px,2.4vw,32px))}
+.bignum{position:absolute;inset:0;display:grid;place-items:start center;padding-top:2%;pointer-events:none;user-select:none;z-index:0;
+  font-weight:800;font-stretch:75%;letter-spacing:-.06em;line-height:.8;color:var(--sage-num);font-size:clamp(14rem,62vw,21rem)}
+@media (min-width:1000px){.bignum{font-size:min(64vh,25vw)}}
+.bignum>span,.roll>span{grid-area:1/1;white-space:nowrap}
+#cup{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1;cursor:grab;touch-action:pan-y;
+  -webkit-mask-image:linear-gradient(to bottom,#000 92%,transparent);mask-image:linear-gradient(to bottom,#000 92%,transparent)}
+.cup-fallback{display:none}
+.no-webgl #cup{display:none}
+.no-webgl .cup-fallback{display:block;position:absolute;left:50%;top:50%;width:min(62%,300px);transform:translate(-50%,-46%);z-index:1}
+.stage-foot{position:relative;z-index:3;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;font:600 .64rem/1.5 var(--f-mono);font-stretch:87.5%;letter-spacing:.06em;text-transform:uppercase}
+.stage-foot b{font-weight:800}
+.stage-foot .how{text-align:right;max-width:24ch}
+
+/* ── Counter column ─────────────────────────────────────── */
+.main{min-width:0;padding-block:clamp(32px,6vw,72px) 48px;padding-inline:var(--gut)}
+.eyebrow{margin:0 0 18px;font:700 .7rem/1.3 var(--f-mono);font-stretch:87.5%;letter-spacing:.12em;text-transform:uppercase;color:var(--moss)}
+.kicker{margin:0 0 16px;max-width:36em;font-size:clamp(1.02rem,1.3vw,1.18rem);line-height:1.5;color:var(--soft)}
+.kicker strong{display:block;margin-bottom:4px;font-weight:760;font-stretch:85%;font-size:1.3em;letter-spacing:-.015em;color:var(--espresso)}
+.order-line{margin:0;max-width:14.5em;font-weight:760;font-stretch:80%;font-size:clamp(2rem,4.5vw,4.6rem);line-height:1.16;letter-spacing:-.028em;color:var(--espresso)}
+.slot{display:inline-flex;align-items:center;gap:.16em;vertical-align:baseline;cursor:pointer;
+  padding:.02em .2em .04em .28em;margin:.05em 0;border:.045em solid rgba(86,104,77,.4);border-radius:.3em;
+  background:rgba(201,213,189,.5);font:inherit;color:var(--moss);line-height:1.08;letter-spacing:inherit;text-align:left;
+  transition:background-color .25s,border-color .25s,box-shadow .25s}
+.roll{display:inline-grid;justify-items:start;transition:width .45s var(--ease)}
+.slot{max-width:100%}
+.roll.hinting{overflow-x:clip;-webkit-mask-image:linear-gradient(90deg,#000 82%,transparent);mask-image:linear-gradient(90deg,#000 82%,transparent)}
+.slot .chev{width:.34em;height:.24em;flex:none;margin-top:.1em;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;transition:transform .35s var(--ease)}
+.slot[aria-expanded="true"]{background:var(--sage);border-color:var(--moss);box-shadow:0 0 0 .07em rgba(86,104,77,.16)}
+.slot[aria-expanded="true"] .chev{transform:rotate(180deg)}
+@media (hover:hover){.slot:hover{background:rgba(201,213,189,.85);border-color:var(--moss)}}
+.slot:active{transform:scale(.98)}
+
+/* choice menu: a dropdown under the pill on desktop, a bottom sheet on phones */
+.menu{position:absolute;z-index:30;min-width:270px;max-width:calc(100vw - 32px);padding:10px;background:var(--paper);color:var(--espresso);
+  border:1px solid rgba(139,112,88,.25);border-radius:12px;box-shadow:0 24px 48px -20px rgba(51,39,31,.38),0 2px 6px rgba(51,39,31,.08)}
+.menu-grip{display:none}
+.menu-title{margin:4px 8px 8px;font:700 .64rem/1.3 var(--f-mono);font-stretch:87.5%;letter-spacing:.1em;text-transform:uppercase;color:var(--soft)}
+.menu-list{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.menu-list li{display:flex;align-items:center;gap:12px;padding:12px 12px;border-radius:8px;cursor:pointer;outline:none;transition:background-color .15s}
+.menu-list li:hover,.menu-list li:focus-visible{background:var(--linen)}
+.menu-list li:focus-visible{box-shadow:inset 0 0 0 2px var(--moss)}
+.menu-list .o-label{flex:1;font-weight:700;font-stretch:88%;font-size:1.08rem;letter-spacing:-.01em}
+.menu-list .o-count{font:600 .66rem/1 var(--f-mono);font-stretch:87.5%;letter-spacing:.04em;text-transform:uppercase;color:var(--soft);white-space:nowrap}
+.menu-list .o-check{width:16px;height:12px;flex:none;fill:none;stroke:var(--moss);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.menu-list li[aria-selected="true"]{background:rgba(201,213,189,.45)}
+.menu-list li[aria-selected="true"] .o-label{color:var(--moss)}
+.menu-list li[aria-selected="true"] .o-check{opacity:1}
+.menu.sheet{position:fixed;left:0;right:0;bottom:0;top:auto;min-width:0;max-width:none;border-radius:18px 18px 0 0;
+  padding:8px 12px calc(18px + env(safe-area-inset-bottom,0px));border-bottom:0}
+.menu.sheet .menu-grip{display:block;width:40px;height:4px;border-radius:2px;margin:4px auto 10px;background:rgba(139,112,88,.35)}
+.menu.sheet .menu-list li{padding:16px 12px}
+.menu-scrim{position:fixed;inset:0;z-index:29;background:rgba(51,39,31,.28)}
+
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.order{scroll-margin-top:16px}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:15px 18px;border-radius:4px;border:1.5px solid transparent;background:transparent;cursor:pointer;text-decoration:none;
+  font:700 .74rem/1 var(--f-mono);font-stretch:87.5%;letter-spacing:.08em;text-transform:uppercase;transition:transform .3s var(--ease),background-color .25s,color .25s,border-color .25s}
+.btn-primary{background:var(--espresso);color:var(--linen)}
+.btn-line{border-color:rgba(51,39,31,.35);color:var(--espresso)}
+@media (hover:hover){
+  .btn:hover{transform:translateY(-1px)}
+  .btn-primary:hover{background:var(--moss)}
+  .btn-line:hover{border-color:var(--espresso)}
+}
+.btn:active{transform:translateY(0) scale(.985)}
+
+/* ── Ticket wall ────────────────────────────────────────── */
+.tickets{margin-top:clamp(56px,8vw,104px);padding-top:30px;border-top:1.5px dashed rgba(139,112,88,.35);scroll-margin-top:16px}
+.tickets-head{display:grid;gap:10px}
+.tickets h2,.closer h2{margin:0;font-weight:800;font-stretch:75%;font-size:clamp(2.6rem,6vw,5rem);line-height:.9;letter-spacing:-.035em;color:var(--espresso)}
+.fine{margin:0;max-width:62ch;font-size:.95rem;line-height:1.55;color:var(--soft)}
+.fine .ok{color:var(--moss);font-weight:700}
+.fine .no{color:var(--rose);font-weight:700;text-decoration:line-through;text-decoration-thickness:2px}
+
+.wall{
+  list-style:none;margin:30px 0 0;padding:0;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));column-gap:22px;row-gap:40px;
+  /* one wooden rail per row: period = ticket height + row gap */
+  --rail:linear-gradient(180deg,transparent 0 7px,#6E5642 7px,#D9C6A8 9px,#A88B6E 11.5px,#6E5642 15px,transparent 15px);
+  background:var(--rail) 0 0/100% 616px repeat-y;
+}
+.ticket{position:relative;height:576px;min-width:0}
+.swing{position:absolute;inset:0;transform-origin:50% 12px;will-change:transform;filter:drop-shadow(0 10px 14px rgba(58,40,28,.16))}
+.clip{position:absolute;top:0;left:50%;width:44px;height:30px;margin-left:-22px;z-index:2;border-radius:4px 4px 8px 8px;
+  background:linear-gradient(180deg,#F4EFE8 0%,#D2CABF 45%,#948A7F 100%);box-shadow:0 2px 0 rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.75)}
+.clip::after{content:"";position:absolute;left:9px;right:9px;top:10px;height:3px;border-radius:2px;background:rgba(60,45,35,.4)}
+.paper{
+  --pp:var(--paper);
+  position:absolute;top:18px;left:0;right:0;bottom:12px;display:flex;flex-direction:column;
+  padding:22px 16px 14px 25px;background:var(--pp);color:var(--espresso);
+  font:500 10.5px/1.45 var(--f-mono);font-stretch:87.5%;letter-spacing:.02em;text-transform:uppercase;
+  transition:transform .45s var(--ease),background-color .4s;
+}
+.paper::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;
+  background:linear-gradient(135deg,var(--pp) 50%,transparent 50%) 0 0/12px 12px repeat-x,
+             linear-gradient(-135deg,var(--pp) 50%,transparent 50%) 0 0/12px 12px repeat-x}
+@media (hover:hover){.ticket:hover .paper{transform:translateY(-3px)}}
+.t-meta{display:flex;justify-content:space-between;gap:8px;font-size:9px;letter-spacing:.08em;color:var(--soft)}
+.t-photo{display:block;width:100%;height:124px;object-fit:cover;margin-top:10px;border-radius:2px;background:var(--oat);transition:filter .4s}
+.t-name{margin:12px 0 4px;min-height:44px;font:760 21px/1.05 var(--f-display);font-stretch:82%;letter-spacing:-.012em;text-transform:none;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.t-where{margin:0;padding-bottom:10px;border-bottom:1.5px dashed rgba(51,39,31,.25);font-size:9.5px;color:var(--soft)}
+.t-lines{list-style:none;margin:9px 0 0;padding:0 0 10px;display:grid;gap:5px;border-bottom:1.5px dashed rgba(51,39,31,.25)}
+.t-lines li{position:relative;display:flex;align-items:baseline;gap:6px;min-width:0}
+.t-lines i{flex:1;min-width:8px;border-bottom:1.5px dotted rgba(51,39,31,.32);transform:translateY(-3px)}
+.t-lines .v{white-space:nowrap;font-weight:700}
+.t-lines li.ok::before,.t-lines li.no::before{content:"";position:absolute;left:-20px;top:0;width:15px;height:13px;background:no-repeat center/contain}
+.t-lines li.ok::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 16'%3E%3Cpath d='M2 9.5 7 14 18.5 1.5' fill='none' stroke='%2356684D' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+.t-lines li.no::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 16'%3E%3Cpath d='M4 2.5 16 13.5M16.5 2 3.5 14' fill='none' stroke='%239E5F58' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E")}
+.t-lines li.no .v{color:var(--rose);text-decoration:line-through;text-decoration-color:var(--rose);text-decoration-thickness:2px}
+.t-score{display:flex;align-items:flex-end;gap:6px;margin-top:10px}
+.t-score .lbl{font-size:9px;line-height:1.25;color:var(--soft)}
+.t-score b{margin-left:auto;font:800 44px/.8 var(--f-display);font-stretch:75%;letter-spacing:-.035em}
+.t-score .of{font-size:11px;font-weight:700;padding-bottom:1px}
+.t-google{margin:8px 0 12px;font-size:9px;color:var(--soft)}
+.t-foot{margin-top:auto;padding-top:11px;border-top:1.5px dashed rgba(51,39,31,.25);display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:9.5px}
+.t-open{display:inline-flex;align-items:center;gap:7px;font-weight:700;color:var(--soft);white-space:nowrap}
+.t-open::before{content:"";width:7px;height:7px;border-radius:50%;background:#B3A99C}
+.t-open.is-open{color:var(--open)}
+.t-open.is-open::before{background:var(--open);box-shadow:0 0 0 3px rgba(63,107,58,.16)}
+.t-dir{font-weight:800;text-underline-offset:3px;white-space:nowrap}
+@media (hover:hover){.t-dir:hover{color:var(--moss)}}
+.stamp{position:absolute;left:50%;top:108px;transform:translate(-50%,-50%) rotate(-10deg);display:none;pointer-events:none;
+  padding:.1em .35em;border:3px solid var(--rose);border-radius:6px;color:var(--rose);background:rgba(255,252,246,.82);
+  font:800 1.35rem/1.05 var(--f-display);font-stretch:78%;letter-spacing:-.01em;text-transform:none;white-space:nowrap}
+.is-miss .paper{--pp:var(--paper-miss)}
+.is-miss .t-photo{filter:grayscale(.75) opacity(.8)}
+.is-miss .t-name,.is-miss .t-score b{color:rgba(51,39,31,.55)}
+.is-miss .stamp{display:block}
+
+/* ── Phones & tablets: the cup scrolls away, so a pinned order bar keeps the order in reach ── */
+@media (max-width:999px){
+  .cup-wrap{min-height:clamp(290px,74vw,440px)}
+  .stage-foot .how{display:none}
+}
+@media (max-width:699px){
+  .main{padding-block:28px 96px}
+  .eyebrow{margin-bottom:12px}
+  .kicker{font-size:1rem}
+  .order-line{font-size:clamp(1.8rem,8.3vw,2.6rem);line-height:1.22}
+  .actions .btn{flex:1 1 0;justify-content:center;padding-inline:12px}
+  .bignum{font-size:clamp(12rem,56vw,16rem)}
+  .tickets{margin-top:56px}
+  .wall{display:flex;gap:16px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;
+    margin-inline:calc(-1*var(--gut));padding-inline:calc(50vw - min(38vw,132px));padding-bottom:14px;scrollbar-width:none}
+  .wall::-webkit-scrollbar{display:none}
+  .ticket{flex:0 0 min(76vw,264px);scroll-snap-align:center}
+  .tickets .swipe-note{display:flex}
+}
+.swipe-note{display:none;justify-content:center;gap:10px;margin:10px 0 0;font:600 .66rem/1.4 var(--f-mono);font-stretch:87.5%;letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.swipe-note b{color:var(--espresso)}
+
+.orderbar{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:25;display:none;align-items:center;gap:12px;
+  padding:10px 10px 10px 16px;border-radius:14px;background:var(--espresso);color:var(--linen);box-shadow:0 16px 36px -14px rgba(51,39,31,.55);
+  transform:translateY(160%);transition:transform .5s var(--ease)}
+.orderbar.show{transform:none}
+.ob-text{flex:1;min-width:0;display:grid;gap:2px}
+.ob-count{font:700 .62rem/1.2 var(--f-mono);font-stretch:87.5%;letter-spacing:.1em;text-transform:uppercase;color:var(--sage)}
+.ob-sum{font-weight:700;font-stretch:88%;font-size:.98rem;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ob-edit{flex:none;padding:11px 14px;border:0;border-radius:9px;background:var(--sage);color:var(--espresso);cursor:pointer;
+  font:700 .66rem/1 var(--f-mono);font-stretch:87.5%;letter-spacing:.08em;text-transform:uppercase}
+@media (max-width:999px){.orderbar{display:flex}.toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}}
+
+/* ── Closer ─────────────────────────────────────────────── */
+.closer{margin-top:clamp(64px,9vw,112px);padding-top:30px;border-top:1.5px dashed rgba(139,112,88,.35)}
+.closer p{margin:14px 0 0;max-width:40em;color:var(--soft);font-size:1.05rem}
+.closer .colophon{margin-top:40px;font:500 .66rem/1.6 var(--f-mono);font-stretch:87.5%;letter-spacing:.06em;text-transform:uppercase;color:var(--soft)}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:20;max-width:calc(100% - 32px);
+  padding:12px 16px;border-radius:4px;background:var(--espresso);color:var(--linen);box-shadow:0 12px 30px -12px rgba(51,39,31,.5);
+  font:600 .72rem/1.45 var(--f-mono);font-stretch:87.5%;letter-spacing:.02em}
+
+@media (prefers-reduced-motion:reduce){
+  .paper,.slot,.roll,.btn,.t-photo,.orderbar,.slot .chev{transition:none}
+}
+</style>
+
+<div class="page">
+  <aside class="stage" aria-label="Your cup">
+    <div class="stage-top">
+      <a class="brand" href="#top" id="top"><b>needle space</b><small>Seattle · Bellevue · Redmond · Kirkland</small></a>
+      <nav class="stage-nav" aria-label="Page">
+        <a class="chip" href="#tickets">Tickets</a>
+        <button class="chip" type="button" data-app="/explore">Map</button>
+      </nav>
+    </div>
+    <div class="cup-wrap">
+      <div class="bignum" id="bignum" aria-hidden="true"><span>10</span></div>
+      <canvas id="cup" role="img" aria-label="A 3D paper coffee cup. Your order is marked on it in marker."></canvas>
+      <svg class="cup-fallback" viewBox="0 0 200 250" aria-hidden="true">
+        <path d="M88 40c-8-10 6-16-2-28M104 38c-8-12 8-18 0-30M118 40c-6-8 6-14 0-24" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity=".8"/>
+        <path d="M40 66h120l-15 172H55z" fill="#FFFCF4"/>
+        <path d="M46 132h108l-6 66H52z" fill="#C4A07A"/>
+        <circle cx="100" cy="165" r="20" fill="none" stroke="#33271F" stroke-width="3"/>
+        <path d="M30 60c0-9 6-14 14-14h112c8 0 14 5 14 14v8H30z" fill="#33271F"/>
+        <path d="M52 46c6-10 20-14 48-14s42 4 48 14z" fill="#33271F"/>
+      </svg>
+    </div>
+    <div class="stage-foot">
+      <span><b id="foot-count">10</b> of 12 cafes fit your order</span>
+      <span class="how">Drag the cup to turn it. Brush the steam.</span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section class="order" aria-labelledby="order-h">
+      <p class="eyebrow">Your order · <span class="clock">—</span> in Seattle · 472 cafes on the menu</p>
+      <p class="kicker"><strong>Pin your focus in the right space.</strong> Needle Space finds Seattle-area cafes you can actually work from. Tell the barista what you need.</p>
+      <h1 class="order-line" id="order-h">One <button class="slot" type="button" data-k="noise" aria-haspopup="listbox" aria-expanded="false"><span class="roll"><span>quiet</span></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1.5 1.5 6 6.2l4.5-4.7"/></svg></button> table, <button class="slot" type="button" data-k="outlets" aria-haspopup="listbox" aria-expanded="false"><span class="roll"><span>outlets within reach</span></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1.5 1.5 6 6.2l4.5-4.7"/></svg></button>, <button class="slot" type="button" data-k="wifi" aria-haspopup="listbox" aria-expanded="false"><span class="roll"><span>solid</span></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1.5 1.5 6 6.2l4.5-4.7"/></svg></button> Wi&#8209;Fi, <button class="slot" type="button" data-k="hours" aria-haspopup="listbox" aria-expanded="false"><span class="roll"><span>at any hour</span></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1.5 1.5 6 6.2l4.5-4.7"/></svg></button>, <button class="slot" type="button" data-k="area" aria-haspopup="listbox" aria-expanded="false"><span class="roll"><span>anywhere</span></span><svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1.5 1.5 6 6.2l4.5-4.7"/></svg></button>.</h1>
+      <div class="actions">
+        <a class="btn btn-primary" href="#tickets" id="see">See 10 matches ↓</a>
+        <button class="btn btn-line" type="button" data-barista>Barista’s choice</button>
+      </div>
+    </section>
+
+    <section class="tickets" id="tickets" aria-labelledby="tickets-h">
+      <div class="tickets-head">
+        <h2 id="tickets-h">Order up.</h2>
+        <p class="fine">Wi‑Fi, outlets and noise are read from public reviews; hours come from Google and refresh monthly. On each ticket, <span class="ok">✓</span> means that line fits your order, and a <span class="no">crossed-out</span> line is why a cafe isn’t a match.</p>
+      </div>
+      <ol class="wall" id="wall"></ol>
+      <p class="swipe-note" aria-hidden="true"><span><b id="rail-pos">1</b> of 12</span><span>Swipe for more →</span></p>
+    </section>
+
+    <section class="closer" aria-labelledby="closer-h">
+      <h2 id="closer-h">Can’t decide?</h2>
+      <p>Let the barista write your order. Five marks on a cup, one table waiting.</p>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" data-barista>Barista’s choice</button>
+        <button class="btn btn-line" type="button" data-app="/explore">Browse all 472 on the map</button>
+      </div>
+      <p class="colophon">Needle Space · laptop-friendly cafes in Seattle, Bellevue, Redmond &amp; Kirkland · landing page prototype · cafe data and photos from the live index, September 2026</p>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<div class="menu-scrim" id="scrim" hidden></div>
+<div class="menu" id="menu" hidden>
+  <div class="menu-grip" aria-hidden="true"></div>
+  <p class="menu-title" id="menu-title">Noise</p>
+  <ul class="menu-list" id="menu-list" role="listbox" aria-labelledby="menu-title"></ul>
+</div>
+<div class="orderbar" id="orderbar" aria-hidden="true">
+  <div class="ob-text"><span class="ob-count"><span id="ob-n">10</span> cafes match</span><span class="ob-sum" id="ob-sum">quiet · outlets within reach · solid Wi‑Fi</span></div>
+  <button class="ob-edit" type="button" id="ob-edit" tabindex="-1">Edit order</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+
+/* ── Real cafes, pulled from the Needle Space index (Supabase) ── */
+const H = (mon, tue, wed, thu, fri, sat, sun) => ({monday:mon, tuesday:tue, wednesday:wed, thursday:thu, friday:fri, saturday:sat, sunday:sun});
+const D = s => H(s, s, s, s, s, s, s);
+const CAFES = [
+  {name:'Chocolati Café Greenwood', short:'Chocolati', slug:'chocolati', hood:'Greenwood', city:'Seattle', addr:'8319 Greenwood Ave N, Seattle, WA', lat:47.6897253, lng:-122.3555189, pid:'ChIJ7_18miEUkFQRaH9WwkOCxdw', score:4.9, rating:4.6, reviews:662, wifi:'fast', outlets:'every_table', noise:'quiet', seats:'ample', hours:D('8:00 AM – 8:30 PM')},
+  {name:'The Shop by Porter', short:'Porter', slug:'porter', hood:'Downtown', city:'Seattle', addr:'1201 2nd Ave #100, Seattle, WA', lat:47.6065056, lng:-122.3376377, pid:'ChIJZXzsp_5rkFQRbN2ATdDzqEE', score:4.7, rating:4.5, reviews:132, wifi:'fast', outlets:'most', noise:'quiet', seats:'ample', hours:H('7:00 AM – 7:00 PM','7:00 AM – 7:00 PM','7:00 AM – 7:00 PM','7:00 AM – 7:00 PM','7:00 AM – 7:00 PM','8:00 AM – 4:00 PM','Closed')},
+  {name:'Inkling Art Cafe', short:'Inkling', slug:'inkling', hood:'Capitol Hill', city:'Seattle', addr:'610 19th Ave E, Seattle, WA', lat:47.6247222, lng:-122.3069444, pid:'ChIJgUdofAAVkFQRBplfK_IelZQ', score:4.5, rating:5.0, reviews:18, wifi:'moderate', outlets:'most', noise:'quiet', seats:'ample', hours:D('7:00 AM – 5:00 PM')},
+  {name:'The Fremont Social Cafe', short:'Fremont Social', slug:'fremont-social', hood:'Fremont', city:'Seattle', addr:'127 N 35th St, Seattle, WA', lat:47.6517061, lng:-122.3564924, pid:'ChIJtakurKQVkFQRnSbcery5UGc', score:4.5, rating:4.8, reviews:13, wifi:'fast', outlets:'most', noise:'moderate', seats:'ample', hours:D('8:00 AM – 5:00 PM')},
+  {name:'Capital One Café', short:'Capital One', slug:'capital-one', hood:'Downtown Bellevue', city:'Bellevue', addr:'400 Bellevue Way NE, Bellevue, WA', lat:47.6140799, lng:-122.2013634, pid:'ChIJb4GNEYZskFQRE7VgD5cQya4', score:4.4, rating:4.0, reviews:192, wifi:'moderate', outlets:'every_table', noise:'quiet', seats:'ample', hours:H('10:00 AM – 9:00 PM','10:00 AM – 9:00 PM','10:00 AM – 9:00 PM','10:00 AM – 9:00 PM','10:00 AM – 9:00 PM','10:00 AM – 9:00 PM','11:00 AM – 7:00 PM')},
+  {name:'Zoka Coffee Company / University', short:'Zoka', slug:'zoka', hood:'University District', city:'Seattle', addr:'2901 NE Blakeley St, Seattle, WA', lat:47.6660835, lng:-122.2976194, pid:'ChIJXfLA8YYUkFQR6Zimch60wH0', score:4.4, rating:4.5, reviews:618, wifi:'moderate', outlets:'most', noise:'quiet', seats:'ample', hours:D('6:00 AM – 5:00 PM')},
+  {name:'Woodland Coffee', short:'Woodland', slug:'woodland', hood:'Ballard', city:'Seattle', addr:'1417 NW 54th St #101, Seattle, WA', lat:47.6677341, lng:-122.3750668, pid:'ChIJyQwSx8kVkFQR1Utoi8oQDVU', score:4.4, rating:4.7, reviews:372, wifi:'moderate', outlets:'unknown', noise:'quiet', seats:'ample', hours:H('6:30 AM – 6:00 PM','6:30 AM – 6:00 PM','6:30 AM – 6:00 PM','6:30 AM – 6:00 PM','6:30 AM – 6:00 PM','7:00 AM – 6:00 PM','7:00 AM – 6:00 PM')},
+  {name:'Lula Coffee Co', short:'Lula', slug:'lula', hood:'West Seattle', city:'Seattle', addr:'4451 California Ave SW, Seattle, WA', lat:47.563218, lng:-122.3869583, pid:'ChIJa2gKsmlBkFQRsNPqi8Jb6W4', score:4.4, rating:4.5, reviews:316, wifi:'fast', outlets:'most', noise:'quiet', seats:'adequate', hours:H('5:00 AM – 7:00 PM','5:00 AM – 7:00 PM','5:00 AM – 7:00 PM','5:00 AM – 7:00 PM','5:00 AM – 7:00 PM','5:00 AM – 7:00 PM','5:00 AM – 6:00 PM')},
+  {name:'PLUS84', short:'PLUS84', slug:'plus84', hood:'Belltown', city:'Seattle', addr:'2401 3rd Ave, Seattle, WA', lat:47.6154409, lng:-122.3465609, pid:'ChIJ1RjHsxwVkFQRQtjvw0mai-Y', score:4.4, rating:4.6, reviews:392, wifi:'moderate', outlets:'most', noise:'quiet', seats:'ample', hours:H('8:00 AM – 10:00 PM','8:00 AM – 10:00 PM','8:00 AM – 10:00 PM','8:00 AM – 10:00 PM','8:00 AM – 12:00 AM','8:00 AM – 12:00 AM','9:00 AM – 8:00 PM')},
+  {name:'Victor’s Celtic Coffee & Roasters', short:'Victor’s', slug:'victors', hood:'Downtown Redmond', city:'Redmond', addr:'7993 Gilman St, Redmond, WA', lat:47.6745394, lng:-122.1219836, pid:'ChIJ_SUMHrJykFQRvFNNAvZixGg', score:4.3, rating:4.4, reviews:1220, wifi:'moderate', outlets:'most', noise:'quiet', seats:'ample', hours:H('7:00 AM – 3:00 PM','7:00 AM – 3:00 PM','7:00 AM – 3:00 PM','7:00 AM – 3:00 PM','7:00 AM – 3:00 PM','7:00 AM – 4:00 PM','8:00 AM – 4:00 PM')},
+  {name:'5 Stones Coffee Co', short:'5 Stones', slug:'5-stones', hood:'Downtown Kirkland', city:'Kirkland', addr:'312 Central Way, Kirkland, WA', lat:47.6777479, lng:-122.2029491, pid:'ChIJm4bU8iMTkFQRHiTMBsEPMcI', score:4.1, rating:4.5, reviews:196, wifi:'moderate', outlets:'most', noise:'quiet', seats:'adequate', hours:H('7:00 AM – 5:00 PM','7:00 AM – 5:00 PM','7:00 AM – 5:00 PM','7:00 AM – 5:00 PM','7:00 AM – 5:00 PM','7:00 AM – 5:00 PM','7:00 AM – 3:00 PM')},
+  {name:'Thruline Coffee Co.', short:'Thruline', slug:'thruline', hood:'Downtown Kirkland', city:'Kirkland', addr:'136 Park Ln, Kirkland, WA', lat:47.6764515, lng:-122.2054057, pid:'ChIJAW2bknATkFQRCCgTkvG-QLA', score:3.9, rating:4.6, reviews:987, wifi:'moderate', outlets:'most', noise:'quiet', seats:'limited', hours:D('7:00 AM – 9:00 PM')},
+];
+
+const LABEL = {
+  noise:{quiet:'Quiet', moderate:'Chatty', loud:'Loud', unknown:'No data'},
+  outlets:{every_table:'Every seat', most:'Most seats', limited:'A few', none:'None', unknown:'No data'},
+  wifi:{fast:'Fast', moderate:'Solid', slow:'Spotty', none:'None', unknown:'No data'},
+  seats:{ample:'Plenty', adequate:'Enough', limited:'Tight', unknown:'No data'},
+};
+
+/* The order: each slot cycles through [words in the sentence, barista code, test] */
+const SLOTS = {
+  noise:  {label:'noise',   opts:[['quiet','QUIET', c => c.noise === 'quiet'], ['buzzy','BUZZ', c => c.noise === 'moderate' || c.noise === 'loud'], ['any-volume','—', null]]},
+  outlets:{label:'outlets', opts:[['outlets within reach','NEAR', c => c.outlets === 'every_table' || c.outlets === 'most'], ['an outlet at every seat','EVERY', c => c.outlets === 'every_table'], ['no outlet needed','—', null]]},
+  wifi:   {label:'Wi-Fi',   opts:[['solid','SOLID', c => c.wifi === 'fast' || c.wifi === 'moderate'], ['fast','FAST', c => c.wifi === 'fast'], ['whatever','—', null]]},
+  hours:  {label:'hours',   opts:[['at any hour','—', null], ['open right now','NOW', c => c.openNow], ['open past 8 PM','8PM+', c => c.closeToday > 1200]]},
+  area:   {label:'area',    opts:[['anywhere','—', null], ['in Seattle','SEA', c => c.city === 'Seattle'], ['on the Eastside','EAST', c => c.city !== 'Seattle']]},
+};
+const KEYS = Object.keys(SLOTS);
+const order = {noise:0, outlets:0, wifi:0, hours:0, area:0};
+
+/* ── Time, hours, distance ── */
+const TZ = 'America/Los_Angeles';
+function seattleNow() {
+  const d = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {timeZone:TZ, weekday:'long', hour:'numeric', minute:'2-digit', hourCycle:'h23'}).formatToParts(d);
+  const get = t => (parts.find(p => p.type === t) || {}).value;
+  return {
+    day: String(get('weekday')).toLowerCase(),
+    mins: (+get('hour') % 24) * 60 + (+get('minute')),
+    clock: new Intl.DateTimeFormat('en-US', {timeZone:TZ, hour:'numeric', minute:'2-digit'}).format(d),
+  };
+}
+const toMin = (h, m, ap) => ((+h % 12) + (/p/i.test(ap) ? 12 : 0)) * 60 + (+m);
+function parseRange(s) {
+  if (!s || /closed/i.test(s)) return null;
+  if (/24 hours/i.test(s)) return [0, 1440];
+  const m = [...s.matchAll(/(\d{1,2}):(\d{2})\s*([AP]M)/gi)];
+  if (m.length < 2) return null;
+  const o = toMin(m[0][1], m[0][2], m[0][3]);
+  let c = toMin(m[1][1], m[1][2], m[1][3]);
+  if (c <= o) c += 1440;
+  return [o, c];
+}
+function shortTime(min) {
+  min %= 1440;
+  if (min === 0) return 'Midnight';
+  const h = Math.floor(min / 60), m = min % 60, ap = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${ap}`;
+}
+const matches = (c, ord) => KEYS.every(k => { const p = SLOTS[k].opts[ord[k]][2]; return !p || p(c); });
+const byScore = (a, b) => (b.score - a.score) || (b.reviews - a.reviews);
+
+/* ── Tickets ── */
+const wall = $('#wall');
+function ticketHTML(c) {
+  return `<div class="swing">
+    <span class="clip" aria-hidden="true"></span>
+    <article class="paper" aria-labelledby="${c.id}-n">
+      <div class="t-meta"><span>Dine-in · 1 laptop</span><span class="clock">—</span></div>
+      <img class="t-photo" src="cafe-photos/${c.slug}.jpg" alt="${esc(c.name)}" width="400" height="250">
+      <h3 class="t-name" id="${c.id}-n">${esc(c.name)}</h3>
+      <p class="t-where">${esc(c.hood)}</p>
+      <ul class="t-lines">
+        <li data-k="noise"><span class="k">Noise</span><i></i><span class="v">${LABEL.noise[c.noise]}</span></li>
+        <li data-k="outlets"><span class="k">Outlets</span><i></i><span class="v">${LABEL.outlets[c.outlets]}</span></li>
+        <li data-k="wifi"><span class="k">Wi-Fi</span><i></i><span class="v">${LABEL.wifi[c.wifi]}</span></li>
+        <li data-k="hours"><span class="k">Today</span><i></i><span class="v t-hours">—</span></li>
+        <li data-k="area"><span class="k">City</span><i></i><span class="v">${esc(c.city)}</span></li>
+        <li><span class="k">Seats</span><i></i><span class="v">${LABEL.seats[c.seats]}</span></li>
+      </ul>
+      <div class="t-score"><span class="lbl">Work<br>score</span><b>${c.score.toFixed(1)}</b><span class="of">/5</span></div>
+      <p class="t-google">${c.rating.toFixed(1)}★ on Google · ${c.reviews.toLocaleString('en-US')} reviews</p>
+      <div class="t-foot"><span class="t-open">—</span><a class="t-dir" href="${c.maps}" target="_blank" rel="noopener">Directions ↗</a></div>
+      <span class="stamp" aria-hidden="true">Maybe next time!</span>
+      <span class="sr-only t-state"></span>
+    </article>
+  </div>`;
+}
+CAFES.forEach((c, i) => {
+  c.id = 'cafe' + i;
+  c.maps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.name + ', ' + c.addr)}&query_place_id=${c.pid}`;
+  const li = document.createElement('li');
+  li.className = 'ticket';
+  li.innerHTML = ticketHTML(c);
+  li._cafe = c;
+  c.el = li; c.swing = li.querySelector('.swing'); c.th = 0; c.w = 0; c.match = true;
+  wall.appendChild(li);
+});
+
+/* Hanging tickets: each one is a light, well-damped pendulum (≈1.5 s period).
+   The pointer acts like a draft of air — the push grows with the square of its
+   speed, so a slow hover barely stirs a ticket and a quick brush gives it a
+   soft sway that settles in two or three swings. Integrated at a fixed 120 Hz
+   step so the motion stays smooth whatever the frame rate. */
+const SWING = {k:17.6, c:2.7, max:0.055, h:1 / 120};
+const air = {c:null, vx:0, lx:0, lt:0};
+let swingRaf = 0, swingLast = 0, swingAcc = 0;
+function wake() { if (!swingRaf && !RM) { swingLast = performance.now(); swingAcc = 0; swingRaf = requestAnimationFrame(swingStep); } }
+function nudge(c, w) { if (RM) return; c.w += w; wake(); }
+function swingStep(now) {
+  const dt = Math.min(0.05, (now - swingLast) / 1000); swingLast = now;
+  if (air.c) air.c.w += clamp(-Math.sign(air.vx) * air.vx * air.vx * 5e-7, -1.6, 1.6) * dt;
+  air.vx *= Math.exp(-9 * dt);
+  swingAcc += dt;
+  while (swingAcc >= SWING.h) {
+    swingAcc -= SWING.h;
+    for (const c of CAFES) {
+      if (!c.th && !c.w) continue;
+      c.w += (-SWING.k * c.th - SWING.c * c.w) * SWING.h;
+      c.th += c.w * SWING.h;
+    }
+  }
+  let live = !!air.c && Math.abs(air.vx) > 4;
+  for (const c of CAFES) {
+    if (!c.th && !c.w) continue;
+    if (Math.abs(c.th) < 0.0003 && Math.abs(c.w) < 0.0015) { c.th = 0; c.w = 0; c.swing.style.transform = ''; continue; }
+    live = true;
+    const a = SWING.max * Math.tanh(c.th / SWING.max);   // soft ceiling of ~3°
+    c.swing.style.transform = `rotate(${a.toFixed(5)}rad)`;
+  }
+  swingRaf = live ? requestAnimationFrame(swingStep) : 0;
+}
+wall.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
+  const now = performance.now(), gap = (now - air.lt) / 1000;
+  if (gap < 0.1) air.vx += (clamp((e.clientX - air.lx) / Math.max(0.008, gap), -3000, 3000) - air.vx) * 0.3;
+  air.lx = e.clientX; air.lt = now;
+  const li = e.target.closest('.ticket');
+  air.c = li ? li._cafe : null;
+  if (air.c) wake();
+});
+wall.addEventListener('pointerleave', () => { air.c = null; });
+let lastScrollLeft = 0;
+wall.addEventListener('scroll', () => {
+  const d = wall.scrollLeft - lastScrollLeft; lastScrollLeft = wall.scrollLeft;
+  if (d) CAFES.forEach(c => nudge(c, clamp(-d * 0.0008, -0.035, 0.035)));
+}, {passive:true});
+
+/* ── Rolling words (slots + the big numeral) ── */
+function roll(el, text, sizeToFit) {
+  const cur = [...el.children].filter(s => !s.dataset.out).pop();
+  if (cur && cur.textContent === text) return;
+  if (RM || !cur) { el.replaceChildren(Object.assign(document.createElement('span'), {textContent:text})); return; }
+  const w0 = el.getBoundingClientRect().width;
+  const nu = document.createElement('span'); nu.textContent = text;
+  cur.dataset.out = '1';
+  el.appendChild(nu);
+  if (sizeToFit) {
+    const pad = parseFloat(getComputedStyle(el).paddingLeft) * 2;
+    const w1 = nu.getBoundingClientRect().width + pad;
+    el.style.width = w0 + 'px';
+    el.getBoundingClientRect();
+    el.style.width = w1 + 'px';
+    clearTimeout(el._t); el._t = setTimeout(() => { el.style.width = ''; }, 480);
+  }
+  cur.animate([{transform:'translateY(0)', opacity:1}, {transform:'translateY(-0.35em)', opacity:0}], {duration:260, easing:'cubic-bezier(.4,0,1,1)', fill:'forwards'}).onfinish = () => cur.remove();
+  nu.animate([{transform:'translateY(0.4em)', opacity:0}, {transform:'translateY(0)', opacity:1}], {duration:460, delay:60, easing:'cubic-bezier(.22,1,.36,1)', fill:'backwards'});
+}
+
+/* ── Order evaluation + layout ── */
+const slotEls = {};
+$$('.slot').forEach(b => { slotEls[b.dataset.k] = b; });
+const TITLES = {noise:'Noise', outlets:'Outlets', wifi:'Wi‑Fi', hours:'Hours', area:'Where'};
+function labelSlots() {
+  KEYS.forEach(k => slotEls[k].setAttribute('aria-label', `${TITLES[k]}: ${SLOTS[k].opts[order[k]][0]}. Choose another.`));
+}
+function refreshTimes() {
+  const now = seattleNow();
+  $$('.clock').forEach(el => { el.textContent = now.clock; });
+  CAFES.forEach(c => {
+    const r = parseRange(c.hours[now.day]);
+    c.openNow = !!r && now.mins >= r[0] && now.mins < r[1];
+    c.closeToday = r ? r[1] : 0;
+    c.el.querySelector('.t-hours').textContent = r ? `${shortTime(r[0])}–${shortTime(r[1])}` : 'Closed';
+    const open = c.el.querySelector('.t-open');
+    open.classList.toggle('is-open', c.openNow);
+    open.textContent = c.openNow ? 'Open now' : 'Closed now';
+  });
+}
+function evaluate() {
+  CAFES.forEach(c => {
+    let ok = true;
+    const misses = [];
+    KEYS.forEach(k => {
+      const line = c.el.querySelector(`[data-k="${k}"]`);
+      const p = SLOTS[k].opts[order[k]][2];
+      line.classList.remove('ok', 'no');
+      if (!p) return;
+      const pass = p(c);
+      line.classList.add(pass ? 'ok' : 'no');
+      if (!pass) { ok = false; misses.push(SLOTS[k].label); }
+    });
+    const was = c.match;
+    c.match = ok;
+    c.el.classList.toggle('is-miss', !ok);
+    c.el.querySelector('.t-state').textContent = ok ? 'Fits your order.' : `Maybe next time: misses on ${misses.join(', ')}.`;
+    if (was && !ok && !RM) {
+      c.el.querySelector('.stamp').animate(
+        [{transform:'translate(-50%,-50%) rotate(-10deg) scale(1.12)', opacity:0}, {transform:'translate(-50%,-50%) rotate(-10deg) scale(1)', opacity:1}],
+        {duration:420, delay:320, easing:'cubic-bezier(.22,1,.36,1)', fill:'backwards'});
+    }
+  });
+}
+function layout(animate) {
+  const sorted = CAFES.slice().sort((a, b) => (b.match - a.match) || byScore(a, b));
+  const first = new Map();
+  if (animate && !RM) CAFES.forEach(c => first.set(c, c.el.getBoundingClientRect()));
+  CAFES.forEach(c => { if (c.anim) { c.anim.cancel(); c.anim = null; } });
+  sorted.forEach(c => wall.appendChild(c.el));
+  if (!first.size) return;
+  CAFES.forEach(c => {
+    const a = first.get(c), b = c.el.getBoundingClientRect();
+    const dx = a.left - b.left, dy = a.top - b.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    // glide along the rail, then let the ticket's own inertia carry it into one soft sway
+    c.anim = c.el.animate([{transform:`translate(${dx}px,${dy}px)`}, {transform:'translate(0,0)'}],
+      {duration:680, easing:'cubic-bezier(.22,1,.36,1)'});
+    c.anim.onfinish = () => { c.anim = null; };
+    setTimeout(() => nudge(c, dx > 0 ? 0.11 : -0.11), 300);
+  });
+}
+let topName = '';
+let hoverName = '';
+function applyOrder(animate = true) {
+  evaluate();
+  layout(animate);
+  const hits = CAFES.filter(c => c.match).sort(byScore);
+  const m = hits.length;
+  roll($('#bignum'), String(m), false);
+  $('#foot-count').textContent = m;
+  $('#see').textContent = m ? `See ${m} match${m === 1 ? '' : 'es'} ↓` : 'See the closest cafes ↓';
+  topName = hits[0] ? hits[0].short : 'no match';
+  $('#ob-n').textContent = m;
+  const picked = KEYS.filter(k => SLOTS[k].opts[order[k]][2]).map(k => SLOTS[k].opts[order[k]][0] + (k === 'wifi' ? ' Wi‑Fi' : ''));
+  $('#ob-sum').textContent = picked.length ? picked.join(' · ') : 'Anything goes';
+  cup.setOrder(KEYS.map(k => SLOTS[k].opts[order[k]][1]));
+  if (!hoverName) cup.showName(topName);
+  labelSlots();
+}
+
+/* ── Choice menu: tap a pill to see every option and how many cafes it leaves ── */
+const menu = $('#menu'), menuList = $('#menu-list'), scrim = $('#scrim');
+const CHECK = '<svg class="o-check" viewBox="0 0 16 12" aria-hidden="true"><path d="M1.5 6.5 5.8 10.5 14.5 1.5"/></svg>';
+let openK = null;
+function openMenu(k) {
+  if (openK === k) { closeMenu(); return; }
+  closeMenu(false);
+  openK = k;
+  const btn = slotEls[k];
+  $('#menu-title').textContent = TITLES[k];
+  menuList.innerHTML = SLOTS[k].opts.map((o, i) => {
+    const n = CAFES.filter(c => matches(c, {...order, [k]:i})).length;
+    return `<li role="option" data-i="${i}" tabindex="-1" aria-selected="${i === order[k]}"><span class="o-label">${o[0]}</span><span class="o-count">${n} cafe${n === 1 ? '' : 's'}</span>${CHECK}</li>`;
+  }).join('');
+  btn.setAttribute('aria-expanded', 'true');
+  const sheet = innerWidth < 700;
+  menu.classList.toggle('sheet', sheet);
+  menu.hidden = false; scrim.hidden = !sheet;
+  if (sheet) { menu.style.top = menu.style.left = ''; }
+  else {
+    const r = btn.getBoundingClientRect();
+    menu.style.top = (r.bottom + scrollY + 10) + 'px';
+    menu.style.left = clamp(r.left + scrollX, 16, document.documentElement.clientWidth - menu.offsetWidth - 16) + 'px';
+  }
+  if (!RM) menu.animate(sheet
+    ? [{transform:'translateY(100%)'}, {transform:'translateY(0)'}]
+    : [{opacity:0, transform:'translateY(-6px) scale(.98)'}, {opacity:1, transform:'none'}],
+    {duration:sheet ? 380 : 220, easing:'cubic-bezier(.22,1,.36,1)'});
+  menuList.querySelector('[aria-selected="true"]').focus({preventScroll:true});
+}
+function closeMenu(returnFocus = true) {
+  if (!openK) return;
+  const btn = slotEls[openK];
+  btn.setAttribute('aria-expanded', 'false');
+  menu.hidden = true; scrim.hidden = true; openK = null;
+  if (returnFocus) btn.focus({preventScroll:true});
+}
+function choose(i) {
+  const k = openK;
+  closeMenu();
+  if (order[k] === i) return;
+  order[k] = i;
+  roll(slotEls[k].querySelector('.roll'), SLOTS[k].opts[i][0], true);
+  applyOrder();
+  cup.focus('column');
+}
+$$('.slot').forEach(b => b.addEventListener('click', () => { stopHint(); openMenu(b.dataset.k); }));
+menuList.addEventListener('click', e => { const li = e.target.closest('[role="option"]'); if (li) choose(+li.dataset.i); });
+menuList.addEventListener('keydown', e => {
+  const items = [...menuList.children], idx = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown') { e.preventDefault(); items[(idx + 1) % items.length].focus(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); items[(idx - 1 + items.length) % items.length].focus(); }
+  else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (idx >= 0) choose(idx); }
+  else if (e.key === 'Tab') closeMenu(false);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+document.addEventListener('pointerdown', e => { if (openK && !menu.contains(e.target) && !e.target.closest('.slot')) closeMenu(false); });
+window.addEventListener('resize', () => closeMenu(false));
+
+/* ── One-time hint: the first time the order is on screen, each pill spins through its
+   options like a slot-machine window, then settles. Width is locked so the line never reflows. ── */
+let hintDone = RM;
+function stopHint() { hintDone = true; }
+function runHint() {
+  if (hintDone) return;
+  hintDone = true;
+  const STEP = 230, STAGGER = 170;
+  KEYS.forEach((k, si) => {
+    const rollEl = slotEls[k].querySelector('.roll');
+    const n = SLOTS[k].opts.length, start = order[k];
+    const seq = [...Array(n).keys()].map(j => (start + 1 + j) % n);   // others…, then back to the current one
+    setTimeout(() => {
+      if (openK) return;
+      rollEl.style.width = rollEl.getBoundingClientRect().width + 'px';
+      rollEl.classList.add('hinting');
+      seq.forEach((i, j) => setTimeout(() => {
+        roll(rollEl, SLOTS[k].opts[j === seq.length - 1 ? order[k] : i][0], false);
+        if (j === seq.length - 1) setTimeout(() => { rollEl.classList.remove('hinting'); rollEl.style.width = ''; }, 480);
+      }, j * STEP));
+    }, si * STAGGER);
+  });
+}
+if (!hintDone) {
+  const hintIO = new IntersectionObserver(([e]) => {
+    if (e.intersectionRatio >= 0.6) { hintIO.disconnect(); setTimeout(runHint, 900); }
+  }, {threshold:[0.6]});
+  hintIO.observe($('#order-h'));
+}
+
+/* ── Pinned order bar (phones/tablets): shows while the tickets are on screen and the order isn't ── */
+const bar = $('#orderbar');
+let orderVisible = true, ticketsVisible = false;
+const syncBar = () => bar.classList.toggle('show', !orderVisible && ticketsVisible);
+new IntersectionObserver(([e]) => { orderVisible = e.isIntersecting; syncBar(); }).observe($('.order'));
+new IntersectionObserver(([e]) => { ticketsVisible = e.isIntersecting; syncBar(); }).observe($('#tickets'));
+$('#ob-edit').addEventListener('click', () => $('.order').scrollIntoView({behavior:RM ? 'auto' : 'smooth', block:'start'}));
+
+/* ── Rail position readout on phones ── */
+const railPos = $('#rail-pos');
+wall.addEventListener('scroll', () => {
+  const first = wall.firstElementChild; if (!first) return;
+  const step = first.getBoundingClientRect().width + 16;
+  railPos.textContent = clamp(Math.round(wall.scrollLeft / step) + 1, 1, CAFES.length);
+}, {passive:true});
+
+function barista() {
+  stopHint();
+  const pick = () => Object.fromEntries(KEYS.map(k => [k, Math.floor(Math.random() * SLOTS[k].opts.length)]));
+  let next, tries = 0;
+  do { next = pick(); tries++; }
+  while (tries < 80 && (CAFES.filter(c => matches(c, next)).length < 2 || KEYS.every(k => next[k] === order[k])));
+  closeMenu(false);
+  cup.focus('column');
+  KEYS.forEach((k, i) => setTimeout(() => {
+    if (order[k] !== next[k]) { order[k] = next[k]; roll(slotEls[k].querySelector('.roll'), SLOTS[k].opts[order[k]][0], true); }
+    cup.setOrder(KEYS.map(kk => SLOTS[kk].opts[order[kk]][1]));
+    if (i === KEYS.length - 1) applyOrder();
+  }, RM ? 0 : i * 170));
+}
+$$('[data-barista]').forEach(b => b.addEventListener('click', () => {
+  if (b.closest('.closer')) $('.order').scrollIntoView({behavior: RM ? 'auto' : 'smooth', block:'start'});
+  barista();
+}));
+
+/* Hovering or focusing a ticket writes that cafe's name on the cup */
+function setHover(c) {
+  const name = c ? c.short : '';
+  if (name === hoverName) return;
+  hoverName = name;
+  cup.showName(name || topName);
+  cup.focus(name ? 'name' : 'idle');
+}
+wall.addEventListener('pointerover', e => { const li = e.target.closest('.ticket'); if (li) setHover(li._cafe); });
+wall.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') setHover(null); });
+wall.addEventListener('focusin', e => { const li = e.target.closest('.ticket'); if (li) setHover(li._cafe); });
+wall.addEventListener('focusout', e => { if (!wall.contains(e.relatedTarget)) setHover(null); });
+
+/* Buttons that point at routes in the real app */
+const toastEl = $('#toast');
+$$('[data-app]').forEach(b => b.addEventListener('click', () => {
+  toastEl.textContent = `In the Needle Space app, this opens ${b.dataset.app}: every cafe on a map, with filters.`;
+  toastEl.hidden = false;
+  clearTimeout(toastEl._t); toastEl._t = setTimeout(() => { toastEl.hidden = true; }, 3200);
+}));
+
+/* ── The 3D cup ─────────────────────────────────────────── */
+function makeCup() {
+  const T = window.THREE;
+  if (!T) throw new Error('three.js did not load');
+  const canvas = $('#cup'), wrap = canvas.parentElement;
+  const renderer = new T.WebGLRenderer({canvas, antialias:true, alpha:true, powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = T.sRGBEncoding;
+  renderer.setClearColor(0x000000, 0);
+  const col = hex => new T.Color(hex).convertSRGBToLinear();
+  const aniso = renderer.capabilities.getMaxAnisotropy();
+
+  const scene = new T.Scene();
+  const camera = new T.PerspectiveCamera(30, 1, 0.1, 60);
+  const LOOK = new T.Vector3(0, 1.95, 0);
+
+  // A soft studio baked into an environment map, tinted by the sage room around it.
+  const pmrem = new T.PMREMGenerator(renderer);
+  const envScene = new T.Scene();
+  envScene.add(new T.Mesh(new T.BoxGeometry(14, 14, 14), new T.MeshBasicMaterial({color:col(0x7F8C74), side:T.BackSide})));
+  const panel = (w, h, hex, k, x, y, z) => {
+    const m = new T.MeshBasicMaterial({color:col(hex), side:T.DoubleSide}); m.color.multiplyScalar(k);
+    const p = new T.Mesh(new T.PlaneGeometry(w, h), m); p.position.set(x, y, z); p.lookAt(0, 1.5, 0); envScene.add(p);
+  };
+  panel(8, 4, 0xfffaf0, 3.0, -2.5, 6.5, 3);
+  panel(3, 6, 0xf4ecdf, 1.6, -6.5, 2, 2);
+  panel(2, 5, 0xffffff, 1.0, 6.5, 2.5, -2);
+  scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+  scene.add(new T.HemisphereLight(col(0xfffaf2), col(0x8C9A80), 0.55));
+  const key = new T.DirectionalLight(col(0xfff6ea), 1.0); key.position.set(-3.5, 7, 6); scene.add(key);
+  const rimL = new T.DirectionalLight(col(0xe9efe0), 0.4); rimL.position.set(5, 3, -4); scene.add(rimL);
+
+  // Cup geometry: a tapered paper cup, 2.5 tall, base radius .78, mouth 1.05.
+  const CH = 2.5, RT = 1.05, RB = 0.78;
+  const rAt = y => RB + (RT - RB) * (y / CH);
+
+  // Printed wrap: canvas x = angle around the cup (center = front), y = height (top = rim).
+  const PW = 2048, PH = 896;
+  const xOf = th => (th + Math.PI) / (Math.PI * 2) * PW;
+  const yOf = h => (1 - h / CH) * PH;
+  const INK = '#33271F', PRINT = '#56684D', MARK = '#241A14';
+  const printCv = Object.assign(document.createElement('canvas'), {width:PW, height:PH});
+  const pctx = printCv.getContext('2d');
+  const ROWS = ['NOISE', 'OUTLETS', 'WI-FI', 'HOURS', 'AREA'];
+  const rowY = i => 100 + i * 64;
+  function speckle(ctx, w, h, n, rgba) {
+    ctx.fillStyle = rgba;
+    let s = 7;
+    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < n; i++) ctx.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2);
+  }
+  function drawPrint() {
+    const c = pctx;
+    c.fillStyle = '#FFFCF4'; c.fillRect(0, 0, PW, PH);
+    speckle(c, PW, PH, 2600, 'rgba(110,90,60,.05)');
+    c.fillStyle = PRINT; c.fillRect(0, 26, PW, 7);
+    c.textBaseline = 'alphabetic';
+    ROWS.forEach((r, i) => {
+      const cy = rowY(i);
+      c.font = '600 21px "Martian Mono", monospace'; c.fillStyle = INK; c.textAlign = 'right';
+      c.fillText(r, 858, cy + 7);
+      c.strokeStyle = PRINT; c.lineWidth = 4; c.strokeRect(872, cy - 18, 36, 36);
+    });
+    c.textAlign = 'left';
+    c.font = '600 19px "Martian Mono", monospace'; c.fillStyle = INK;
+    c.fillText('NAME', 1088, 98);
+    c.fillRect(1088, 176, 222, 2.5);
+    c.strokeStyle = PRINT; c.lineWidth = 3.5;
+    c.strokeRect(1088, 222, 30, 30); c.fillText('FOR HERE', 1130, 244);
+    c.strokeRect(1088, 272, 30, 30); c.fillText('TO GO', 1130, 294);
+    c.font = '500 15px "Martian Mono", monospace'; c.fillStyle = 'rgba(51,39,31,.6)';
+    c.fillText('SEATTLE · EST. 2026', 1088, 352);
+    c.textAlign = 'center';
+    for (const x of [0, PW]) {
+      c.font = '800 128px "Bricolage Grotesque", sans-serif'; c.fillStyle = PRINT;
+      c.fillText('needle space', x, 216);
+      c.font = '600 22px "Martian Mono", monospace'; c.fillStyle = INK;
+      c.fillText('472 CAFES · 17 NEIGHBORHOODS · 4 CITIES', x, 280);
+    }
+    c.font = '800 54px "Bricolage Grotesque", sans-serif'; c.fillStyle = PRINT;
+    ['SEA', 'BEL', 'RED', 'KIR'].forEach((t, i) => c.fillText(t, 560, 132 + i * 72));
+    c.font = '600 18px "Martian Mono", monospace'; c.fillStyle = INK;
+    ['TAGGED FOR', 'WI-FI · OUTLETS', '· NOISE ·'].forEach((t, i) => c.fillText(t, 1480, 150 + i * 34));
+    c.font = '600 20px "Martian Mono", monospace'; c.fillStyle = 'rgba(51,39,31,.6)'; c.textAlign = 'left';
+    const warn = 'CAREFUL: CONTENTS HOT · WI-FI FAST · ';
+    const ww = c.measureText(warn).width;
+    for (let x = 0; x < PW; x += ww) c.fillText(warn, x, 812);
+  }
+  const printTex = new T.CanvasTexture(printCv);
+  printTex.encoding = T.sRGBEncoding; printTex.anisotropy = aniso;
+
+  // Kraft sleeve
+  const SW = 2048, SH = 288;
+  const sleeveCv = Object.assign(document.createElement('canvas'), {width:SW, height:SH});
+  const sctx = sleeveCv.getContext('2d');
+  function drawSleeve() {
+    const c = sctx;
+    c.fillStyle = '#C4A07A'; c.fillRect(0, 0, SW, SH);
+    for (let x = 0; x < SW; x += 10) {
+      c.fillStyle = 'rgba(80,55,30,.09)'; c.fillRect(x, 0, 4, SH);
+      c.fillStyle = 'rgba(255,240,220,.08)'; c.fillRect(x + 5, 0, 2, SH);
+    }
+    speckle(c, SW, SH, 1400, 'rgba(60,40,20,.16)');
+    c.save(); c.translate(1024, 144); c.rotate(-0.1); c.globalAlpha = 0.86;
+    c.strokeStyle = INK; c.fillStyle = INK;
+    c.lineWidth = 5; c.beginPath(); c.arc(0, 0, 118, 0, Math.PI * 2); c.stroke();
+    c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 86, 0, Math.PI * 2); c.stroke();
+    c.font = '800 84px "Bricolage Grotesque", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('ns', 0, -4);
+    c.font = '700 14px "Martian Mono", monospace';
+    const ring = 'WORK-FRIENDLY CAFES · SEATTLE METRO · ';
+    const step = (Math.PI * 2) / ring.length;
+    [...ring].forEach((ch, i) => { c.save(); c.rotate(i * step); c.fillText(ch, 0, -101); c.restore(); });
+    c.restore();
+    c.fillStyle = INK; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+    c.font = '800 44px "Bricolage Grotesque", sans-serif';
+    c.fillText('LAPTOPS WELCOME', 1024 - 420, 160);
+    c.fillText('STAY A WHILE', 1024 + 420, 160);
+    c.font = '700 34px "Bricolage Grotesque", sans-serif';
+    for (const x of [0, SW]) c.fillText('a table worth opening your laptop at', x, 160);
+  }
+  const sleeveTex = new T.CanvasTexture(sleeveCv);
+  sleeveTex.encoding = T.sRGBEncoding; sleeveTex.anisotropy = aniso;
+
+  // Marker layer: a transparent decal over the front, redrawn only while the barista writes.
+  const DT = 0.9, D0 = 1.3, D1 = 2.35;
+  const X0 = xOf(-DT), X1 = xOf(DT), Y0 = yOf(D1), Y1 = yOf(D0);
+  const MW = 1024, MS = MW / (X1 - X0), MH = Math.round((Y1 - Y0) * MS);
+  const markCv = Object.assign(document.createElement('canvas'), {width:MW, height:MH});
+  const mctx = markCv.getContext('2d');
+  const markTex = new T.CanvasTexture(markCv);
+  markTex.encoding = T.sRGBEncoding; markTex.anisotropy = aniso;
+  const marks = {rows: ROWS.map(() => ({text:'', t:1, dur:0.42})), name:{text:'', t:1, dur:0.6}, here:{text:'', t:1, dur:0.35}};
+  let marksDirty = true;
+  function setMark(m, text, delay = 0) {
+    if (m.text === text) return;
+    m.text = text; m.t = RM ? 1 : -delay / m.dur; marksDirty = true;
+  }
+  function stroke(pts, width, p) {
+    let len = 0;
+    for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    mctx.lineWidth = width; mctx.setLineDash([len * p, len + 1]);
+    mctx.beginPath(); mctx.moveTo(...pts[0]); pts.slice(1).forEach(q => mctx.lineTo(...q)); mctx.stroke();
+    mctx.setLineDash([]);
+  }
+  const check = (x, y, s, p) => stroke([[x + s * .14, y + s * .52], [x + s * .42, y + s * .86], [x + s * 1.12, y - s * .14]], 6.5, p);
+  function write(text, x, y, size, p, tilt, maxW) {
+    if (p <= 0 || !text) return;
+    mctx.save();
+    mctx.font = `${size}px "Permanent Marker", "Marker Felt", cursive`;
+    let w = mctx.measureText(text).width;
+    if (maxW && w > maxW) { size *= maxW / w; mctx.font = `${size}px "Permanent Marker", "Marker Felt", cursive`; w = maxW; }
+    mctx.translate(x, y); mctx.rotate(tilt);
+    mctx.beginPath(); mctx.rect(-8, -size * 1.2, (w + 16) * p, size * 1.7); mctx.clip();
+    mctx.fillText(text, 0, 0);
+    mctx.restore();
+  }
+  function drawMarks() {
+    mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.clearRect(0, 0, MW, MH);
+    mctx.setTransform(MS, 0, 0, MS, -X0 * MS, -Y0 * MS);
+    mctx.strokeStyle = mctx.fillStyle = MARK; mctx.lineCap = 'round'; mctx.lineJoin = 'round';
+    mctx.globalAlpha = 0.93;
+    marks.rows.forEach((m, i) => {
+      const p = clamp(m.t, 0, 1), cy = rowY(i);
+      if (p <= 0) return;
+      if (m.text === '—') stroke([[926, cy + 2], [968, cy - 1]], 6, p);
+      else { check(872, cy - 18, 36, clamp(p * 2, 0, 1)); write(m.text, 926, cy + 15, 40, clamp(p * 1.7 - 0.5, 0, 1), (i % 2 ? 0.04 : -0.035), 128); }
+    });
+    write(marks.name.text, 1092, 164, 56, clamp(marks.name.t, 0, 1), -0.05, 214);
+    if (marks.here.text) check(1088, 222, 30, clamp(marks.here.t, 0, 1));
+  }
+  function tickMarks(dt) {
+    let dirty = marksDirty; marksDirty = false;
+    [...marks.rows, marks.name, marks.here].forEach(m => {
+      if (m.t < 1) { const before = m.t; m.t = Math.min(1, m.t + dt / m.dur); if (m.t > 0 || before > 0) dirty = true; }
+    });
+    return dirty;
+  }
+
+  // Assemble: root (tilt) › spin (yaw) › cupG (hop + bob) › parts
+  const root = new T.Group(), spin = new T.Group(), cupG = new T.Group(), lidG = new T.Group();
+  scene.add(root); root.add(spin); spin.add(cupG); cupG.add(lidG);
+  const body = new T.Mesh(new T.CylinderGeometry(RT, RB, CH, 128, 1, true, -Math.PI, Math.PI * 2),
+    new T.MeshStandardMaterial({map:printTex, roughness:0.8, metalness:0, envMapIntensity:0.7}));
+  body.position.y = CH / 2; cupG.add(body);
+  const bottom = new T.Mesh(new T.CircleGeometry(RB, 64), new T.MeshStandardMaterial({color:col(0xefe6d8), roughness:0.9}));
+  bottom.rotation.x = Math.PI / 2; bottom.position.y = 0.004; cupG.add(bottom);
+  const paperPlain = new T.MeshStandardMaterial({color:col(0xfff8ee), roughness:0.75, envMapIntensity:0.7});
+  const rim = new T.Mesh(new T.TorusGeometry(RT + 0.01, 0.05, 16, 128), paperPlain);
+  rim.rotation.x = Math.PI / 2; rim.position.y = CH; cupG.add(rim);
+  const S0 = 0.42, S1 = 1.22, ST = 0.03;
+  const sleeve = new T.Mesh(new T.CylinderGeometry(rAt(S1) + ST, rAt(S0) + ST, S1 - S0, 128, 1, true, -Math.PI, Math.PI * 2),
+    new T.MeshStandardMaterial({map:sleeveTex, roughness:0.95, envMapIntensity:0.6}));
+  sleeve.position.y = (S0 + S1) / 2; cupG.add(sleeve);
+  const kraftEdge = new T.MeshStandardMaterial({color:col(0x9C8062), roughness:0.95});
+  [S0, S1].forEach(y => {
+    const ring = new T.Mesh(new T.TorusGeometry(rAt(y) + ST * 0.55, ST * 0.55, 8, 128), kraftEdge);
+    ring.rotation.x = Math.PI / 2; ring.position.y = y; cupG.add(ring);
+  });
+  const markMesh = new T.Mesh(new T.CylinderGeometry(rAt(D1) + 0.004, rAt(D0) + 0.004, D1 - D0, 64, 1, true, -DT, DT * 2),
+    new T.MeshStandardMaterial({map:markTex, transparent:true, roughness:0.55, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2, envMapIntensity:0.7}));
+  markMesh.position.y = (D0 + D1) / 2; cupG.add(markMesh);
+
+  // Lid: one lathe profile, raised drinking ring, skirt that hugs the rolled rim. Pivots around its own center.
+  const LID_Y = 2.6;
+  const lidPts = [[0, 2.6], [0.55, 2.6], [0.66, 2.615], [0.74, 2.68], [0.82, 2.712], [0.92, 2.706], [0.99, 2.672], [1.05, 2.61], [1.11, 2.588], [1.13, 2.54], [1.125, 2.5], [1.09, 2.485]]
+    .map(([x, y]) => new T.Vector2(x, y));
+  const lid = new T.Mesh(new T.LatheGeometry(new T.SplineCurve(lidPts).getPoints(90), 128),
+    new T.MeshStandardMaterial({color:col(0x2E2621), roughness:0.32, metalness:0, envMapIntensity:1.1, side:T.DoubleSide}));
+  lid.position.y = -LID_Y; lidG.add(lid);
+  const SIP = 0.42;
+  const sip = new T.Mesh(new T.BoxGeometry(0.22, 0.04, 0.07), new T.MeshBasicMaterial({color:0x0b0806}));
+  sip.position.set(0.87 * Math.sin(SIP), 2.706 - LID_Y, 0.87 * Math.cos(SIP)); sip.rotation.y = SIP; lidG.add(sip);
+
+  // Soft contact shadow, tinted toward the sage ground
+  const shCv = Object.assign(document.createElement('canvas'), {width:256, height:256});
+  const shx = shCv.getContext('2d');
+  const g = shx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, 'rgba(40,50,34,.5)'); g.addColorStop(0.45, 'rgba(40,50,34,.22)'); g.addColorStop(1, 'rgba(40,50,34,0)');
+  shx.fillStyle = g; shx.fillRect(0, 0, 256, 256);
+  const shTex = new T.CanvasTexture(shCv); shTex.encoding = T.sRGBEncoding;
+  const shadow = new T.Mesh(new T.PlaneGeometry(2.9, 2.9), new T.MeshBasicMaterial({map:shTex, transparent:true, depthWrite:false}));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.002; scene.add(shadow);
+
+  // Steam: three shader ribbons that curl, widen, and lean away from the pointer.
+  const steamVS = `
+    uniform float uTime; uniform float uPhase; uniform float uWind;
+    varying vec2 vUv;
+    void main(){
+      vUv = uv;
+      vec3 p = position;
+      float h = uv.y;
+      p.x *= 1.0 + h * 2.4;
+      p.x += sin(h * 5.0 - uTime * 1.1 + uPhase) * 0.18 * h + sin(h * 12.0 - uTime * 1.8 + uPhase * 1.3) * 0.04 * h;
+      p.x += uWind * h * h * 1.5;
+      p.z += cos(h * 4.0 - uTime * 0.9 + uPhase) * 0.08 * h;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    }`;
+  const steamFS = `
+    uniform vec3 uColor; uniform float uOpacity; uniform float uTime; uniform float uPhase;
+    varying vec2 vUv;
+    void main(){
+      float side = smoothstep(0.0, 0.5, vUv.x) * smoothstep(1.0, 0.5, vUv.x);
+      float a = side * smoothstep(0.0, 0.14, vUv.y) * (1.0 - smoothstep(0.35, 1.0, vUv.y));
+      a *= 0.62 + 0.38 * sin(vUv.y * 9.0 - uTime * 1.5 + uPhase);
+      gl_FragColor = vec4(uColor, a * uOpacity);
+    }`;
+  const steamGeo = new T.PlaneGeometry(0.2, 2.0, 1, 60); steamGeo.translate(0, 1.0, 0);
+  const ribbons = [[-0.09, 1.0, 0], [0.03, 0.82, 2.1], [0.13, 0.92, 4.2]].map(([ox, sy, ph]) => {
+    const m = new T.Mesh(steamGeo, new T.ShaderMaterial({
+      uniforms:{uTime:{value:0}, uPhase:{value:ph}, uWind:{value:0}, uOpacity:{value:0}, uColor:{value:new T.Color(0xffffff)}},
+      vertexShader:steamVS, fragmentShader:steamFS, transparent:true, depthWrite:false,
+    }));
+    m.scale.y = sy; m.userData.ox = ox; scene.add(m); return m;
+  });
+
+  // Framing: back the camera off until the whole scene — shadow edge, cup, lid, steam — sits
+  // inside the canvas with a margin, whatever shape the stage is. Keeps the base from being clipped.
+  const FIT = [[0, 0, 1.4], [0, 0, -1.4], [1.4, 0, 0], [-1.4, 0, 0], [1.2, 2.75, 0], [-1.2, 2.75, 0], [0, 2.8, 1.15], [0, 4.2, 0]]
+    .map(([x, y, z]) => new T.Vector3(x, y, z));
+  const probe = new T.Vector3(), EL = 0.22;
+  const place = d => { camera.position.set(0, LOOK.y + Math.sin(EL) * d, Math.cos(EL) * d); camera.lookAt(LOOK); camera.updateMatrixWorld(); };
+  const fits = () => FIT.every(p => { probe.copy(p).project(camera); return Math.abs(probe.x) <= 0.9 && probe.y >= -0.84 && probe.y <= 0.92; });
+  function resize() {
+    const w = wrap.clientWidth || 1, h = wrap.clientHeight || 1;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    let lo = 4, hi = 40;
+    for (let i = 0; i < 24; i++) { const d = (lo + hi) / 2; place(d); if (fits()) hi = d; else lo = d; }
+    place(hi);
+  }
+  new ResizeObserver(resize).observe(wrap); resize();
+
+  const ptr = {nx:0, ny:0, vx:0, has:false};
+  window.addEventListener('pointermove', e => {
+    const r = canvas.getBoundingClientRect();
+    const nx = (e.clientX - r.left) / r.width * 2 - 1, ny = -((e.clientY - r.top) / r.height * 2 - 1);
+    if (ptr.has) ptr.vx += nx - ptr.nx;
+    ptr.nx = nx; ptr.ny = ny; ptr.has = true;
+  }, {passive:true});
+  let drag = null, yaw = 0.12, yawVel = 0;
+  const hop = {y:0, v:0}, wob = {a:0, v:0}, lidS = {y:RM ? 0 : 1.5, v:0, delay:RM ? 0 : 0.35};
+  let puff = 0;
+  canvas.addEventListener('pointerdown', e => {
+    drag = {lx:e.clientX, t:performance.now(), moved:0};
+    canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing';
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.lx; drag.lx = e.clientX; drag.moved += Math.abs(dx);
+    const now = performance.now(), dts = Math.max(8, now - drag.t) / 1000; drag.t = now;
+    yaw += dx * 0.012; yawVel = clamp(dx * 0.012 / dts, -12, 12);
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    if (drag.moved < 6) { hop.v += 2.6; puff = 1.1; wob.v += 1.4; }
+    drag = null; canvas.style.cursor = '';
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+
+  let focus = 'idle', focusUntil = 0;
+  const sipW = new T.Vector3(), hit = new T.Vector3(), ndc = new T.Vector2();
+  const ray = new T.Raycaster(), plane = new T.Plane(new T.Vector3(0, 0, 1), 0);
+  let t = 0, last = performance.now(), raf = 0, visible = true, tiltX = 0, tiltZ = 0, wind = 0;
+
+  function frame(now) {
+    raf = 0;
+    if (!visible) return;
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+
+    if (lidS.delay > 0) lidS.delay -= dt;
+    else { lidS.v += (-150 * lidS.y - 14 * lidS.v) * dt; lidS.y += lidS.v * dt; }
+    lidG.position.y = LID_Y + lidS.y; lidG.rotation.z = lidS.y * 0.2; lidG.rotation.x = lidS.y * 0.08;
+
+    hop.v += (-150 * hop.y - 13 * hop.v) * dt; hop.y += hop.v * dt;
+    wob.v += (-70 * wob.a - 8 * wob.v) * dt; wob.a += wob.v * dt;
+    const bob = RM ? 0 : (Math.sin(t * 1.1) * 0.5 + 0.5) * 0.04;
+    cupG.position.y = Math.max(0, hop.y) + bob;
+
+    const txT = RM ? 0 : clamp(-ptr.ny * 0.06, -0.08, 0.1);
+    const tzT = RM ? 0 : clamp(-ptr.nx * 0.07, -0.1, 0.1);
+    tiltX += (txT - tiltX) * Math.min(1, dt * 3); tiltZ += (tzT - tiltZ) * Math.min(1, dt * 3);
+    root.rotation.x = tiltX + wob.a * 0.35; root.rotation.z = tiltZ + wob.a;
+
+    if (!drag) {
+      const base = focus === 'name' ? -0.5 : (now < focusUntil ? 0.44 : 0.12);
+      const rest = base + (RM ? 0 : clamp(ptr.nx, -1.5, 1.5) * 0.14);
+      const d = Math.atan2(Math.sin(rest - yaw), Math.cos(rest - yaw));
+      if (Math.abs(yawVel) < 3) yawVel += d * 12 * dt;
+      yawVel *= Math.exp(-(Math.abs(yawVel) > 3 ? 1.1 : 5) * dt);
+      yaw += yawVel * dt;
+    }
+    spin.rotation.y = yaw + (RM ? 0 : Math.sin(t * 0.45) * 0.025);
+
+    const lift = cupG.position.y;
+    shadow.scale.setScalar(1 + lift * 0.5);
+    shadow.material.opacity = clamp(1 - lift * 1.6, 0.35, 1);
+
+    sip.getWorldPosition(sipW);
+    let windT = 0;
+    if (ptr.has && !RM) {
+      plane.constant = -sipW.z;
+      ndc.set(ptr.nx, ptr.ny); ray.setFromCamera(ndc, camera);
+      if (ray.ray.intersectPlane(plane, hit)) {
+        const dx = hit.x - sipW.x, dy = hit.y - (sipW.y + 0.9);
+        const near = Math.max(0, 1 - Math.hypot(dx / 1.1, dy / 1.3));
+        windT = (-Math.sign(dx) * 0.8 + clamp(ptr.vx * 5, -0.9, 0.9)) * near;
+      }
+    }
+    ptr.vx *= Math.exp(-8 * dt);
+    wind += (windT - wind) * Math.min(1, dt * 2);
+    puff *= Math.exp(-2 * dt);
+    const steamOn = clamp(1 - lidS.y, 0, 1) * (1 + puff * 0.6);
+    ribbons.forEach(r => {
+      r.position.set(sipW.x + r.userData.ox, sipW.y - 0.02, sipW.z);
+      const u = r.material.uniforms;
+      u.uTime.value = t * (RM ? 0.3 : 1); u.uWind.value = wind; u.uOpacity.value = 0.62 * steamOn;
+    });
+
+    if (tickMarks(dt)) { drawMarks(); markTex.needsUpdate = true; }
+    renderer.render(scene, camera);
+    raf = requestAnimationFrame(frame);
+  }
+  new IntersectionObserver(([e]) => {
+    visible = e.isIntersecting;
+    if (visible && !raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
+  }).observe(wrap);
+
+  drawPrint(); drawSleeve();
+  Promise.all([
+    document.fonts.load('800 120px "Bricolage Grotesque"'),
+    document.fonts.load('600 20px "Martian Mono"'),
+    document.fonts.load('40px "Permanent Marker"'),
+  ]).then(() => { drawPrint(); drawSleeve(); printTex.needsUpdate = true; sleeveTex.needsUpdate = true; marksDirty = true; }).catch(() => {});
+
+  let first = true;
+  return {
+    setOrder(codes) {
+      const changed = codes.some((code, i) => marks.rows[i].text !== code);
+      codes.forEach((code, i) => setMark(marks.rows[i], code, first ? 0.75 + i * 0.14 : 0));
+      if (first) setMark(marks.here, '✓', 1.5);
+      if (!first && changed) wob.v += 1.0;
+      first = false;
+    },
+    showName(name) { setMark(marks.name, name || '', marks.here.t < 1 ? 1.75 : 0); },
+    focus(which) {
+      if (which === 'name') focus = 'name';
+      else { focus = 'idle'; if (which === 'column') focusUntil = performance.now() + 2600; }
+    },
+  };
+}
+
+let cup;
+try { cup = makeCup(); }
+catch (err) {
+  $('.stage').classList.add('no-webgl');
+  cup = {setOrder() {}, showName() {}, focus() {}};
+}
+
+refreshTimes();
+applyOrder(false);
+setInterval(() => { refreshTimes(); applyOrder(true); }, 60000);
+})();
+</script>

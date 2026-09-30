@@ -1,0 +1,528 @@
+<title>One Workday, Twelve Cafes</title>
+<meta name="description" content="A scroll story through a Seattle weekday, 5 AM to 10 PM, told by twelve real work cafes on a 3D table.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gloock&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=Spline+Sans+Mono:wght@400;500;600&family=Caveat:wght@500;700&display=swap">
+<style>
+/* A single visual world: the sky is the page, and it follows the clock.
+   Every color is painted explicitly; the dark/light host theme doesn't apply. */
+:root{
+  color-scheme:dark;
+  --sky-top:#0B1026; --sky-bot:#1E2548; --clock-ink:#F6EFE4;
+  --paper:#FBF8F2; --ink:#1F1A14; --ink-soft:#6A5E52; --rule:#E5DCCD;
+  --accent:#C9572A; --night-ink:#F6EFE4;
+  --f-display:"Gloock",Georgia,"Times New Roman",serif;
+  --f-body:"Newsreader",Georgia,"Times New Roman",serif;
+  --f-mono:"Spline Sans Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --gut:clamp(16px,4vw,56px);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{background:#0B1026}
+body{margin:0;background:transparent;color:var(--ink);font:400 18px/1.55 var(--f-body);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.sky{position:fixed;inset:0;z-index:-2;background:linear-gradient(180deg,var(--sky-top) 0%,var(--sky-bot) 78%)}
+#scene{position:fixed;inset:0;width:100%;height:100%;z-index:-1;display:block;pointer-events:none}
+
+.brand{position:fixed;top:calc(18px + env(safe-area-inset-top,0px));left:var(--gut);z-index:3;font:400 1.25rem/1 var(--f-display);color:var(--clock-ink);text-decoration:none;transition:color .8s}
+.clock{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:var(--gut);z-index:3;text-align:right;color:var(--clock-ink);pointer-events:none;transition:color .8s;text-shadow:0 1px 16px rgba(10,10,30,.25)}
+.clock b{display:block;font:400 clamp(2.6rem,7.5vw,7rem)/.86 var(--f-display);letter-spacing:-.02em}
+.clock b small{font-size:.32em;letter-spacing:.02em;margin-left:.12em}
+.clock span{display:block;margin-top:8px;font:500 .66rem/1.4 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.rail{position:fixed;right:var(--gut);top:50%;transform:translateY(-34%);z-index:3;display:none;flex-direction:column;align-items:flex-end;gap:4px;list-style:none;margin:0;padding:0}
+.rail button{display:flex;align-items:center;justify-content:flex-end;gap:10px;background:rgba(10,10,24,.42);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border:0;border-radius:2px;padding:5px 8px;cursor:pointer;color:#F6EFE4;opacity:.7;font:500 .64rem/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;transition:opacity .2s,color .8s}
+.rail button::after{content:"";width:14px;height:2px;background:currentColor;transition:width .25s}
+.rail button[aria-current="step"]{opacity:1}
+.rail button[aria-current="step"]::after{width:32px}
+@media (hover:hover){.rail button:hover{opacity:1}}
+@media (min-width:1000px){.rail{display:flex}}
+.progress{position:fixed;left:0;top:0;height:3px;width:100%;transform-origin:0 50%;transform:scaleX(0);background:var(--accent);z-index:4}
+@media (min-width:1000px){.progress{display:none}}
+
+.intro,.outro{min-height:100vh;display:flex;align-items:center;padding-inline:var(--gut);padding-block:120px 80px}
+.intro-inner,.outro-inner{max-width:600px;color:var(--night-ink);text-shadow:0 1px 20px rgba(5,8,25,.6)}
+.eyebrow{margin:0 0 20px;font:500 .72rem/1.4 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.intro h1,.outro h2{margin:0;font:400 clamp(3rem,7.4vw,6.4rem)/.95 var(--f-display);letter-spacing:-.015em;text-wrap:balance}
+.intro p.lede,.outro p{margin:26px 0 0;max-width:32em;font-size:clamp(1.08rem,1.5vw,1.25rem);line-height:1.55}
+.intro .note{margin-top:18px;font:italic 400 1rem/1.5 var(--f-body);opacity:.8}
+.cue{display:inline-flex;align-items:center;gap:10px;margin-top:36px;font:500 .72rem/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--night-ink);border-bottom:1px solid currentColor;padding-bottom:6px}
+
+.chapter{min-height:130vh;display:flex;align-items:center;padding-inline:var(--gut)}
+.card{width:min(460px,100%);background:var(--paper);color:var(--ink);padding:26px 26px 22px;border-radius:3px;
+  box-shadow:0 40px 70px -34px rgba(4,6,20,.65),0 2px 0 rgba(255,255,255,.5) inset}
+.c-time{margin:0;display:flex;flex-wrap:wrap;gap:4px 10px;font:500 .7rem/1.4 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+.c-time b{color:var(--accent);font-weight:600}
+.c-kicker{margin:16px 0 4px;font:italic 400 1.18rem/1.3 var(--f-body);color:var(--accent)}
+.card h2{margin:0;font:400 clamp(2rem,3.1vw,2.7rem)/1.02 var(--f-display);letter-spacing:-.01em;text-wrap:balance}
+.c-text{margin:14px 0 0;font-size:1.06rem;line-height:1.56}
+.c-facts{list-style:none;margin:18px 0 0;padding:14px 0 0;border-top:1px solid var(--rule);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.c-facts li{font-size:.93rem;line-height:1.3}
+.c-facts span{display:block;margin-bottom:3px;font:500 .6rem/1.4 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+.c-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:18px;padding-top:14px;border-top:1px solid var(--rule)}
+.c-score{font:400 2.5rem/.85 var(--f-display)}
+.c-score small{font:500 .62rem/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-left:6px}
+.c-dir{font:600 .74rem/1 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;text-underline-offset:4px}
+@media (hover:hover){.c-dir:hover{color:var(--accent)}}
+.c-photo{display:none;width:100%;aspect-ratio:4/3;object-fit:cover;margin-top:16px;border-radius:2px}
+.no-webgl .c-photo{display:block}
+@media (max-width:999px){
+  .chapter{min-height:120vh;align-items:flex-end;padding-bottom:16vh}
+  .card{width:100%;padding:22px 20px 18px}
+}
+@media (max-width:480px){.c-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+.btn{display:inline-flex;align-items:center;height:48px;padding:0 20px;border-radius:2px;border:1px solid rgba(246,239,228,.6);background:transparent;cursor:pointer;text-decoration:none;
+  font:600 .74rem/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--night-ink);transition:background-color .2s,color .2s}
+.btn.solid{background:var(--night-ink);color:#141023;border-color:var(--night-ink)}
+@media (hover:hover){.btn:hover{background:var(--night-ink);color:#141023}}
+.colophon{margin-top:48px!important;font:500 .66rem/1.6 var(--f-mono)!important;letter-spacing:.08em;text-transform:uppercase;opacity:.7}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9;max-width:calc(100% - 32px);padding:12px 16px;border-radius:2px;background:var(--paper);color:var(--ink);font:500 .78rem/1.45 var(--f-mono)}
+</style>
+
+<div class="sky" aria-hidden="true"></div>
+<canvas id="scene" aria-hidden="true"></canvas>
+<div class="progress" id="progress" aria-hidden="true"></div>
+<a class="brand" href="#top">needle space</a>
+<div class="clock" aria-hidden="true"><b id="clock">4:30<small>AM</small></b><span>A weekday in Seattle</span></div>
+<ol class="rail" id="rail" aria-label="Jump to a time of day"></ol>
+
+<main>
+  <section class="intro" id="top" aria-labelledby="intro-h">
+    <div class="intro-inner">
+      <p class="eyebrow">Needle Space · twelve cafes, one weekday</p>
+      <h1 id="intro-h">One workday, twelve cafes.</h1>
+      <p class="lede">Scroll from the first door that opens at 5 AM to the last one still pouring at 10 PM. The sun crosses the table as you go, and every cafe you visit leaves a photo on the pile.</p>
+      <p class="note">Real hours, work scores and photos from the Needle Space index. Times are for a typical weekday.</p>
+      <a class="cue" href="#ch-lula">Start the day ↓</a>
+    </div>
+  </section>
+  <div id="chapters"></div>
+  <section class="outro" aria-labelledby="outro-h">
+    <div class="outro-inner">
+      <p class="eyebrow">11:00 PM · lights out</p>
+      <h2 id="outro-h">That’s the day.</h2>
+      <p>Twelve cafes, seventeen hours, one table. There are 460 more in the index, from Columbia City to Redmond, each tagged for Wi‑Fi, outlets and noise.</p>
+      <div class="actions">
+        <button class="btn solid" type="button" data-app="/explore">Browse all 472 on the map</button>
+        <a class="btn" href="#top">Start the day again ↑</a>
+      </div>
+      <p class="colophon">Landing page prototype · hours, scores and photos from the live Needle Space index, September 2026</p>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const L = {
+  wifi:{fast:'Fast', moderate:'Solid', unknown:'No data'},
+  outlets:{every_table:'Every seat', most:'Most seats', unknown:'Unconfirmed'},
+  noise:{quiet:'Quiet', moderate:'Chatty', loud:'Loud'},
+};
+/* The day, in order. Hours are weekday hours from the index. */
+const STORY = [
+  {slug:'lula', h:5, when:'5:00 AM', short:'Lula', name:'Lula Coffee Co', hood:'West Seattle', lat:47.563218, lng:-122.3869583, pid:'ChIJa2gKsmlBkFQRsNPqi8Jb6W4', addr:'4451 California Ave SW, Seattle', score:4.4, wifi:'fast', outlets:'most', noise:'quiet', hours:'5 AM–7 PM',
+   kicker:'First door open', text:'Lula unlocks at 5 AM every day of the week, earlier than anywhere else on our list. Reviewers describe a bright, colorful room with themed corners to settle into, strong Wi‑Fi, and a drive-through for anyone who can’t stay.'},
+  {slug:'zoka', h:6, when:'6:00 AM', short:'Zoka', name:'Zoka Coffee, University', hood:'University District', lat:47.6660835, lng:-122.2976194, pid:'ChIJXfLA8YYUkFQR6Zimch60wH0', addr:'2901 NE Blakeley St, Seattle', score:4.4, wifi:'moderate', outlets:'most', noise:'quiet', hours:'6 AM–5 PM',
+   kicker:'The laptop crowd’s kitchen', text:'Zoka roasts its own beans and opens at 6. Reviewers keep landing on the same things: quiet, spacious, plenty of seats, natural light and power plugs. It reads like a work checklist.'},
+  {slug:'woodland', h:6.5, when:'6:30 AM', short:'Woodland', name:'Woodland Coffee', hood:'Ballard', lat:47.6677341, lng:-122.3750668, pid:'ChIJyQwSx8kVkFQR1Utoi8oQDVU', addr:'1417 NW 54th St #101, Seattle', score:4.4, wifi:'moderate', outlets:'unknown', noise:'quiet', hours:'6:30 AM–6 PM',
+   kicker:'Guest roasters, early doors', text:'Woodland opens at 6:30 on weekdays and pours coffee from a rotating cast of guest roasters. Reviewers mention comfortable seats, outlets and decent Wi‑Fi. Our tagger hasn’t confirmed the outlet count yet, so check before you settle in.'},
+  {slug:'porter', h:7, when:'7:00 AM', short:'Porter', name:'The Shop by Porter', hood:'Downtown', lat:47.6065056, lng:-122.3376377, pid:'ChIJZXzsp_5rkFQRbN2ATdDzqEE', addr:'1201 2nd Ave #100, Seattle', score:4.7, wifi:'fast', outlets:'most', noise:'quiet', hours:'7 AM–7 PM',
+   kicker:'Before the office fills', text:'Downtown wakes up at 7, and so does Porter. It holds the second-best work score on our list, 4.7, on fast Wi‑Fi, a quiet room and plenty of seats. Plan around Sundays: it’s closed.'},
+  {slug:'5-stones', h:8, when:'8:00 AM', short:'5 Stones', name:'5 Stones Coffee Co', hood:'Kirkland', lat:47.6777479, lng:-122.2029491, pid:'ChIJm4bU8iMTkFQRHiTMBsEPMcI', addr:'312 Central Way, Kirkland', score:4.1, wifi:'moderate', outlets:'most', noise:'quiet', hours:'7 AM–5 PM',
+   kicker:'Across the lake', text:'Over in Kirkland, 5 Stones has been open an hour. Reviewers talk about silky cappuccinos and a proper Italian-style doppio at fair prices. The room stays quiet, with outlets at most seats.'},
+  {slug:'capital-one', h:10, when:'10:00 AM', short:'Capital One', name:'Capital One Café', hood:'Downtown Bellevue', lat:47.6140799, lng:-122.2013634, pid:'ChIJb4GNEYZskFQRE7VgD5cQya4', addr:'400 Bellevue Way NE, Bellevue', score:4.4, wifi:'moderate', outlets:'every_table', noise:'quiet', hours:'10 AM–9 PM',
+   kicker:'Late start, long finish', text:'Bellevue’s Capital One Café opens at 10 and runs until 9 PM, Monday through Saturday. It’s a bank-run coffeehouse in a modern room with free Wi‑Fi, and one of two cafes on our list with an outlet at every seat.'},
+  {slug:'inkling', h:12.5, when:'12:30 PM', short:'Inkling', name:'Inkling Art Cafe', hood:'Capitol Hill', lat:47.6247222, lng:-122.3069444, pid:'ChIJgUdofAAVkFQRBplfK_IelZQ', addr:'610 19th Ave E, Seattle', score:4.5, wifi:'moderate', outlets:'most', noise:'quiet', hours:'7 AM–5 PM',
+   kicker:'Lunch on the Hill', text:'Inkling has a perfect 5.0 on Google, though from only 18 reviews, so call it a promising find rather than a sure thing. It’s quiet, with outlets at most seats and a covered wooden patio for eating outside.'},
+  {slug:'victors', h:14.5, when:'2:30 PM', short:'Victor’s', name:'Victor’s Celtic Coffee & Roasters', hood:'Redmond', lat:47.6745394, lng:-122.1219836, pid:'ChIJ_SUMHrJykFQRvFNNAvZixGg', addr:'7993 Gilman St, Redmond', score:4.3, wifi:'moderate', outlets:'most', noise:'quiet', hours:'7 AM–3 PM',
+   kicker:'Last call', text:'Victor’s closes at 3 on weekdays, so this is your window. 1,220 Google reviews back it up: a cozy, relaxed room, fair-trade coffee, and breakfast sandwiches reviewers keep bringing up.'},
+  {slug:'fremont-social', h:16.5, when:'4:30 PM', short:'Fremont Social', name:'The Fremont Social Cafe', hood:'Fremont', lat:47.6517061, lng:-122.3564924, pid:'ChIJtakurKQVkFQRnSbcery5UGc', addr:'127 N 35th St, Seattle', score:4.5, wifi:'fast', outlets:'most', noise:'moderate', hours:'8 AM–5 PM',
+   kicker:'Half an hour left', text:'Fremont Social closes at 5. It’s the chattiest room on our list: sofas and armchairs rather than rows of desks, with fast Wi‑Fi. Good for a call or a catch-up, less so for deep focus.'},
+  {slug:'chocolati', h:19.5, when:'7:30 PM', short:'Chocolati', name:'Chocolati Café Greenwood', hood:'Greenwood', lat:47.6897253, lng:-122.3555189, pid:'ChIJ7_18miEUkFQRaH9WwkOCxdw', addr:'8319 Greenwood Ave N, Seattle', score:4.9, wifi:'fast', outlets:'every_table', noise:'quiet', hours:'8 AM–8:30 PM',
+   kicker:'The best seat in the evening', text:'The top work score on our list belongs to Chocolati, 4.9 out of 5, and it’s open until 8:30 every night. Handmade chocolates, a calm vintage room, fast Wi‑Fi and an outlet at every seat.'},
+  {slug:'thruline', h:20.5, when:'8:30 PM', short:'Thruline', name:'Thruline Coffee Co.', hood:'Kirkland', lat:47.6764515, lng:-122.2054057, pid:'ChIJAW2bknATkFQRCCgTkvG-QLA', addr:'136 Park Ln, Kirkland', score:3.9, wifi:'moderate', outlets:'most', noise:'quiet', hours:'7 AM–9 PM',
+   kicker:'Half an hour in Kirkland', text:'Thruline stays open until 9 every night. Reviewers like the cortados and the focaccia panini, and call the vibe laid-back. Seating runs tight, so arrive with a backup plan.'},
+  {slug:'plus84', h:21.5, when:'9:30 PM', short:'PLUS84', name:'PLUS84', hood:'Belltown', lat:47.6154409, lng:-122.3465609, pid:'ChIJ1RjHsxwVkFQRQtjvw0mai-Y', addr:'2401 3rd Ave, Seattle', score:4.4, wifi:'moderate', outlets:'most', noise:'quiet', hours:'8 AM–10 PM',
+   kicker:'Last one standing', text:'PLUS84 pours Vietnamese coffee, Hanoi egg coffee and milk tea until 10 on weeknights, and until midnight on Fridays and Saturdays. Reviewers call the room spacious and clean.'},
+];
+
+function fromNeedle(lat, lng) {
+  const r = d => d * Math.PI / 180, la1 = r(47.6205), lo1 = r(-122.3493), la2 = r(lat), lo2 = r(lng);
+  const a = Math.sin((la2 - la1) / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin((lo2 - lo1) / 2) ** 2;
+  const mi = 2 * 3958.8 * Math.asin(Math.sqrt(a));
+  const b = (Math.atan2(Math.sin(lo2 - lo1) * Math.cos(la2), Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(lo2 - lo1)) * 180 / Math.PI + 360) % 360;
+  return `${mi.toFixed(1)} mi ${['N','NE','E','SE','S','SW','W','NW'][Math.round(b / 45) % 8]} of the Needle`;
+}
+
+/* chapters + rail */
+const chaptersEl = $('#chapters'), railEl = $('#rail');
+STORY.forEach((c, i) => {
+  const maps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.name + ', ' + c.addr)}&query_place_id=${c.pid}`;
+  const sec = document.createElement('section');
+  sec.className = 'chapter'; sec.id = 'ch-' + c.slug; sec.setAttribute('aria-labelledby', `h-${c.slug}`);
+  sec.innerHTML = `<article class="card">
+    <p class="c-time"><b>${c.when}</b><span>${esc(c.hood)}</span><span>${fromNeedle(c.lat, c.lng)}</span></p>
+    <p class="c-kicker">${esc(c.kicker)}</p>
+    <h2 id="h-${c.slug}">${esc(c.name)}</h2>
+    <p class="c-text">${esc(c.text)}</p>
+    <img class="c-photo" src="cafe-photos/${c.slug}.jpg" alt="${esc(c.name)}" loading="lazy">
+    <ul class="c-facts">
+      <li><span>Wi‑Fi</span>${L.wifi[c.wifi]}</li>
+      <li><span>Outlets</span>${L.outlets[c.outlets]}</li>
+      <li><span>Noise</span>${L.noise[c.noise]}</li>
+      <li><span>Weekdays</span>${c.hours}</li>
+    </ul>
+    <div class="c-foot"><span class="c-score">${c.score.toFixed(1)}<small>/5 work score</small></span><a class="c-dir" href="${maps}" target="_blank" rel="noopener">Directions ↗</a></div>
+  </article>`;
+  chaptersEl.appendChild(sec);
+  c.card = sec.querySelector('.card');
+  const li = document.createElement('li');
+  li.innerHTML = `<button type="button" aria-label="${c.when}: ${esc(c.name)}">${c.when}</button>`;
+  li.firstChild.addEventListener('click', () => window.scrollTo({top:c.a, behavior:RM ? 'auto' : 'smooth'}));
+  c.railBtn = li.firstChild;
+  railEl.appendChild(li);
+});
+
+/* scroll → hour. Each chapter is anchored where its card sits in the reading spot. */
+let keys = [], vh = innerHeight;
+function measure() {
+  vh = innerHeight;
+  const mobile = innerWidth < 1000;
+  STORY.forEach(c => {
+    const r = c.card.getBoundingClientRect();
+    c.a = r.top + scrollY + r.height / 2 - vh * (mobile ? 0.66 : 0.5);
+  });
+  const maxS = Math.max(1, document.documentElement.scrollHeight - vh);
+  keys = [{s:0, h:4.5}, ...STORY.map(c => ({s:c.a, h:c.h})), {s:Math.max(maxS, STORY[STORY.length - 1].a + 1), h:23}];
+}
+function hourAt(s) {
+  if (s <= keys[0].s) return keys[0].h;
+  for (let i = 1; i < keys.length; i++) if (s <= keys[i].s) return lerp(keys[i - 1].h, keys[i].h, (s - keys[i - 1].s) / Math.max(1, keys[i].s - keys[i - 1].s));
+  return keys[keys.length - 1].h;
+}
+const clockText = h => {
+  const m = Math.round(h * 60) % 1440, hh = Math.floor(m / 60), mm = m % 60;
+  return {t:`${hh % 12 || 12}:${String(mm).padStart(2, '0')}`, ap:hh >= 12 ? 'PM' : 'AM'};
+};
+
+/* light by hour: sky top, sky bottom, sun color, sun strength, sky light, ground light, ambient, lamp, screen glow */
+const KF = [
+  [4.5, '#0B1026','#1E2548','#FFB27A',0.0,'#34406E','#0E0C14',0.34,1.25,1.0],
+  [6.0, '#18214A','#5B4E7E','#FFB27A',0.0,'#4A5288','#18141C',0.40,1.10,0.95],
+  [6.8, '#3E4C86','#E39A7C','#FFA36A',0.0,'#7A7BAA','#2A1E1C',0.50,0.80,0.80],
+  [7.6, '#6F8DC4','#F6C29A','#FFB47A',1.3,'#A9B6D6','#4A3426',0.60,0.25,0.55],
+  [10,  '#7FB0E0','#E9E6DA','#FFEBD2',2.2,'#CFE0F2','#6A5642',0.72,0.00,0.35],
+  [13,  '#6FA9E0','#D8E9F4','#FFF6EA',2.5,'#D8E8F7','#6E5C48',0.78,0.00,0.30],
+  [16.5,'#7EA7D4','#F1DDB4','#FFE0B0',2.1,'#D5DDEA','#6E5640',0.70,0.00,0.35],
+  [18.6,'#6A6FA6','#F29A5C','#FF9950',1.5,'#B7A8C4','#5A3C2A',0.58,0.35,0.60],
+  [19.4,'#35305F','#C0627A','#FF7F50',0.3,'#6E6392','#2A1C22',0.45,0.90,0.85],
+  [20.5,'#161A3C','#3A2B55','#FF7F50',0.0,'#3E4474','#120E16',0.38,1.20,1.00],
+  [23,  '#090C22','#1A1636','#FF7F50',0.0,'#2E3560','#0C0A10',0.32,1.30,1.05],
+];
+const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mixHex = (a, b, t) => { const A = hex2rgb(a), B = hex2rgb(b); return '#' + A.map((v, i) => Math.round(lerp(v, B[i], t)).toString(16).padStart(2, '0')).join(''); };
+function sample(h) {
+  let i = 1; while (i < KF.length - 1 && h > KF[i][0]) i++;
+  const a = KF[i - 1], b = KF[i], t = clamp((h - a[0]) / (b[0] - a[0]), 0, 1);
+  return {skyTop:mixHex(a[1], b[1], t), skyBot:mixHex(a[2], b[2], t), sun:mixHex(a[3], b[3], t), sunI:lerp(a[4], b[4], t),
+    hemiSky:mixHex(a[5], b[5], t), hemiGround:mixHex(a[6], b[6], t), hemiI:lerp(a[7], b[7], t), lamp:lerp(a[8], b[8], t), glow:lerp(a[9], b[9], t)};
+}
+const lum = hex => { const [r, g, b] = hex2rgb(hex).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+
+/* ── The table ─────────────────────────────────────────── */
+function makeScene() {
+  const T = window.THREE; if (!T) throw new Error('no three');
+  const canvas = $('#scene');
+  const renderer = new T.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+  renderer.outputEncoding = T.sRGBEncoding;
+  renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.setClearColor(0, 0);
+  const col = hex => new T.Color(hex).convertSRGBToLinear();
+  const scene = new T.Scene();
+  const camera = new T.PerspectiveCamera(30, 1, 0.1, 100);
+  const TARGET = new T.Vector3(0.05, 0.15, 0.25);
+  const DIR = new T.Vector3(0, 0.68, 0.73).normalize();
+  let dist = 10;
+
+  const hemi = new T.HemisphereLight(0xffffff, 0x222222, 0.4); scene.add(hemi);
+  const sun = new T.DirectionalLight(0xffffff, 0);
+  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, {left:-4.4, right:4.4, top:4.4, bottom:-4.4, near:1, far:34});
+  sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02;
+  scene.add(sun); scene.add(sun.target);
+  const lamp = new T.SpotLight(col('#FFB36B'), 0, 14, 0.62, 0.75, 1.2);
+  lamp.position.set(0.3, 6.2, 0.7); lamp.target.position.set(0.2, 0, 0.1);
+  lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.0008;
+  scene.add(lamp); scene.add(lamp.target);
+
+  const rnd = (() => { let s = 11; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+
+  // oak tabletop
+  const wc = Object.assign(document.createElement('canvas'), {width:1024, height:1024}), wx = wc.getContext('2d');
+  wx.fillStyle = '#9C6B44'; wx.fillRect(0, 0, 1024, 1024);
+  for (let i = 0; i < 220; i++) {
+    const y0 = rnd() * 1024, amp = 4 + rnd() * 14, f = 0.004 + rnd() * 0.01, ph = rnd() * 6;
+    wx.strokeStyle = rnd() > 0.35 ? `rgba(70,40,20,${0.06 + rnd() * 0.16})` : `rgba(255,220,180,${0.04 + rnd() * 0.06})`;
+    wx.lineWidth = 0.6 + rnd() * 2.4; wx.beginPath();
+    for (let x = 0; x <= 1024; x += 16) { const y = y0 + Math.sin(x * f + ph) * amp; x ? wx.lineTo(x, y) : wx.moveTo(x, y); }
+    wx.stroke();
+  }
+  const woodTex = new T.CanvasTexture(wc); woodTex.encoding = T.sRGBEncoding; woodTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const woodTop = new T.MeshStandardMaterial({map:woodTex, roughness:0.62, metalness:0});
+  const woodSide = new T.MeshStandardMaterial({color:col('#6E4629'), roughness:0.7});
+  const table = new T.Mesh(new T.CylinderGeometry(3.3, 3.3, 0.14, 128), [woodSide, woodTop, woodSide]);
+  table.position.y = -0.07; table.receiveShadow = true; scene.add(table);
+  const post = new T.Mesh(new T.CylinderGeometry(0.2, 0.3, 7, 32), new T.MeshStandardMaterial({color:col('#231E1B'), roughness:0.5, metalness:0.4}));
+  post.position.y = -3.6; scene.add(post);
+
+  // mug
+  const V = (x, y) => new T.Vector2(x, y);
+  const mugPts = new T.SplineCurve([V(0,0), V(0.4,0), V(0.445,0.02), V(0.462,0.08), V(0.47,0.5), V(0.48,0.9), V(0.476,0.965), V(0.458,0.978), V(0.44,0.965), V(0.436,0.9), V(0.43,0.22), V(0.4,0.13), V(0,0.115)]).getPoints(110);
+  const glaze = new T.MeshStandardMaterial({color:col('#ECE4D6'), roughness:0.35, metalness:0, side:T.DoubleSide});
+  const mug = new T.Group(); mug.position.set(1.95, 0, 0.85); scene.add(mug);
+  const mugBody = new T.Mesh(new T.LatheGeometry(mugPts, 96), glaze); mugBody.castShadow = true; mug.add(mugBody);
+  const handle = new T.Mesh(new T.TorusGeometry(0.2, 0.05, 14, 40, Math.PI), glaze);
+  handle.rotation.z = -Math.PI / 2; handle.position.set(0.46, 0.5, 0); handle.castShadow = true; mug.add(handle);
+  mug.rotation.y = -0.6;
+  const coffee = new T.Mesh(new T.CircleGeometry(0.426, 48), new T.MeshStandardMaterial({color:col('#2E1A0E'), roughness:0.18}));
+  coffee.rotation.x = -Math.PI / 2; mug.add(coffee);
+
+  // laptop, whose screen shows the cafe you're reading about
+  const alu = new T.MeshStandardMaterial({color:col('#B9BDC5'), roughness:0.35, metalness:0.55});
+  const black = new T.MeshStandardMaterial({color:col('#141518'), roughness:0.4});
+  const lap = new T.Group(); lap.position.set(0.25, 0, -1.05); lap.rotation.y = -0.12; scene.add(lap);
+  const base = new T.Mesh(new T.BoxGeometry(2.3, 0.07, 1.55), alu); base.position.y = 0.035; base.castShadow = base.receiveShadow = true; lap.add(base);
+  const keys2 = new T.Mesh(new T.PlaneGeometry(1.95, 0.66), new T.MeshStandardMaterial({color:col('#2A2C31'), roughness:0.6}));
+  keys2.rotation.x = -Math.PI / 2; keys2.position.set(0, 0.0712, -0.2); lap.add(keys2);
+  const pad = new T.Mesh(new T.PlaneGeometry(0.72, 0.42), new T.MeshStandardMaterial({color:col('#A9ADB5'), roughness:0.3, metalness:0.5}));
+  pad.rotation.x = -Math.PI / 2; pad.position.set(0, 0.0712, 0.44); lap.add(pad);
+  const hinge = new T.Group(); hinge.position.set(0, 0.07, -0.775); hinge.rotation.x = -0.3; lap.add(hinge);
+  const lid = new T.Mesh(new T.BoxGeometry(2.3, 1.5, 0.05), [alu, alu, alu, alu, black, alu]);
+  lid.position.set(0, 0.75, -0.025); lid.castShadow = true; hinge.add(lid);
+  const sc = Object.assign(document.createElement('canvas'), {width:1024, height:640}), sx = sc.getContext('2d');
+  const screenTex = new T.CanvasTexture(sc); screenTex.encoding = T.sRGBEncoding;
+  const screenMat = new T.MeshStandardMaterial({map:screenTex, emissive:0xffffff, emissiveMap:screenTex, emissiveIntensity:0.6, roughness:0.25});
+  const screen = new T.Mesh(new T.PlaneGeometry(2.14, 1.34), screenMat); screen.position.set(0, 0.76, 0.0012); hinge.add(screen);
+  const glowL = new T.PointLight(col('#D8E4FF'), 0, 4, 2); glowL.position.set(0, 0.7, 0.6); hinge.add(glowL);
+  function fitText(ctx, text, font, size, maxW) { ctx.font = `${size}px ${font}`; const w = ctx.measureText(text).width; if (w > maxW) ctx.font = `${size * maxW / w}px ${font}`; }
+  function drawScreen(c) {
+    const x = sx;
+    x.fillStyle = '#F5F1EA'; x.fillRect(0, 0, 1024, 640);
+    x.fillStyle = '#1F1A14'; x.fillRect(0, 0, 1024, 76);
+    x.fillStyle = '#F5F1EA'; x.font = '36px Gloock, Georgia, serif'; x.textBaseline = 'middle'; x.fillText('needle space', 36, 40);
+    x.fillStyle = '#3A322A'; x.beginPath(); x.roundRect ? x.roundRect(560, 18, 430, 42, 21) : x.rect(560, 18, 430, 42); x.fill();
+    x.fillStyle = '#CDBFAE'; x.font = '20px "Spline Sans Mono", monospace'; x.fillText('quiet · outlets · open now', 584, 40);
+    x.textBaseline = 'alphabetic';
+    if (!c) {
+      x.fillStyle = '#1F1A14'; x.font = '84px Gloock, Georgia, serif'; x.fillText('Good morning.', 60, 300);
+      x.fillStyle = '#6A5E52'; x.font = '26px "Spline Sans Mono", monospace'; x.fillText('12 cafes on today’s list', 64, 360);
+    } else {
+      x.fillStyle = '#C9572A'; x.font = '600 22px "Spline Sans Mono", monospace'; x.fillText(`OPEN NOW · ${c.when.toUpperCase()}`, 60, 150);
+      x.fillStyle = '#1F1A14'; fitText(x, c.name, 'Gloock, Georgia, serif', 76, 900); x.fillText(c.name, 56, 240);
+      x.fillStyle = '#6A5E52'; x.font = '24px "Spline Sans Mono", monospace'; x.fillText(`${c.hood.toUpperCase()} · ${c.hours.toUpperCase()}`, 60, 292);
+      const chips = [`WI-FI ${L.wifi[c.wifi]}`, `OUTLETS ${L.outlets[c.outlets]}`, L.noise[c.noise]].map(s => s.toUpperCase());
+      let cx = 60; x.font = '500 20px "Spline Sans Mono", monospace';
+      chips.forEach(s => { const w = x.measureText(s).width + 36; x.strokeStyle = '#1F1A14'; x.lineWidth = 2; x.beginPath(); x.roundRect ? x.roundRect(cx, 340, w, 44, 22) : x.rect(cx, 340, w, 44); x.stroke(); x.fillStyle = '#1F1A14'; x.fillText(s, cx + 18, 369); cx += w + 12; });
+      x.font = '150px Gloock, Georgia, serif'; x.fillStyle = '#1F1A14'; x.textAlign = 'right'; x.fillText(c.score.toFixed(1), 960, 570); x.textAlign = 'left';
+      x.fillStyle = '#6A5E52'; x.font = '22px "Spline Sans Mono", monospace'; x.fillText('WORK SCORE / 5', 60, 560);
+    }
+    screenTex.needsUpdate = true;
+  }
+
+  // polaroids — one per cafe, held up while you read, then dropped on the pile
+  const PW = 1.15, PH = 1.3;
+  const frameMat = new T.MeshStandardMaterial({color:col('#F7F5F0'), roughness:0.6});
+  const pols = STORY.map((c, i) => {
+    const cv = Object.assign(document.createElement('canvas'), {width:600, height:678});
+    const tex = new T.CanvasTexture(cv); tex.encoding = T.sRGBEncoding; tex.anisotropy = 8;
+    const g = new T.Group();
+    const body = new T.Mesh(new T.BoxGeometry(PW, PH, 0.012), frameMat); body.castShadow = body.receiveShadow = true; g.add(body);
+    const face = new T.Mesh(new T.PlaneGeometry(PW, PH), new T.MeshStandardMaterial({map:tex, roughness:0.5})); face.position.z = 0.0062; face.receiveShadow = true; g.add(face);
+    g.visible = false; scene.add(g);
+    const px = lerp(-2.1, -0.8, rnd()), pz = lerp(0.4, 1.35, rnd()), ry = (rnd() - 0.5) * 1.3;
+    const qTable = new T.Quaternion().setFromEuler(new T.Euler(-Math.PI / 2, 0, 0)).premultiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), ry));
+    return {c, i, cv, tex, g, table:new T.Vector3(px, 0.008 + i * 0.013, pz), qTable, tilt:(i % 2 ? 1 : -1) * (0.04 + rnd() * 0.05), img:null};
+  });
+  function drawPolaroid(p) {
+    const x = p.cv.getContext('2d');
+    x.fillStyle = '#F7F5F0'; x.fillRect(0, 0, 600, 678);
+    x.fillStyle = '#2B2621'; x.fillRect(31, 31, 538, 403);
+    if (p.img) {
+      const iw = p.img.naturalWidth, ih = p.img.naturalHeight, ar = 538 / 403;
+      let sw = iw, sh = iw / ar; if (sh > ih) { sh = ih; sw = ih * ar; }
+      x.drawImage(p.img, (iw - sw) / 2, (ih - sh) * 0.35, sw, sh, 31, 31, 538, 403);
+      try { x.getImageData(0, 0, 1, 1); } catch (e) { x.fillStyle = '#2B2621'; x.fillRect(0, 0, 600, 678); p.img = null; return drawPolaroid(p); }
+    }
+    x.fillStyle = '#2A2520'; x.font = '700 60px Caveat, "Marker Felt", cursive'; x.fillText(`${p.c.short} · ${p.c.when}`, 40, 530);
+    x.fillStyle = '#6A5E52'; x.font = '500 40px Caveat, "Marker Felt", cursive'; x.fillText(p.c.hood, 42, 590);
+    p.tex.needsUpdate = true;
+  }
+  pols.forEach(p => {
+    drawPolaroid(p);
+    const img = new Image();
+    img.onload = () => { p.img = img; drawPolaroid(p); };
+    img.src = `cafe-photos/${p.c.slug}.jpg`;
+  });
+
+  // steam
+  const steamVS = `uniform float uTime; uniform float uPhase; varying vec2 vUv;
+    void main(){ vUv = uv; vec3 p = position; float h = uv.y; p.x *= 1.0 + h * 2.2;
+      p.x += sin(h * 5.0 - uTime * 1.2 + uPhase) * 0.14 * h + sin(h * 11.0 - uTime * 2.0 + uPhase) * 0.04 * h;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }`;
+  const steamFS = `uniform float uOpacity; uniform float uTime; uniform float uPhase; varying vec2 vUv;
+    void main(){ float a = smoothstep(0.0,0.5,vUv.x) * smoothstep(1.0,0.5,vUv.x) * smoothstep(0.0,0.15,vUv.y) * (1.0 - smoothstep(0.3,1.0,vUv.y));
+      a *= 0.6 + 0.4 * sin(vUv.y * 9.0 - uTime * 1.6 + uPhase); gl_FragColor = vec4(1.0, 0.98, 0.95, a * uOpacity); }`;
+  const sg = new T.PlaneGeometry(0.16, 1.4, 1, 40); sg.translate(0, 0.7, 0);
+  const steam = [[-0.07, 0], [0.05, 2.3]].map(([ox, ph]) => {
+    const m = new T.Mesh(sg, new T.ShaderMaterial({uniforms:{uTime:{value:0}, uPhase:{value:ph}, uOpacity:{value:0.4}}, vertexShader:steamVS, fragmentShader:steamFS, transparent:true, depthWrite:false}));
+    m.position.set(1.95 + ox, 0.95, 0.85); scene.add(m); return m;
+  });
+
+  // framing: on desktop the scene sits right of the reading column; on phones it rides above the card
+  let full = {w:1, h:1, ox:0, oy:0}, heldK = 0.46;
+  function resize() {
+    const w = innerWidth, h = innerHeight;
+    renderer.setSize(w, h, false);
+    const desktop = w >= 1000;
+    full = desktop ? {w:w * 1.32, h, ox:0, oy:0} : {w, h:h * 1.4, ox:0, oy:h * 0.38};
+    heldK = desktop ? 0.46 : 0.6;
+    camera.aspect = full.w / full.h;
+    camera.setViewOffset(full.w, full.h, full.ox, full.oy, w, h);
+    const v = camera.fov * Math.PI / 360;
+    dist = Math.max(7.2 / 2 / Math.tan(v), 8.8 / 2 / (Math.tan(v) * camera.aspect));
+    camera.updateProjectionMatrix();
+  }
+  resize();
+
+  const ptr = {x:0, y:0}, par = {x:0, y:0};
+  window.addEventListener('pointermove', e => { ptr.x = e.clientX / innerWidth * 2 - 1; ptr.y = e.clientY / innerHeight * 2 - 1; }, {passive:true});
+  const dummy = new T.Object3D(), held = new T.Vector3(), start = new T.Vector3(), qHeld = new T.Quaternion(), qStart = new T.Quaternion(), qTmp = new T.Quaternion();
+  const zAxis = new T.Vector3(0, 0, 1), xAxis = new T.Vector3(1, 0, 0);
+  let lastIdx = -2, level = 0.9, t = 0, lastSkyKey = '';
+
+  function update(s, h, dt) {
+    t += dt;
+    const L2 = sample(h);
+    // sky + clock ink (DOM)
+    const skyKey = L2.skyTop + L2.skyBot;
+    if (skyKey !== lastSkyKey) {
+      lastSkyKey = skyKey;
+      const r = document.documentElement.style;
+      r.setProperty('--sky-top', L2.skyTop); r.setProperty('--sky-bot', L2.skyBot);
+      r.setProperty('--clock-ink', lum(L2.skyTop) > 0.28 ? '#1F1A14' : '#F6EFE4');
+    }
+    // sun: rises on the left around 7, crosses behind the table, sets on the right around 7:10
+    const dayF = (h - 7.0) / (19.15 - 7.0);
+    const el = Math.sin(Math.PI * clamp(dayF, 0, 1)) * 0.72 + 0.06;
+    const az = lerp(-1.9, 1.9, clamp(dayF, 0, 1));
+    sun.position.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el)).multiplyScalar(15);
+    sun.color.copy(col(L2.sun)); sun.intensity = L2.sunI;
+    hemi.color.copy(col(L2.hemiSky)); hemi.groundColor.copy(col(L2.hemiGround)); hemi.intensity = L2.hemiI;
+    lamp.intensity = L2.lamp * 2.4;
+    screenMat.emissiveIntensity = L2.glow; glowL.intensity = Math.max(0, L2.glow - 0.4) * 1.6;
+
+    // camera with a little pointer parallax
+    if (!RM) { par.x += (ptr.x - par.x) * Math.min(1, dt * 2); par.y += (ptr.y - par.y) * Math.min(1, dt * 2); }
+    camera.position.copy(DIR).multiplyScalar(dist).add(TARGET);
+    camera.position.x += par.x * 0.45; camera.position.y += -par.y * 0.25;
+    camera.lookAt(TARGET);
+
+    // which chapter are we in
+    let idx = -1;
+    STORY.forEach((c, i) => { if (s >= c.a - vh * 0.55) idx = i; });
+    if (idx !== lastIdx) { lastIdx = idx; drawScreen(idx >= 0 ? STORY[idx] : null); }
+
+    // coffee: a fresh cup at every cafe, drinking it down until the next
+    let phase = 0;
+    if (idx >= 0) { const a = STORY[idx].a, b = idx < STORY.length - 1 ? STORY[idx + 1].a : a + vh; phase = clamp((s - a) / Math.max(1, b - a), 0, 1); }
+    const want = idx < 0 ? 0.88 : 0.88 - 0.58 * phase;
+    level += (want - level) * Math.min(1, dt * (want > level ? 3 : 8));
+    coffee.position.y = level;
+    const rIn = level > 0.22 ? 0.426 + (level - 0.9) * 0.01 : 0.4;
+    coffee.scale.setScalar(rIn / 0.426);
+    steam.forEach(m => { m.material.uniforms.uTime.value = t * (RM ? 0.3 : 1); m.material.uniforms.uOpacity.value = 0.18 + 0.28 * (L2.lamp > 0.5 ? 1 : 0.6); });
+
+    // polaroids
+    held.copy(TARGET).lerp(camera.position, heldK); held.x += 0.12; held.y += 0.1;
+    dummy.position.copy(held); dummy.lookAt(camera.position); qHeld.copy(dummy.quaternion);
+    pols.forEach(p => {
+      const a = p.c.a;
+      const e = smooth((s - (a - vh * 0.85)) / (vh * 0.5));
+      const d = smooth((s - (a + vh * 0.3)) / (vh * 0.45));
+      if (e <= 0) { p.g.visible = false; return; }
+      p.g.visible = true;
+      qTmp.copy(qHeld).multiply(new T.Quaternion().setFromAxisAngle(zAxis, p.tilt));
+      if (d <= 0) {
+        start.copy(held).add(new T.Vector3(1.6, 2.8, -0.6));
+        qStart.copy(qTmp).multiply(new T.Quaternion().setFromAxisAngle(zAxis, 0.9)).multiply(new T.Quaternion().setFromAxisAngle(xAxis, 0.6));
+        p.g.position.copy(start).lerp(held, e);
+        p.g.quaternion.copy(qStart).slerp(qTmp, e);
+        if (!RM) p.g.position.y += Math.sin(t * 1.3 + p.i) * 0.025 * e;
+      } else {
+        p.g.position.copy(held).lerp(p.table, d);
+        p.g.position.y += Math.sin(d * Math.PI) * 0.5;
+        p.g.quaternion.copy(qTmp).slerp(p.qTable, d);
+      }
+    });
+    renderer.render(scene, camera);
+  }
+  const fontsReady = Promise.all(['36px Gloock', '600 22px "Spline Sans Mono"', '700 60px Caveat', '500 40px Caveat'].map(f => document.fonts.load(f))).catch(() => {});
+  fontsReady.then(() => { lastIdx = -2; pols.forEach(drawPolaroid); });
+  return {update, resize};
+}
+
+let scene3d = null;
+try { scene3d = makeScene(); } catch (e) { document.documentElement.classList.add('no-webgl'); }
+
+/* main loop: smooth the scroll, derive the hour, drive DOM + scene */
+const clockEl = $('#clock'), progEl = $('#progress');
+let sS = scrollY, last = performance.now(), lastClock = '', lastRail = -2;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  sS = RM ? scrollY : sS + (scrollY - sS) * Math.min(1, dt * 7);
+  const h = hourAt(sS);
+  const ck = clockText(h);
+  const key = ck.t + ck.ap;
+  if (key !== lastClock) { lastClock = key; clockEl.innerHTML = `${ck.t}<small>${ck.ap}</small>`; }
+  let idx = -1; STORY.forEach((c, i) => { if (sS >= c.a - vh * 0.55) idx = i; });
+  if (idx !== lastRail) {
+    lastRail = idx;
+    STORY.forEach((c, i) => { if (i === idx) c.railBtn.setAttribute('aria-current', 'step'); else c.railBtn.removeAttribute('aria-current'); });
+  }
+  progEl.style.transform = `scaleX(${clamp(sS / Math.max(1, keys[keys.length - 1].s), 0, 1)})`;
+  if (scene3d) scene3d.update(sS, h, dt);
+  else {
+    const L2 = sample(h), r = document.documentElement.style;
+    r.setProperty('--sky-top', L2.skyTop); r.setProperty('--sky-bot', L2.skyBot);
+    r.setProperty('--clock-ink', lum(L2.skyTop) > 0.28 ? '#1F1A14' : '#F6EFE4');
+  }
+  requestAnimationFrame(frame);
+}
+function onResize() { measure(); if (scene3d) scene3d.resize(); }
+window.addEventListener('resize', onResize);
+new ResizeObserver(() => measure()).observe(document.body);
+document.fonts.ready.then(measure);
+measure();
+requestAnimationFrame(frame);
+
+const toast = $('#toast');
+$$('[data-app]').forEach(b => b.addEventListener('click', () => {
+  toast.textContent = `In the Needle Space app, this opens ${b.dataset.app}: all 472 cafes on a map.`;
+  toast.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => { toast.hidden = true; }, 3000);
+}));
+})();
+</script>

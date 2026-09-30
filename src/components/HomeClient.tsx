@@ -7,42 +7,17 @@ import FilterChips from "@/components/FilterChips";
 import CafeCard from "@/components/CafeCard";
 import MapView from "@/components/MapView";
 import SearchBar from "@/components/SearchBar";
-import { Cafe, Filters, FilterKey, EMPTY_FILTERS, isFilterEmpty, NEIGHBORHOODS } from "@/lib/types";
+import { Cafe, Filters, FilterKey, EMPTY_FILTERS, isFilterEmpty } from "@/lib/types";
+import { filtersFromUrl, filtersToParams } from "@/lib/filter-url";
 import { searchCafes } from "@/lib/cafes";
 
 const PAGE_SIZE = 16;
 
 type ViewMode = "list" | "map";
 
-function filtersFromUrl(params: { get(name: string): string | null; getAll(name: string): string[] }): Filters {
-  const location = params.getAll("location").filter(
-    (value) => NEIGHBORHOODS.includes(value as (typeof NEIGHBORHOODS)[number]),
-  );
-  const noise = params.get("noise");
-  const outlets = params.get("outlets");
-  const laptop = params.get("laptop");
-  const productivity = params.get("productivity");
-  const openNow = params.get("open_now");
-
-  return {
-    location,
-    noise: noise === "quiet" || noise === "quiet_or_moderate" ? noise : "any",
-    outlets: outlets === "every_table" || outlets === "any_outlets" ? outlets : "any",
-    laptop: laptop === "welcome" || laptop === "welcome_or_limited" ? laptop : "any",
-    productivity: productivity === "above_4" || productivity === "under_4" ? productivity : "any",
-    open_now: openNow === "open_now" ? "open_now" : "any",
-  };
-}
-
 function exploreStateQuery(searchQuery: string, filters: Filters, visibleCount: number, viewMode: ViewMode) {
-  const params = new URLSearchParams();
+  const params = filtersToParams(filters);
   if (searchQuery.trim()) params.set("q", searchQuery);
-  for (const location of filters.location) params.append("location", location);
-  if (filters.noise !== "any") params.set("noise", filters.noise);
-  if (filters.outlets !== "any") params.set("outlets", filters.outlets);
-  if (filters.laptop !== "any") params.set("laptop", filters.laptop);
-  if (filters.productivity !== "any") params.set("productivity", filters.productivity);
-  if (filters.open_now !== "any") params.set("open_now", filters.open_now);
   if (visibleCount > PAGE_SIZE) params.set("show", String(visibleCount));
   if (viewMode === "map") params.set("view", viewMode);
   return params.toString();

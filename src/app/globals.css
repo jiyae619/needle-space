@@ -2,18 +2,19 @@
 
 /* ── Design tokens ─────────────────────────────────────────── */
 :root {
-  --gs-cream:       #F5EFE3;
-  --gs-paper:       #EDE3CF;
-  --gs-espresso:    #2A1D14;
-  --gs-ink:         #4A3728;
-  /* Darkened from #9C7E62 to meet WCAG AA on cream/paper backgrounds.
-     Used on every eyebrow, footnote, and small-caps label, so its
-     contrast ratio cascades across the whole UI. */
-  --gs-kraft:       #6E5238;
-  --gs-rule:        #D9CAAF;
-  --gs-accent:      #E8521C;
-  --gs-accent-soft: #F5C4AE;
-  --gs-good:        #4A7C40;
+  /* Calm cafe palette (Sept 2026): warm neutrals plus one muted green,
+     after cafe references (media.io "Matcha Pastry" + "Linen and Wood"). */
+  --gs-cream:       #F3EEE4;  /* linen page ground */
+  --gs-paper:       #EAE2D4;  /* oat cards */
+  --gs-espresso:    #33271F;
+  --gs-ink:         #4A3B30;
+  /* Must stay WCAG AA on cream and paper: used on every eyebrow, footnote
+     and small-caps label, so its contrast cascades across the whole UI. */
+  --gs-kraft:       #6B5646;
+  --gs-rule:        #DDD3C3;
+  --gs-accent:      #56684D;  /* moss */
+  --gs-accent-soft: #C9D5BD;  /* sage */
+  --gs-good:        #3F7A3A;
   --gs-good-bg:     #EAF3E8;
   --gs-warn:        #B07820;
   --gs-warn-bg:     #FBF2DC;
@@ -446,7 +447,7 @@ h1, h2, h3, .font-display {
   display: flex;
   align-items: baseline;
   gap: 0.18rem;
-  box-shadow: 0 4px 14px -4px rgba(42, 29, 20, 0.18);
+  box-shadow: 0 4px 14px -4px rgba(51, 39, 31, 0.18);
   cursor: help;
   font-family: var(--font-display), Georgia, serif;
   /* Make the label sit underneath via a flex-wrap technique. */
@@ -773,7 +774,7 @@ h1, h2, h3, .font-display {
   background: var(--gs-espresso);
   color: var(--gs-cream);
   border: 1px solid var(--gs-espresso);
-  box-shadow: 0 6px 16px rgba(42, 29, 20, 0.18);
+  box-shadow: 0 6px 16px rgba(51, 39, 31, 0.18);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -967,7 +968,7 @@ h1, h2, h3, .font-display {
   border: 1px solid var(--gs-rule);
   border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 6px 24px rgba(42, 29, 20, 0.12);
+  box-shadow: 0 6px 24px rgba(51, 39, 31, 0.12);
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
@@ -1023,7 +1024,7 @@ h1, h2, h3, .font-display {
   background: var(--gs-cream);
   cursor: pointer;
   transition: transform 0.12s var(--gs-ease), background 0.12s var(--gs-ease);
-  box-shadow: 0 2px 8px rgba(42, 29, 20, 0.1);
+  box-shadow: 0 2px 8px rgba(51, 39, 31, 0.1);
 }
 
 .gs-treasure-btn:active { transform: scale(0.96); }
@@ -1049,8 +1050,8 @@ h1, h2, h3, .font-display {
   border: 1px solid var(--gs-rule);
   border-radius: 12px;
   box-shadow:
-    0 1px 2px rgba(42, 29, 20, 0.08),
-    0 8px 24px rgba(42, 29, 20, 0.12);
+    0 1px 2px rgba(51, 39, 31, 0.08),
+    0 8px 24px rgba(51, 39, 31, 0.12);
   transform-origin: var(--gs-popover-origin, top left);
   animation: gs-popover-in 140ms cubic-bezier(0.2, 0, 0, 1);
 }
