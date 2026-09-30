@@ -46,19 +46,18 @@ h1, h2, h3, .font-display {
 }
 
 /* ── Typography utilities ───────────────────────────────────── */
-/* Fraunces variable-font axes — opsz controls optical size (smaller numbers
-   give wider, more legible letterforms; bigger numbers cinch up for display
-   sizes). SOFT rounds the terminals for a warmer, more editorial feel.
-   We expose four scales via custom properties so every display element can
-   declare its axis preset instead of inlining font-variation-settings. */
+/* Bricolage Grotesque optical sizes — small numbers open the letterforms up
+   for legibility, big numbers tighten them for display sizes. Each display
+   element declares its preset instead of inlining font-variation-settings. */
 :root {
-  --fv-display: "opsz" 96, "SOFT" 50, "WONK" 0;   /* hero spreads, 36px+      */
-  --fv-hero:    "opsz" 48, "SOFT" 50, "WONK" 0;   /* hero card titles, 22-32  */
-  --fv-title:   "opsz" 28, "SOFT" 60, "WONK" 0;   /* postcard titles, 14-20   */
-  --fv-sub:     "opsz" 18, "SOFT" 70, "WONK" 0;   /* sub-headings, small UI   */
+  --font-body:  var(--font-display);
+  --fv-display: "opsz" 96;   /* hero spreads, 36px+      */
+  --fv-hero:    "opsz" 48;   /* hero card titles, 22-32  */
+  --fv-title:   "opsz" 24;   /* postcard titles, 14-20   */
+  --fv-sub:     "opsz" 14;   /* sub-headings, small UI   */
 }
 .font-display {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-variation-settings: var(--fv-title);
 }
 
@@ -218,7 +217,7 @@ h1, h2, h3, .font-display {
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--gs-paper) 80%, var(--gs-accent)) 0%, var(--gs-paper) 100%);
   color: color-mix(in srgb, var(--gs-espresso) 64%, transparent);
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-size: clamp(2.4rem, 8vw, 4.5rem);
   font-weight: 500;
   outline: 1px solid color-mix(in srgb, var(--gs-espresso) 10%, transparent);
@@ -325,7 +324,7 @@ h1, h2, h3, .font-display {
 }
 
 .gs-postcard-title {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-weight: 500;
   font-variation-settings: var(--fv-title);
   font-size: 1.05rem;
@@ -354,7 +353,7 @@ h1, h2, h3, .font-display {
 
 .gs-postcard-quote {
   position: relative;
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-style: italic;
   font-variation-settings: var(--fv-sub);
   font-size: 0.98rem;
@@ -449,7 +448,7 @@ h1, h2, h3, .font-display {
   gap: 0.18rem;
   box-shadow: 0 4px 14px -4px rgba(51, 39, 31, 0.18);
   cursor: help;
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   /* Make the label sit underneath via a flex-wrap technique. */
   flex-wrap: wrap;
   max-width: 6.5rem;
@@ -520,7 +519,7 @@ h1, h2, h3, .font-display {
 }
 .gs-score-tip strong {
   display: block;
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-weight: 700;
   font-size: 0.78rem;
   margin-bottom: 4px;
@@ -546,7 +545,7 @@ h1, h2, h3, .font-display {
 }
 
 .gs-score {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-size: 1.5rem;
   font-weight: 700;
   line-height: 1;
@@ -863,13 +862,13 @@ h1, h2, h3, .font-display {
   font-size: 0.85rem;
   color: var(--gs-kraft);
   font-weight: 500;
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
 }
 
 /* ── Vibe keyword tags (editorial, italic) ──────────────────── */
 .gs-vibe-tag {
   display: inline-block;
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-style: italic;
   font-size: 0.82rem;
   line-height: 1.3;
@@ -925,7 +924,7 @@ h1, h2, h3, .font-display {
 }
 
 .gs-cta-headline {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-weight: 700;
   font-size: 1.6rem;
   line-height: 1.15;
@@ -949,7 +948,7 @@ h1, h2, h3, .font-display {
 }
 
 .gs-cta-arrow {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-size: 1.5rem;
   align-self: flex-end;
   margin-top: 0.5rem;
@@ -983,7 +982,7 @@ h1, h2, h3, .font-display {
   position: absolute;
   top: 1.25rem;
   z-index: 10;
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-weight: 800;
   font-size: 2.25rem;
   letter-spacing: 0.08em;

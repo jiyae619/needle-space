@@ -1,19 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Fraunces, DM_Sans } from "next/font/google";
 import AlgorithmExplainer from "@/components/AlgorithmExplainer";
+import { display, mono, marker } from "./fonts";
 import "./globals.css";
-
-const fraunces = Fraunces({
-  variable: "--font-display",
-  subsets: ["latin"],
-  axes: ["SOFT", "WONK", "opsz"],
-});
-
-const dmSans = DM_Sans({
-  variable: "--font-body",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "Needle Space — Find Laptop-Friendly Cafes in Seattle",
@@ -27,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${dmSans.variable} h-full`}>
+    <html lang="en" className={`${display.variable} ${mono.variable} ${marker.variable} h-full`}>
       <body className="min-h-full flex flex-col">
         {/* Header */}
         <header className="sticky top-0 z-50 gs-header border-b border-[var(--gs-rule)]">

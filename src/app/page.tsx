@@ -1,4 +1,3 @@
-import { Bricolage_Grotesque, Martian_Mono, Permanent_Marker } from "next/font/google";
 import Counter from "@/components/Counter";
 import { getCafes } from "@/lib/cafes";
 import { encodeRow } from "@/lib/counter-rows";
@@ -7,9 +6,7 @@ import { seattleNow } from "@/lib/open-now";
 
 export const dynamic = "force-dynamic";
 
-const display = Bricolage_Grotesque({ subsets: ["latin"], axes: ["opsz", "wdth"] });
-const mono = Martian_Mono({ subsets: ["latin"], axes: ["wdth"] });
-const marker = Permanent_Marker({ subsets: ["latin"], weight: "400" });
+import { display, mono, marker } from "./fonts";
 
 const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
