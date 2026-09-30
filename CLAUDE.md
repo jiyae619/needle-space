@@ -30,7 +30,8 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
 ## Scope
 ### Shipped
 - Browse cafes on map + list view; cafe detail pages with workspace info and directions
-- Multi-value filter chips: location, noise, outlets, laptop policy, productivity, open now
+- Multi-value filter chips: location, Wi‑Fi, noise, outlets, laptop policy, productivity, open now
+- **Landing page (`/`, the Counter, Sept 2026):** an order sentence ("One [quiet] table, …") whose pills map onto /explore's filters (`src/lib/filter-url.ts`), a three.js paper cup that shows the order (`CounterCup.tsx`), and the top 12 matching cafes as tickets. It counts matches in the browser with `matchesFilters()` (the same rules as /explore) over compact rows (`src/lib/counter-rows.ts`). Design: calm sage/linen palette with a moss accent (no orange), Bricolage Grotesque site-wide, Martian Mono + Permanent Marker on the landing page (`src/app/fonts.ts`). Prototypes live in `html-previews/`.
 - Natural-language search over Voyage-3 + pgvector, composed with chips in SQL (AI v1, 2026-04-30, see `docs/AI-PLAN-v1.md`)
 - LangGraph tagging pipeline with confidence, grounded evidence quotes, and a vision gap-fill pass
 - **September 2026 upgrade** (PRs #13–#18, see `docs/architecture.html`):

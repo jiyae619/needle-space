@@ -15,6 +15,7 @@ import { matchesFilters } from "@/lib/search-filters";
 import { mergeTag } from "@/lib/merge-tags";
 import { isOpenNow } from "@/lib/open-now";
 import type { Cafe } from "@/lib/types";
+import { decodeRow, type CounterRow } from "@/lib/counter-rows";
 
 const TICKETS = 12;
 const TITLES: Record<OrderSlot, string> = { noise: "Noise", outlets: "Outlets", wifi: "Wi‑Fi", hours: "Hours", area: "Where" };
@@ -47,13 +48,16 @@ function mapsUrl(c: Cafe) {
 }
 
 interface CounterProps {
-  cafes: Cafe[];          // every visible cafe, best score first, tags already merged
+  rows: CounterRow[];     // every visible cafe, best score first, compacted by encodeRow
+  day: string;
+  photoBase: string;
   nowIso: string;         // server's Seattle clock, so the first render matches
   neighborhoods: number;
   fonts: { display: string; mono: string; marker: string };
 }
 
-export default function Counter({ cafes, nowIso, neighborhoods, fonts }: CounterProps) {
+export default function Counter({ rows, day, photoBase, nowIso, neighborhoods, fonts }: CounterProps) {
+  const cafes = useMemo(() => rows.map(r => decodeRow(r, day, photoBase)), [rows, day, photoBase]);
   const [order, setOrder] = useState<Order>(DEFAULT_ORDER);
   const [now, setNow] = useState(() => new Date(nowIso));
   const [openSlot, setOpenSlot] = useState<OrderSlot | null>(null);
