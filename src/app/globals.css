@@ -1099,15 +1099,17 @@ h1, h2, h3, .font-display {
   display: grid; grid-template-columns: minmax(0,1fr);
   font-family: var(--ct-display); color: var(--ct-espresso); background: var(--gs-cream);
 }
-@media (min-width: 1000px) {
-  .ct { grid-template-columns: minmax(380px,41fr) 59fr; align-items: start; }
-  .ct-stage { position: sticky; top: 56px; height: calc(100vh - 56px); height: calc(100dvh - 56px); }
-}
-.ct button { font: inherit; color: inherit; }
+/* :where() keeps this reset at zero specificity so component classes win. */
+:where(.ct) button { font: inherit; color: inherit; }
 .ct :focus-visible { outline: 2px solid var(--ct-moss); outline-offset: 3px; }
 
 .ct-stage { position: relative; display: flex; flex-direction: column; overflow: hidden; padding: 14px clamp(16px,2.4vw,32px) 18px;
   background: radial-gradient(115% 75% at 50% 48%, var(--ct-sage-hi) 0%, var(--ct-sage) 55%, var(--ct-sage-lo) 100%); }
+/* After the base rule on purpose: same specificity, so order decides. */
+@media (min-width: 1000px) {
+  .ct { grid-template-columns: minmax(380px,41fr) 59fr; align-items: start; }
+  .ct-stage { position: sticky; top: 56px; height: calc(100vh - 56px); height: calc(100dvh - 56px); }
+}
 .ct-bignum { position: absolute; inset: 0; display: grid; place-items: start center; padding-top: 2%; pointer-events: none; user-select: none;
   font-weight: 800; font-stretch: 75%; letter-spacing: -.06em; line-height: .8; color: var(--ct-sage-num); font-size: clamp(12rem,56vw,16rem); }
 @media (min-width: 1000px) { .ct-bignum { font-size: min(62vh,24vw); } }
@@ -1127,7 +1129,7 @@ h1, h2, h3, .font-display {
 .ct-eyebrow { margin: 0 0 16px; font: 700 .7rem/1.3 var(--ct-mono); font-stretch: 87.5%; letter-spacing: .12em; text-transform: uppercase; color: var(--ct-moss); }
 .ct-kicker { margin: 0 0 16px; max-width: 36em; font-size: clamp(1rem,1.3vw,1.18rem); line-height: 1.5; color: var(--ct-soft); }
 .ct-kicker strong { display: block; margin-bottom: 4px; font-weight: 760; font-stretch: 85%; font-size: 1.3em; letter-spacing: -.015em; color: var(--ct-espresso); }
-.ct-line { margin: 0; max-width: 14.5em; font-weight: 760; font-stretch: 80%; font-size: clamp(1.8rem,4.5vw,4.6rem); line-height: 1.18; letter-spacing: -.028em; text-wrap: pretty; }
+.ct-line { margin: 0; max-width: 14.5em; font-weight: 760; font-stretch: 80%; font-size: clamp(1.8rem,3.5vw,3.7rem); line-height: 1.18; letter-spacing: -.028em; text-wrap: pretty; }
 @media (max-width: 699px) { .ct-line { font-size: clamp(1.8rem,8.3vw,2.6rem); line-height: 1.22; } }
 .ct-slot { display: inline-flex; align-items: center; gap: .16em; max-width: 100%; vertical-align: baseline; cursor: pointer;
   padding: .02em .2em .04em .28em; margin: .05em 0; border: .045em solid rgba(86,104,77,.4); border-radius: .3em;
@@ -1149,10 +1151,11 @@ h1, h2, h3, .font-display {
 .ct-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
 .ct-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 15px 18px; border-radius: 4px; border: 1.5px solid transparent; background: transparent; cursor: pointer; text-decoration: none;
   font: 700 .74rem/1 var(--ct-mono); font-stretch: 87.5%; letter-spacing: .08em; text-transform: uppercase; transition: transform .3s var(--ct-ease), background-color .25s, border-color .25s; }
-.ct-btn-primary { background: var(--ct-espresso); color: var(--gs-cream); }
-.ct-btn-line { border-color: rgba(51,39,31,.35); color: var(--ct-espresso); }
+/* .ct prefix: `.ct button { color: inherit }` would otherwise win and hide the label. */
+.ct .ct-btn-primary { background: var(--ct-espresso); color: var(--gs-cream); }
+.ct .ct-btn-line { border-color: rgba(51,39,31,.35); color: var(--ct-espresso); }
 @media (hover: hover) { .ct-btn:hover { transform: translateY(-1px); } .ct-btn-primary:hover { background: var(--ct-moss); } .ct-btn-line:hover { border-color: var(--ct-espresso); } }
-@media (max-width: 699px) { .ct-actions .ct-btn { flex: 1 1 0; padding-inline: 12px; } }
+@media (max-width: 699px) { .ct-actions { flex-direction: column; } .ct-actions .ct-btn { width: 100%; } }
 
 .ct-tickets { margin-top: clamp(56px,8vw,104px); padding-top: 30px; border-top: 1.5px dashed rgba(139,112,88,.35); scroll-margin-top: 72px; }
 .ct-tickets h2, .ct-closer h2 { margin: 0; font-weight: 800; font-stretch: 75%; font-size: clamp(2.6rem,6vw,5rem); line-height: .9; letter-spacing: -.035em; }
