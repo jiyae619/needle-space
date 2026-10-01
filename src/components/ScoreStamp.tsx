@@ -15,12 +15,12 @@ export default function ScoreStamp({ score }: { score: number | null }) {
       className="gs-score-stamp"
       tabIndex={-1}
       role="img"
-      aria-label={`Productivity score ${score.toFixed(1)} out of 5. Calculated from WiFi, outlets, noise, laptop policy, and seating, blended with the Google rating.`}
+      aria-label={`Work score ${score.toFixed(1)} out of 5. Calculated from WiFi, outlets, noise, laptop policy, and seating, blended with the Google rating.`}
       onClick={(e) => e.preventDefault()}
     >
       <span className="gs-score-stamp-num">{score.toFixed(1)}</span>
       <span className="gs-score-stamp-denom">/5</span>
-      <span className="gs-score-stamp-label">productivity</span>
+      <span className="gs-score-stamp-label">work score</span>
       <span className="gs-score-tip" role="tooltip">
         <strong>How this is calculated</strong>
         <span className="gs-score-tip-row">WiFi · 25%</span>

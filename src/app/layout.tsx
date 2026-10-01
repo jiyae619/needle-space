@@ -1,6 +1,5 @@
-import Link from "next/link";
 import type { Metadata } from "next";
-import AlgorithmExplainer from "@/components/AlgorithmExplainer";
+import SiteHeader from "@/components/SiteHeader";
 import { display, mono, marker } from "./fonts";
 import "./globals.css";
 
@@ -19,36 +18,7 @@ export default function RootLayout({
     <html lang="en" className={`${display.variable} ${mono.variable} ${marker.variable} h-full`}>
       <body className="min-h-full flex flex-col">
         {/* Header */}
-        <header className="sticky top-0 z-50 gs-header border-b border-[var(--gs-rule)]">
-          <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/icon.png"
-                alt=""
-                className="h-7 w-7 sm:h-8 sm:w-8 rounded-[7px] shrink-0"
-              />
-              <span className="font-display font-medium text-base sm:text-[1.25rem] tracking-[-0.015em] text-[var(--gs-espresso)] whitespace-nowrap">
-                Needle Space
-              </span>
-            </Link>
-            <nav className="flex items-center gap-1 sm:gap-3 shrink-0">
-              <AlgorithmExplainer />
-              <a
-                href="/explore"
-                className="gs-nav-link text-[10px] sm:text-xs tracking-widest uppercase px-2 sm:px-2.5 py-1.5 rounded-sm"
-              >
-                Browse
-              </a>
-              <a
-                href="/treasure"
-                className="gs-nav-pill text-[10px] sm:text-xs tracking-widest uppercase px-2.5 sm:px-3 py-1.5 rounded-sm whitespace-nowrap"
-              >
-                Surprise me
-              </a>
-            </nav>
-          </div>
-        </header>
+        <SiteHeader />
 
         {/* Main content */}
         <main className="flex-1">{children}</main>

@@ -207,7 +207,7 @@ export const FILTER_DEFS: FilterDef[] = [
   },
   {
     key: "productivity",
-    label: "Productivity",
+    label: "Work score",
     options: [
       { value: "above_4",             label: "4 or above" },
       { value: "under_4",             label: "Under 4" },

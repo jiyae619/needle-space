@@ -186,15 +186,18 @@ export default function Counter({ rows, day, photoBase, nowIso, neighborhoods, f
     return () => { io.disconnect(); timers.forEach(clearTimeout); };
   }, []);
 
-  // ── Pinned order bar on narrow screens ──
+  // ── Pinned order bar: shows once the order sentence has scrolled away ──
+  // A scroll check, not IntersectionObserver: observer callbacks can lag a jump
+  // scroll by a frame or more, which left the bar missing on real devices.
   useEffect(() => {
-    let orderIn = true, ticketsIn = false;
-    const sync = () => setBarVisible(!orderIn && ticketsIn);
-    const a = new IntersectionObserver(([e]) => { orderIn = e.isIntersecting; sync(); });
-    const b = new IntersectionObserver(([e]) => { ticketsIn = e.isIntersecting; sync(); });
-    if (orderRef.current) a.observe(orderRef.current);
-    if (ticketsRef.current) b.observe(ticketsRef.current);
-    return () => { a.disconnect(); b.disconnect(); };
+    const sync = () => {
+      const r = orderRef.current?.getBoundingClientRect();
+      setBarVisible(!!r && r.bottom < 0);
+    };
+    sync();
+    window.addEventListener("scroll", sync, { passive: true });
+    window.addEventListener("resize", sync);
+    return () => { window.removeEventListener("scroll", sync); window.removeEventListener("resize", sync); };
   }, []);
 
   // ── Tickets: glide to new places, sway softly when brushed ──
@@ -421,12 +424,12 @@ export default function Counter({ rows, day, photoBase, nowIso, neighborhoods, f
         </>
       )}
 
-      <div className={`ct-orderbar${barVisible ? " is-shown" : ""}`} aria-hidden="true">
+      <div className={`ct-orderbar${barVisible && !openSlot ? " is-shown" : ""}`} aria-hidden={!barVisible}>
         <div className="ct-ob-text">
           <span className="ct-ob-count">{count} cafes match</span>
           <span className="ct-ob-sum">{picked.length ? picked.join(" · ") : "Anything goes"}</span>
         </div>
-        <button type="button" tabIndex={-1} onClick={() => orderRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>Edit order</button>
+        <button type="button" tabIndex={barVisible ? 0 : -1} onClick={() => orderRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>Edit order</button>
       </div>
     </div>
   );
