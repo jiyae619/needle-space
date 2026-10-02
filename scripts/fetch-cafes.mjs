@@ -170,7 +170,7 @@ async function processCafe(place, areaName) {
     lat: place.location?.latitude,
     lng: place.location?.longitude,
     // Where the cafe is, not which search found it: the grids overlap.
-    neighborhood: neighborhoodFor({ addressComponents: place.addressComponents, lat: place.location?.latitude, lng: place.location?.longitude }) ?? areaName,
+    neighborhood: neighborhoodFor({ addressComponents: place.addressComponents, lat: place.location?.latitude, lng: place.location?.longitude, current: areaName }) ?? areaName,
     phone: place.nationalPhoneNumber || null,
     website: place.websiteUri || null,
     google_rating: place.rating || null,

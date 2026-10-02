@@ -321,16 +321,18 @@ const GOOGLE_HOOD_ALIASES = {
  * into South Lake Union, Belltown and First Hill ("Ba Bar South Lake Union
  * (Capitol Hill)"). Now: the Eastside city from Google's address, else
  * Google's own neighborhood when it is one of ours, else the nearest center.
+ * `current` is the cafe's present label: Google files much of Belltown under
+ * "Downtown Seattle", so a Belltown label survives a plain "Downtown".
  */
-export function neighborhoodFor({ addressComponents, lat, lng }) {
+export function neighborhoodFor({ addressComponents, lat, lng, current }) {
   const named = (type) => (addressComponents ?? []).find(c => c.types?.includes(type))?.longText?.trim();
   const city = named("locality");
   if (city && EASTSIDE.has(city)) return city;
   const hood = named("neighborhood")?.toLowerCase();
   if (hood) {
-    const exact = AREAS.find(a => a.name.toLowerCase() === hood && !EASTSIDE.has(a.name));
-    if (exact) return exact.name;
-    if (GOOGLE_HOOD_ALIASES[hood]) return GOOGLE_HOOD_ALIASES[hood];
+    const area = AREAS.find(a => a.name.toLowerCase() === hood && !EASTSIDE.has(a.name))?.name ?? GOOGLE_HOOD_ALIASES[hood];
+    if (area === "Downtown Seattle" && current === "Belltown") return current;
+    if (area) return area;
   }
   if (typeof lat !== "number" || typeof lng !== "number") return null;
   // In Seattle, never fall back to an Eastside city (and vice versa elsewhere).

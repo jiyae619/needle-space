@@ -77,7 +77,7 @@ async function main() {
       }
       continue;
     }
-    const area = neighborhoodFor({ addressComponents: components, lat: cafe.lat, lng: cafe.lng });
+    const area = neighborhoodFor({ addressComponents: components, lat: cafe.lat, lng: cafe.lng, current: cafe.neighborhood });
     const googleHood = components.find(c => c.types?.includes("neighborhood"))?.longText ?? "—";
     if (area && area !== cafe.neighborhood) {
       await write(cafe.id, { neighborhood: area });

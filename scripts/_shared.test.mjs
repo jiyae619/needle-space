@@ -315,6 +315,13 @@ describe("cafe list rules", () => {
     expect(neighborhoodFor({ addressComponents: comp("Minor"), lat: 47.606, lng: -122.318 })).toBe("Central District");
   });
 
+  it("keeps a Belltown label when Google only says Downtown", () => {
+    const at = { addressComponents: comp("Downtown Seattle"), lat: 47.6135, lng: -122.345 };
+    expect(neighborhoodFor({ ...at, current: "Belltown" })).toBe("Belltown");
+    expect(neighborhoodFor({ ...at, current: "Capitol Hill" })).toBe("Downtown Seattle");
+    expect(neighborhoodFor({ ...at, addressComponents: comp("South Lake Union"), current: "Belltown" })).toBe("South Lake Union");
+  });
+
   it("falls back to the nearest area, never across the lake", () => {
     // Google says "Eastlake", not one of ours: nearest Seattle center.
     expect(neighborhoodFor({ addressComponents: comp("Eastlake"), lat: 47.6255, lng: -122.3375 })).toBe("South Lake Union");

@@ -124,7 +124,7 @@ async function main() {
         address: place.formattedAddress || cafe.address,
         lat,
         lng,
-        neighborhood: neighborhoodFor({ addressComponents: place.addressComponents, lat, lng }) ?? cafe.neighborhood,
+        neighborhood: neighborhoodFor({ addressComponents: place.addressComponents, lat, lng, current: cafe.neighborhood }) ?? cafe.neighborhood,
         phone: place.nationalPhoneNumber || null,
         website: place.websiteUri || null,
         hours_json: hours,
