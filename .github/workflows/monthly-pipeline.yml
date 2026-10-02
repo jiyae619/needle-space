@@ -28,6 +28,13 @@ on:
         description: "Dry run: write nothing, 5 cafes per step"
         type: boolean
         default: false
+      # scripts/clean-cafe-list.mjs: hide non-cafes (7-Eleven, McDonald's,
+      # ampm) and dead duplicates, and correct every cafe's neighborhood.
+      # About 470 cheap Google calls (Essentials tier, 10,000 free a month).
+      clean_cafe_list:
+        description: "Clean the cafe list first: hide non-cafes, fix neighborhoods"
+        type: boolean
+        default: false
 
 # Never let two pipeline runs write to the DB at once.
 concurrency:
@@ -53,6 +60,15 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # Only when ticked; with "Dry run" it reports and writes nothing.
+      - name: Clean the cafe list
+        if: ${{ inputs.clean_cafe_list }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
+        run: node scripts/clean-cafe-list.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
 
       # This checks the 27-day freshness marker before making a Places call.
       # When due, it discovers new cafes and refreshes existing status, address,

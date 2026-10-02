@@ -77,7 +77,7 @@ import { createClient } from "@supabase/supabase-js";
 import { writeFileSync, readFileSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { env } from "./_env.mjs";
-import { tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot } from "./_shared.mjs";
+import { tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, runNote } from "./_shared.mjs";
 
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -164,7 +164,7 @@ async function fetchTaggedCafes() {
   const rows = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabase.from("cafes").select(cols)
-      .not("llm_tagged_at", "is", null).order("id").range(from, from + 999);
+      .not("llm_tagged_at", "is", null).eq("hidden", false).order("id").range(from, from + 999);
     if (error) throw new Error(`Supabase read failed: ${error.message}`);
     rows.push(...data);
     if (data.length < 1000) return rows;
@@ -348,4 +348,10 @@ if (JSON_OUT) {
     : "Gate: same cafes before vs after");
   if (result.approved) console.log(`  ✅ ${result.approved}; these tags are the new "before".`);
 }
+runNote(`Quality gate: ${outcome}`, [
+  result.mode === "before_after" ? `${result.compared} re-tagged cafes compared with their tags at the last pass` + (result.first_tagged ? `, ${result.first_tagged} new` : "")
+    : result.mode === "first_snapshot" ? result.note : `${metrics.sample_size} cafes vs the corpus baseline`,
+  result.deferred ? `Deferred: ${result.deferred}` : "",
+  ...result.regressions.map(r => `${r.attribute}.${r.metric}: ${r.was} → ${r.now}`),
+].filter(Boolean).join("\n"));
 process.exit(outcome === "fail" ? 1 : 0);

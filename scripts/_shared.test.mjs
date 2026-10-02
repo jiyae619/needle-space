@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -298,5 +298,39 @@ describe("quality gate: before/after", () => {
     expect(accuracyRegressions(accBefore, accAfter, 0.05)).toEqual([
       { attribute: "outlet_availability", metric: "accuracy", was: 1, now: 0.8, delta: -0.2 },
     ]);
+  });
+});
+
+describe("cafe list rules", () => {
+  const comp = (neighborhood, city = "Seattle") => [
+    ...(neighborhood ? [{ longText: neighborhood, types: ["neighborhood", "political"] }] : []),
+    { longText: city, types: ["locality", "political"] },
+  ];
+
+  it("uses Google's neighborhood when it is one of our areas", () => {
+    // Ba Bar on Terry Ave N was labelled Capitol Hill by the search grid.
+    expect(neighborhoodFor({ addressComponents: comp("South Lake Union"), lat: 47.6233, lng: -122.3374 })).toBe("South Lake Union");
+    expect(neighborhoodFor({ addressComponents: comp("Lower Queen Anne"), lat: 47.62, lng: -122.35 })).toBe("Queen Anne");
+    expect(neighborhoodFor({ addressComponents: comp("Belltown"), lat: 47.614, lng: -122.346 })).toBe("Belltown");
+  });
+
+  it("falls back to the nearest area, never across the lake", () => {
+    // Google says "Eastlake", not one of ours: nearest Seattle center.
+    expect(neighborhoodFor({ addressComponents: comp("Eastlake"), lat: 47.6255, lng: -122.3375 })).toBe("South Lake Union");
+    expect(neighborhoodFor({ addressComponents: comp(null), lat: 47.661, lng: -122.334 })).toBe("Wallingford");
+    expect(neighborhoodFor({ addressComponents: comp("Downtown", "Bellevue"), lat: 47.61, lng: -122.2 })).toBe("Bellevue");
+    // A Seattle address on the east edge still gets a Seattle area.
+    expect(neighborhoodFor({ addressComponents: comp(null), lat: 47.62, lng: -122.25 })).not.toMatch(/Bellevue|Kirkland|Redmond/);
+    expect(neighborhoodFor({ addressComponents: [], lat: null, lng: null })).toBeNull();
+  });
+
+  it("knows which chains are not cafes", () => {
+    for (const n of ["7-Eleven", "7 Eleven", "McDonald's", "McDonald’s", "ampm", "AM/PM"]) expect(isNotACafe(n), n).toBe(true);
+    for (const n of ["Starbucks", "Moment Coffee", "Ample Coffee", "Seven Coffee Roasters", "Ampersand Cafe"]) expect(isNotACafe(n), n).toBe(false);
+  });
+
+  it("spots duplicate names", () => {
+    expect(nameKey("Moment Coffee")).toBe(nameKey("MOMENT coffee"));
+    expect(nameKey("Moment Coffee")).not.toBe(nameKey("Momento Coffee"));
   });
 });

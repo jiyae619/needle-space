@@ -192,6 +192,7 @@ async function main() {
     // key (see cache-photos.mjs), and tagging one would stamp visual_tagged_at
     // before the cafe has a real photo to look at.
     .like("photo_url", "%/storage/v1/object/public/%")
+    .eq("hidden", false)
     .order("name");
   if (CAFE) q = q.ilike("name", `%${CAFE}%`);
   if (!FORCE && !CAFE) q = q.is("visual_tagged_at", null);

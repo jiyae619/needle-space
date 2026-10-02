@@ -168,7 +168,7 @@ async function main() {
   // 20260929010000_research_fingerprint.sql. Without them, fall back to the old
   // behaviour (every re-check counts as new evidence) and say so.
   const load = (cols) => {
-    let q = supabase.from("cafes").select(cols).order("name");
+    let q = supabase.from("cafes").select(cols).eq("hidden", false).order("name");
     if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
     return q;
   };

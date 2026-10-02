@@ -29,6 +29,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.mjs";
+import { AREAS, neighborhoodFor, isNotACafe } from "./_shared.mjs";
 
 const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY;
 const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
@@ -46,29 +47,8 @@ const argv = process.argv.slice(2);
 const DRY_RUN = argv.includes("--dry-run");
 const PLAN    = argv.includes("--plan");
 
-// Search areas covering Seattle + Eastside
-const SEARCH_AREAS = [
-  // Dense (3×3 grid) — cafe-saturated cores that blow past the 20-per-search cap.
-  { name: "Downtown Seattle", lat: 47.6062, lng: -122.3321, tier: "dense" },
-  { name: "Capitol Hill",     lat: 47.6254, lng: -122.3222, tier: "dense" },
-  // Medium (2×2 grid) — strong secondary coffee neighborhoods.
-  { name: "Ballard",          lat: 47.6677, lng: -122.3836, tier: "medium" },
-  { name: "Fremont",          lat: 47.6509, lng: -122.3502, tier: "medium" },
-  { name: "South Lake Union", lat: 47.6254, lng: -122.3381, tier: "medium" },
-  { name: "Bellevue",         lat: 47.6101, lng: -122.2015, tier: "medium" },
-  { name: "Belltown",         lat: 47.6140, lng: -122.3460, tier: "medium" },
-  // Light (single search) — moderate density, or already flanked by other areas.
-  { name: "University District", lat: 47.6588, lng: -122.3143, tier: "light" },
-  { name: "Pioneer Square",      lat: 47.5997, lng: -122.3321, tier: "light" },
-  { name: "Queen Anne",          lat: 47.6356, lng: -122.3568, tier: "light" },
-  { name: "Columbia City",       lat: 47.5593, lng: -122.2892, tier: "light" },
-  { name: "Central District",    lat: 47.6072, lng: -122.3009, tier: "light" },
-  { name: "Greenwood",           lat: 47.6879, lng: -122.3545, tier: "light" },
-  { name: "West Seattle",        lat: 47.5622, lng: -122.3859, tier: "light" },
-  { name: "Wallingford",         lat: 47.6615, lng: -122.3341, tier: "light" },
-  { name: "Redmond",             lat: 47.6740, lng: -122.1215, tier: "light" },
-  { name: "Kirkland",            lat: 47.6815, lng: -122.2087, tier: "light" },
-];
+// Search areas covering Seattle + Eastside: AREAS in scripts/_shared.mjs.
+const SEARCH_AREAS = AREAS;
 
 // Google's searchNearby returns AT MOST 20 results per call. To cover a dense
 // neighborhood we tile it into a grid of smaller searches and dedupe by place
@@ -129,6 +109,7 @@ async function searchNearby(lat, lng, areaName) {
         "places.id",
         "places.displayName",
         "places.formattedAddress",
+        "places.addressComponents",
         "places.location",
         "places.rating",
         "places.userRatingCount",
@@ -152,14 +133,6 @@ async function searchNearby(lat, lng, areaName) {
 
   const data = await res.json();
   return data.places || [];
-}
-
-function extractNeighborhood(address) {
-  // Try to extract Seattle neighborhood from formatted address
-  // Format: "123 Main St, Seattle, WA 98101, USA"
-  const parts = address.split(",").map((s) => s.trim());
-  // Return city portion (usually index 1 or 2)
-  return parts[1] || "Seattle";
 }
 
 function buildHoursJson(openingHours) {
@@ -196,7 +169,8 @@ async function processCafe(place, areaName) {
     address: place.formattedAddress || "",
     lat: place.location?.latitude,
     lng: place.location?.longitude,
-    neighborhood: areaName, // use our search area name as neighborhood
+    // Where the cafe is, not which search found it: the grids overlap.
+    neighborhood: neighborhoodFor({ addressComponents: place.addressComponents, lat: place.location?.latitude, lng: place.location?.longitude }) ?? areaName,
     phone: place.nationalPhoneNumber || null,
     website: place.websiteUri || null,
     google_rating: place.rating || null,
@@ -237,6 +211,7 @@ async function main() {
     for (const pt of subPoints(area)) {
       const places = await searchNearby(pt.lat, pt.lng, area.name);
       for (const place of places) {
+        if (isNotACafe(place.displayName?.text)) continue;   // 7-Eleven, McDonald's, ampm
         if (!allCafes.has(place.id)) allCafes.set(place.id, await processCafe(place, area.name));
       }
       await new Promise((r) => setTimeout(r, 100)); // pace the paid API

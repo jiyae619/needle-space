@@ -134,6 +134,7 @@ export function isFilterEmpty<K extends FilterKey>(key: K, value: Filters[K]): b
 export const NEIGHBORHOODS = [
   "Ballard",
   "Bellevue",
+  "Belltown",
   "Capitol Hill",
   "Central District",
   "Columbia City",
@@ -144,7 +145,9 @@ export const NEIGHBORHOODS = [
   "Pioneer Square",
   "Queen Anne",
   "Redmond",
+  "South Lake Union",
   "University District",
+  "Wallingford",
   "West Seattle",
 ] as const;
 
