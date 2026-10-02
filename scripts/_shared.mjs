@@ -265,6 +265,96 @@ export function unknownCount(cafe) {
   return Object.values(mergedValues(cafe)).filter(v => !v || v === "unknown").length;
 }
 
+// ---------------------------------------------------------------------------
+// Tagging quality, for the pipeline's gate (scripts/quality-metrics.mjs).
+// A row is a cafe with tagging_confidence and the five *_llm columns.
+// ---------------------------------------------------------------------------
+
+const TAG_KEYS = ATTRS.map(([k]) => k);
+const round3 = (x) => Math.round(x * 1000) / 1000;
+const hasEvidence = (c) => c?.evidence?.length > 0;
+
+/** Per attribute: how often the tagger gave up (unknown), cited a review (evidence), or had nothing to go on (silent). */
+export function tagQuality(rows) {
+  const n = rows.length;
+  const rate = (x) => n ? round3(x / n) : null;   // an empty cohort has no rate, not a zero
+  const out = {};
+  for (const attr of TAG_KEYS) {
+    const conf = rows.map(r => r.tagging_confidence?.[attr]);
+    const scores = conf.map(c => c?.confidence).filter(v => typeof v === "number");
+    out[attr] = {
+      unknown_rate:         rate(rows.filter(r => (r[`${attr}_llm`] ?? "unknown") === "unknown").length),
+      evidence_backed_rate: rate(conf.filter(hasEvidence).length),
+      // The tagger's "reviews are silent" signal: unknown at ~0.3 confidence
+      // with nothing to cite (the prompt rule in analyze-reviews-llm.mjs).
+      silent_rate:          rate(conf.filter(c => typeof c?.confidence === "number" && c.confidence <= 0.3 && !hasEvidence(c)).length),
+      mean_confidence:      scores.length ? round3(scores.reduce((s, x) => s + x, 0) / scores.length) : null,
+    };
+  }
+  return out;
+}
+
+/** Metrics that got worse by more than `tolerance` from `before` to `after` (both from tagQuality). */
+export function qualityRegressions(before, after, tolerance) {
+  const out = [];
+  for (const attr of TAG_KEYS) {
+    const was = before?.[attr], now = after?.[attr];
+    if (!was || !now) continue;
+    for (const metric of ["unknown_rate", "evidence_backed_rate", "silent_rate"]) {
+      if (now[metric] == null || was[metric] == null) continue;
+      const delta = round3(now[metric] - was[metric]);
+      const worse = metric === "evidence_backed_rate" ? -delta > tolerance : delta > tolerance;
+      if (worse) out.push({ attribute: attr, metric, was: was[metric], now: now[metric], delta });
+    }
+  }
+  return out;
+}
+
+/** Accuracy of the automated tags against human labels, counted only where the tagger committed. */
+export function tagAccuracy(rows) {
+  const out = { labeled_cafes: rows.length, attributes: {} };
+  for (const attr of TAG_KEYS) {
+    const pairs = rows.map(r => [r.human_labels?.[attr], r[`${attr}_llm`] ?? "unknown"]).filter(([h]) => h);
+    const committed = pairs.filter(([, m]) => m !== "unknown");
+    out.attributes[attr] = {
+      labeled: pairs.length,
+      coverage: pairs.length ? round3(committed.length / pairs.length) : null,
+      accuracy: committed.length ? round3(committed.filter(([h, m]) => h === m).length / committed.length) : null,
+    };
+  }
+  return out;
+}
+
+/** Attributes whose accuracy dropped by more than `tolerance` (both from tagAccuracy). */
+export function accuracyRegressions(before, after, tolerance) {
+  const out = [];
+  for (const attr of TAG_KEYS) {
+    const was = before?.attributes?.[attr]?.accuracy, now = after?.attributes?.[attr]?.accuracy;
+    if (was == null || now == null) continue;
+    if (round3(was - now) > tolerance) out.push({ attribute: attr, metric: "accuracy", was, now, delta: round3(now - was) });
+  }
+  return out;
+}
+
+/** A cafe's tags in the compact form the gate stores with each pass: attribute → [value, confidence, has evidence]. */
+export function tagSnapshot(row) {
+  return Object.fromEntries(TAG_KEYS.map(a => {
+    const c = row.tagging_confidence?.[a];
+    return [a, [row[`${a}_llm`] ?? "unknown", typeof c?.confidence === "number" ? c.confidence : null, hasEvidence(c) ? 1 : 0]];
+  }));
+}
+
+/** A stored snapshot back in the row shape tagQuality and tagAccuracy read. */
+export function rowFromSnapshot(snap) {
+  const row = { tagging_confidence: {} };
+  for (const a of TAG_KEYS) {
+    const [value, confidence, evidence] = snap?.[a] ?? ["unknown", null, 0];
+    row[`${a}_llm`] = value;
+    if (confidence != null || evidence) row.tagging_confidence[a] = { confidence, evidence: evidence ? [true] : [] };
+  }
+  return row;
+}
+
 /**
  * Why a cafe needs tagging, or null when its tag is current:
  *   "untagged"      never tagged

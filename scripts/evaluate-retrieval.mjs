@@ -160,7 +160,15 @@ async function run() {
     if (VIA_API) {
       if (i > 0) await new Promise(r => setTimeout(r, API_DELAY_MS));
       try { names = (await searchViaApi(q.query)).slice(0, K); }
-      catch (e) { console.error(`/api/search failed for "${q.query}": ${e.message}`); process.exit(1); }
+      catch (e) {
+        // The live site shares the Voyage key, so a visitor's search can use up
+        // the minute's quota. Wait the minute out and try once more.
+        if (!/rate-limited/.test(e.message)) { console.error(`/api/search failed for "${q.query}": ${e.message}`); process.exit(1); }
+        console.error(`rate-limited on "${q.query}"; waiting 65s and retrying once`);
+        await new Promise(r => setTimeout(r, 65000));
+        try { names = (await searchViaApi(q.query)).slice(0, K); }
+        catch (e2) { console.error(`/api/search failed for "${q.query}": ${e2.message}`); process.exit(1); }
+      }
     } else {
       const fn = HYBRID ? "match_cafes_hybrid" : "match_cafes";
       const { data, error } = await supabase.rpc(fn, {

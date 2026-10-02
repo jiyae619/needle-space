@@ -1,8 +1,9 @@
-name: Monthly data pipeline
-run-name: ${{ inputs.dry_run && format('Pipeline dry run ({0})', github.ref_name) || 'Monthly data pipeline' }}
+name: Daily data pipeline
+run-name: ${{ inputs.dry_run && format('Pipeline dry run ({0})', github.ref_name) || 'Daily data pipeline' }}
 
-# Runs a lightweight eligibility check daily, but the Places refresh only calls
-# Google for records approaching 28 days old. This keeps Google-derived
+# Runs every day (the file is still called monthly-pipeline.yml so its run
+# history stays in one place). The Places refresh only calls Google for
+# records approaching 28 days old. This keeps Google-derived
 # information fresh while avoiding daily full-catalog charges.
 #
 # The pipeline gates itself on tagging quality BEFORE its finalize stage, so a
