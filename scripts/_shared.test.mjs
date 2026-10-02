@@ -312,6 +312,7 @@ describe("cafe list rules", () => {
     expect(neighborhoodFor({ addressComponents: comp("South Lake Union"), lat: 47.6233, lng: -122.3374 })).toBe("South Lake Union");
     expect(neighborhoodFor({ addressComponents: comp("Lower Queen Anne"), lat: 47.62, lng: -122.35 })).toBe("Queen Anne");
     expect(neighborhoodFor({ addressComponents: comp("Belltown"), lat: 47.614, lng: -122.346 })).toBe("Belltown");
+    expect(neighborhoodFor({ addressComponents: comp("Minor"), lat: 47.606, lng: -122.318 })).toBe("Central District");
   });
 
   it("falls back to the nearest area, never across the lake", () => {
@@ -325,7 +326,7 @@ describe("cafe list rules", () => {
   });
 
   it("knows which chains are not cafes", () => {
-    for (const n of ["7-Eleven", "7 Eleven", "McDonald's", "McDonald’s", "ampm", "AM/PM"]) expect(isNotACafe(n), n).toBe(true);
+    for (const n of ["7-Eleven", "7 Eleven", "McDonald's", "McDonald’s", "ampm", "AM/PM", "Circle K"]) expect(isNotACafe(n), n).toBe(true);
     for (const n of ["Starbucks", "Moment Coffee", "Ample Coffee", "Seven Coffee Roasters", "Ampersand Cafe"]) expect(isNotACafe(n), n).toBe(false);
   });
 

@@ -4,7 +4,7 @@
  * (tick "Dry run" as well to only see what would change).
  *
  *   1. Hides chains that are not places to work from (7-Eleven, McDonald's,
- *      ampm; isNotACafe in _shared.mjs). Discovery no longer adds them.
+ *      ampm, Circle K; isNotACafe in _shared.mjs). Discovery no longer adds them.
  *   2. Re-checks every visible cafe's neighborhood against Google's address
  *      data (neighborhoodFor in _shared.mjs). Cafes used to be named after
  *      whichever search area found them, e.g. "Ba Bar South Lake Union

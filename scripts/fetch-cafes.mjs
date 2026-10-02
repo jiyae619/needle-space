@@ -211,7 +211,7 @@ async function main() {
     for (const pt of subPoints(area)) {
       const places = await searchNearby(pt.lat, pt.lng, area.name);
       for (const place of places) {
-        if (isNotACafe(place.displayName?.text)) continue;   // 7-Eleven, McDonald's, ampm
+        if (isNotACafe(place.displayName?.text)) continue;   // 7-Eleven, McDonald's, ampm, Circle K
         if (!allCafes.has(place.id)) allCafes.set(place.id, await processCafe(place, area.name));
       }
       await new Promise((r) => setTimeout(r, 100)); // pace the paid API

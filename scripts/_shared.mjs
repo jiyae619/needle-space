@@ -309,6 +309,10 @@ const GOOGLE_HOOD_ALIASES = {
   "u district": "University District",
   "phinney ridge": "Greenwood",
   "central area": "Central District",
+  "minor": "Central District",
+  "squire park": "Central District",
+  "atlantic": "Central District",
+  "west woodland": "Ballard",
 };
 
 /**
@@ -336,15 +340,23 @@ export function neighborhoodFor({ addressComponents, lat, lng }) {
   return candidates.reduce((best, a) => (dist(a) < dist(best) ? a : best)).name;
 }
 
-// Chains Google lists as cafes that are not places to sit and work.
-const NOT_A_CAFE = /^\s*(7[-\s]?eleven|mcdonald['’]?s|am\s?\/?\s?pm)\b/i;
+// Chains Google lists as cafes that are not places to sit and work
+// (convenience stores, fast food).
+const NOT_A_CAFE = /^\s*(7[-\s]?eleven|mcdonald['’]?s|am\s?\/?\s?pm|circle k)\b/i;
 export const isNotACafe = (name) => NOT_A_CAFE.test(name ?? "");
 
 /** In GitHub Actions, also show `text` as a note at the top of the run's page. */
 export function runNote(title, text) {
   if (!process.env.GITHUB_ACTIONS) return;
   const esc = (x) => x.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
-  console.log(`::notice title=${esc(title).replace(/[:,]/g, " ")}::${esc(text)}`);
+  // GitHub cuts a note at about 4,000 characters: split long text by line.
+  const parts = [""];
+  for (const line of text.split("\n")) {
+    if (parts.at(-1).length + line.length > 3500) parts.push("");
+    parts[parts.length - 1] += (parts.at(-1) ? "\n" : "") + line;
+  }
+  parts.slice(0, 9).forEach((p, i) => console.log(
+    `::notice title=${esc(title).replace(/[:,]/g, " ")}${parts.length > 1 ? ` (${i + 1}/${parts.length})` : ""}::${esc(p)}`));
 }
 
 /** Name with case, spacing and punctuation removed, for spotting duplicates ("MOMENT coffee" = "Moment Coffee"). */

@@ -65,7 +65,7 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
   - `research-cafes.mjs` only re-tags a cafe when its evidence fingerprint changed.
 - Evals: `evaluate-accuracy.mjs` (vs human labels; gates at 20+ labels), `evaluate-retrieval.mjs` (golden queries), `evaluate-tagging.mjs` (LLM vs keyword baseline, historical).
 - Google Place IDs are the foreign key linking our data to Google's.
-- Hidden cafes (`cafes.hidden`) stay in the table but are excluded from every public query, search, MCP and pipeline stage. 7-Eleven, McDonald's and ampm are not cafes (`isNotACafe` in `scripts/_shared.mjs`): discovery skips them and `clean-cafe-list.mjs` hides them.
+- Hidden cafes (`cafes.hidden`) stay in the table but are excluded from every public query, search, MCP and pipeline stage. 7-Eleven, McDonald's, ampm and Circle K are not cafes (`isNotACafe` in `scripts/_shared.mjs`): discovery skips them and `clean-cafe-list.mjs` hides them.
 - A cafe's neighborhood is where it is, not which search found it: `neighborhoodFor()` in `scripts/_shared.mjs` (Eastside city, else Google's neighborhood when it is one of ours, else nearest area center). The area list is `AREAS` there and `NEIGHBORHOODS` in `src/lib/types.ts`; keep them in step.
 
 ## Secrets and Keys
