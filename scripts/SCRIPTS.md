@@ -8,7 +8,8 @@ This directory contains three scripts for building and maintaining Needle Space'
 
 | Script | Purpose | Writes to DB? |
 |---|---|---|
-| `fetch-cafes.mjs` | Pulls cafe listings from Google Places API | Yes |
+| `fetch-cafes.mjs` | Pulls cafe listings from Google Places API (skips 7-Eleven, McDonald's, ampm) | Yes |
+| `clean-cafe-list.mjs` | Hides non-cafes and dead duplicates, corrects neighborhoods. Run from Actions → Daily data pipeline → Run workflow → "Clean the cafe list" | Yes (unless `--dry-run`) |
 | `analyze-reviews.mjs` | Tags each cafe with workspace attributes | Yes (unless `--dry-run`) |
 | `discover-keywords.mjs` | Surfaces new phrases to improve the tagger | Never — read-only |
 | `evaluate-retrieval.mjs` | Scores NL search quality against `golden-queries.json` (Recall@k, MRR) | Never — read-only |
