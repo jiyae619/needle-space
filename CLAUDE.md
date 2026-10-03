@@ -24,7 +24,7 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
   - `main` is staging (`main--needle-space.netlify.app`);
   - the live site deploys from the `production` branch, released by a PR from `main` into `production`.
   Previews and staging use the live Supabase database. The GitHub Actions pipeline runs from `main`, so pipeline changes go live on merge; test them with the workflow's "Dry run" first.
-- **Automation:** GitHub Actions: daily data pipeline, nightly eval, lint + typecheck + tests on every PR
+- **Automation:** GitHub Actions: daily data pipeline, weekly eval, lint + typecheck + tests on every PR
 - **Cost target:** $0/month using free tiers. Google Maps Platform has no $200 credit any more (since March 2025); each Places request type has its own free monthly allowance instead (e.g. 1,000 for "Place Details Enterprise + Atmosphere", which covers reviews and review summaries). Keep batch jobs inside those allowances.
 
 ## Scope
@@ -39,7 +39,7 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
   - Per-visitor search rate limit, similarity logging, private query log
   - Read-only MCP server at `/api/mcp` (search_cafes, get_cafe, list_neighborhoods)
   - Hybrid full-text + vector ranking (built, off behind `SEARCH_HYBRID`) and a v2 embedding text (built, off behind `EMBED_TEXT_VERSION`)
-  - Cumulative quality gate with history, nightly eval (tag accuracy vs human labels, search nDCG/MRR), tagging run traces
+  - Cumulative before/after quality gate with history, weekly eval (tag accuracy vs human labels, search nDCG/MRR), tagging run traces
 
 ### Out of Scope (still)
 - Visitor accounts / authentication
@@ -65,7 +65,8 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
   - `research-cafes.mjs` only re-tags a cafe when its evidence fingerprint changed.
 - Evals: `evaluate-accuracy.mjs` (vs human labels; gates at 20+ labels), `evaluate-retrieval.mjs` (golden queries), `evaluate-tagging.mjs` (LLM vs keyword baseline, historical).
 - Google Place IDs are the foreign key linking our data to Google's.
-- Hidden cafes (`cafes.hidden`) stay in the table but are excluded from every public query, search and MCP.
+- Hidden cafes (`cafes.hidden`) stay in the table but are excluded from every public query, search, MCP and pipeline stage. 7-Eleven, McDonald's, ampm and Circle K are not cafes (`isNotACafe` in `scripts/_shared.mjs`): discovery skips them and `clean-cafe-list.mjs` hides them.
+- A cafe's neighborhood is where it is, not which search found it: `neighborhoodFor()` in `scripts/_shared.mjs` (Eastside city, else Google's neighborhood when it is one of ours, else nearest area center). The area list is `AREAS` there and `NEIGHBORHOODS` in `src/lib/types.ts`; keep them in step.
 
 ## Secrets and Keys
 - Exactly two Google keys: `GOOGLE_PLACES_SERVER_KEY` (scripts and GitHub Actions only, never `NEXT_PUBLIC_`, never stored in the database) and `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` (map only, restricted to the site's addresses). `GOOGLE_PLACES_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` are retired.
@@ -93,5 +94,5 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
 - `npm run lint` and `npx tsc --noEmit` — lint and typecheck
 - `npm test` — Vitest unit and route tests
 - `npm run pipeline` — run the offline pipeline (`npm run pipeline -- --all` re-embeds every cafe; `-- --dry-run --limit 5` writes nothing)
-- To test a branch's pipeline changes: Actions → Monthly data pipeline → Run workflow → pick the branch → tick "Dry run"
+- To test a branch's pipeline changes: Actions → Daily data pipeline → Run workflow → pick the branch → tick "Dry run"
 - `npx supabase` — interact with Supabase locally

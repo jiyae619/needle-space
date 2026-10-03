@@ -1,8 +1,9 @@
-name: Monthly data pipeline
-run-name: ${{ inputs.dry_run && format('Pipeline dry run ({0})', github.ref_name) || 'Monthly data pipeline' }}
+name: Daily data pipeline
+run-name: ${{ inputs.dry_run && format('Pipeline dry run ({0})', github.ref_name) || 'Daily data pipeline' }}
 
-# Runs a lightweight eligibility check daily, but the Places refresh only calls
-# Google for records approaching 28 days old. This keeps Google-derived
+# Runs every day (the file is still called monthly-pipeline.yml so its run
+# history stays in one place). The Places refresh only calls Google for
+# records approaching 28 days old. This keeps Google-derived
 # information fresh while avoiding daily full-catalog charges.
 #
 # The pipeline gates itself on tagging quality BEFORE its finalize stage, so a
@@ -27,6 +28,14 @@ on:
         description: "Dry run: write nothing, 5 cafes per step"
         type: boolean
         default: false
+      # scripts/clean-cafe-list.mjs: hide non-cafes (7-Eleven, McDonald's,
+      # ampm, Circle K) and dead duplicates, and correct every cafe's neighborhood.
+      # About 470 cheap Google calls (Essentials tier, 10,000 free a month).
+      # Runs on its own: the data pipeline is skipped on that run.
+      clean_cafe_list:
+        description: "Only clean the cafe list (skips the pipeline): hide non-cafes, fix neighborhoods"
+        type: boolean
+        default: false
 
 # Never let two pipeline runs write to the DB at once.
 concurrency:
@@ -37,7 +46,28 @@ permissions:
   contents: read
 
 jobs:
+  # Only when "Clean the cafe list" is ticked; with "Dry run" it reports and
+  # writes nothing.
+  clean:
+    if: ${{ inputs.clean_cafe_list }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Clean the cafe list
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
+        run: node scripts/clean-cafe-list.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
+
   pipeline:
+    if: ${{ !inputs.clean_cafe_list }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:

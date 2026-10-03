@@ -647,6 +647,7 @@ async function main() {
   let q = supabase
     .from("cafes")
     .select("id, google_place_id, name, neighborhood, address, vibe_keywords, llm_tagged_at, web_research_at, visual_tagged_at, web_research_snippets, yelp_free_wifi, tagging_confidence, wifi_quality_llm, outlet_availability_llm, noise_level_llm, seating_availability_llm, laptop_policy_llm, google_review_summary, reviews_checked_at")
+    .eq("hidden", false)   // hidden = not a work spot; don't spend Gemini calls on it
     .order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
   // NOTE: LIMIT is applied AFTER the staleness filter below, not here — a

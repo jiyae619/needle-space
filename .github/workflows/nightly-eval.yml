@@ -1,17 +1,20 @@
-name: Nightly eval
+name: Weekly eval
 
-# Measures the live data every night and posts the numbers to the run summary:
+# Measures the live data once a week and posts the numbers to the run summary:
 #   1. tag accuracy against human labels from /admin (scripts/evaluate-accuracy.mjs)
 #   2. search quality on the golden queries, twice:
 #      - direct: the vector index alone (one batched embedding call)
 #      - via the app: the production /api/search path, including place
 #        filtering, on a local build of this commit
 # It reports; it does not block anything. The pipeline's own quality gate is
-# what stops a bad tagging run (scripts/quality-metrics.mjs).
+# what stops a bad tagging run (scripts/quality-metrics.mjs). Weekly, because
+# the numbers only move when the search code or the data changes; run it by hand
+# (Actions → Weekly eval → Run workflow) after changing either. The file keeps
+# its old name, nightly-eval.yml, so its run history stays in one place.
 
 on:
   schedule:
-    - cron: "0 11 * * *"   # after the 09:00 data pipeline
+    - cron: "0 11 * * 1"   # Mondays, after the 09:00 data pipeline
   workflow_dispatch:
 
 concurrency:
@@ -65,13 +68,16 @@ jobs:
         run: npm run build
 
       # The route embeds one query per request and Voyage's free tier allows 3 a
-      # minute, so queries are paced 21s apart (~9 minutes for 24 queries).
+      # minute. The two database-only runs above used 2 of this minute's calls,
+      # so wait a full minute first; then pace queries 30s apart (~12 minutes
+      # for 24 queries), which leaves the live site one search a minute.
       # x-needle-eval keeps them out of nl_query_log.
       - name: Search quality — production path
         run: |
           npx next start -p 3000 > next.log 2>&1 &
           for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:3000/ && break; sleep 2; done
-          node scripts/evaluate-retrieval.mjs --via-api --api-base http://localhost:3000 --json > eval-out/retrieval-api.json
+          sleep 65
+          node scripts/evaluate-retrieval.mjs --via-api --api-base http://localhost:3000 --api-delay-ms 30000 --json > eval-out/retrieval-api.json
           { echo; echo "## Search — production path"; node -e '
             const r = require("./eval-out/retrieval-api.json").summary;
             const p = (x) => x == null ? "—" : (x * 100).toFixed(1) + "%";

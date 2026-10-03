@@ -16,14 +16,17 @@ import { spawnSync } from "child_process";
 import { appendFileSync } from "fs";
 import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.mjs";
+import { neighborhoodFor } from "./_shared.mjs";
 
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY;
 // The workflow checks daily. Refreshing at day 27 leaves a one-day cushion
 // for a delayed GitHub schedule while keeping Google-derived content fresh.
 const STALE_AFTER_MS = 27 * 24 * 60 * 60 * 1000;
+// addressComponents (for the neighborhood) is in a cheaper tier than hours,
+// so asking for it adds no cost.
 const FIELDS = [
-  "businessStatus", "displayName", "formattedAddress", "location",
+  "businessStatus", "displayName", "formattedAddress", "addressComponents", "location",
   "regularOpeningHours", "currentOpeningHours", "websiteUri",
   "nationalPhoneNumber", "movedPlaceId",
 ].join(",");
@@ -90,7 +93,8 @@ async function main() {
   const now = new Date();
   const { data, error } = await supabase
     .from("cafes")
-    .select("id,name,address,lat,lng,phone,website,hours_json,google_place_id,business_status,business_status_checked_at,moved_place_id")
+    .select("id,name,address,lat,lng,neighborhood,phone,website,hours_json,google_place_id,business_status,business_status_checked_at,moved_place_id")
+    .eq("hidden", false)
     .order("name");
   if (error) throw new Error(`Unable to load cafes: ${error.message}`);
 
@@ -113,11 +117,14 @@ async function main() {
     try {
       const place = await fetchPlace(cafe.google_place_id);
       const hours = toHoursJson(place.currentOpeningHours || place.regularOpeningHours);
+      const lat = place.location?.latitude ?? cafe.lat;
+      const lng = place.location?.longitude ?? cafe.lng;
       const update = {
         name: place.displayName?.text || cafe.name,
         address: place.formattedAddress || cafe.address,
-        lat: place.location?.latitude ?? cafe.lat,
-        lng: place.location?.longitude ?? cafe.lng,
+        lat,
+        lng,
+        neighborhood: neighborhoodFor({ addressComponents: place.addressComponents, lat, lng, current: cafe.neighborhood }) ?? cafe.neighborhood,
         phone: place.nationalPhoneNumber || null,
         website: place.websiteUri || null,
         hours_json: hours,

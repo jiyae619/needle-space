@@ -168,7 +168,7 @@ async function main() {
   // 20260929010000_research_fingerprint.sql. Without them, fall back to the old
   // behaviour (every re-check counts as new evidence) and say so.
   const load = (cols) => {
-    let q = supabase.from("cafes").select(cols).order("name");
+    let q = supabase.from("cafes").select(cols).eq("hidden", false).order("name");
     if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
     return q;
   };
@@ -177,7 +177,7 @@ async function main() {
   // drop the fresh ones — so `--limit 5` could research 0 cafes and always the
   // same alphabetical head.
 
-  let { data: cafes, error } = await load("id, name, neighborhood, web_research_at, web_research_checked_at, web_research_hash");
+  let { data: cafes, error } = await load("id, name, neighborhood, web_research_at, web_research_checked_at, web_research_hash, web_research_snippets, yelp_free_wifi");
   const CHANGE_AWARE = !error;
   if (!CHANGE_AWARE) {
     console.warn("   ⚠️  web_research_checked_at/web_research_hash missing — apply 20260929010000_research_fingerprint.sql. Every re-check will trigger a re-tag.\n");
@@ -242,7 +242,13 @@ async function main() {
     // that it looked.
     const stamp = new Date().toISOString();
     const hash = researchFingerprint(reddit, yelpFreeWifi);
-    const changed = !CHANGE_AWARE || hash !== cafe.web_research_hash;
+    // A cafe researched before fingerprints existed has no stored hash; derive
+    // one from the evidence it holds, or the first re-check after the upgrade
+    // counts every cafe as changed (2026-10-01: all 464, and 336 needless re-tags).
+    const previous = cafe.web_research_hash ?? (cafe.web_research_at
+      ? researchFingerprint(cafe.web_research_snippets?.results, cafe.yelp_free_wifi)
+      : null);
+    const changed = !CHANGE_AWARE || hash !== previous;
     const update = changed
       ? { web_research_snippets: payload, web_research_at: stamp, yelp_free_wifi: yelpFreeWifi }
       : {};

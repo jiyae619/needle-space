@@ -265,6 +265,195 @@ export function unknownCount(cafe) {
   return Object.values(mergedValues(cafe)).filter(v => !v || v === "unknown").length;
 }
 
+// ---------------------------------------------------------------------------
+// The areas we cover, and which one a cafe belongs to.
+// ---------------------------------------------------------------------------
+
+/** Search areas (fetch-cafes.mjs tiles each one) and their centers. */
+export const AREAS = [
+  // Dense (3×3 grid) — cafe-saturated cores that blow past the 20-per-search cap.
+  { name: "Downtown Seattle", lat: 47.6062, lng: -122.3321, tier: "dense" },
+  { name: "Capitol Hill",     lat: 47.6254, lng: -122.3222, tier: "dense" },
+  // Medium (2×2 grid) — strong secondary coffee neighborhoods.
+  { name: "Ballard",          lat: 47.6677, lng: -122.3836, tier: "medium" },
+  { name: "Fremont",          lat: 47.6509, lng: -122.3502, tier: "medium" },
+  { name: "South Lake Union", lat: 47.6254, lng: -122.3381, tier: "medium" },
+  { name: "Bellevue",         lat: 47.6101, lng: -122.2015, tier: "medium" },
+  { name: "Belltown",         lat: 47.6140, lng: -122.3460, tier: "medium" },
+  // Light (single search) — moderate density, or already flanked by other areas.
+  { name: "University District", lat: 47.6588, lng: -122.3143, tier: "light" },
+  { name: "Pioneer Square",      lat: 47.5997, lng: -122.3321, tier: "light" },
+  { name: "Queen Anne",          lat: 47.6356, lng: -122.3568, tier: "light" },
+  { name: "Columbia City",       lat: 47.5593, lng: -122.2892, tier: "light" },
+  { name: "Central District",    lat: 47.6072, lng: -122.3009, tier: "light" },
+  { name: "Greenwood",           lat: 47.6879, lng: -122.3545, tier: "light" },
+  { name: "West Seattle",        lat: 47.5622, lng: -122.3859, tier: "light" },
+  { name: "Wallingford",         lat: 47.6615, lng: -122.3341, tier: "light" },
+  { name: "Redmond",             lat: 47.6740, lng: -122.1215, tier: "light" },
+  { name: "Kirkland",            lat: 47.6815, lng: -122.2087, tier: "light" },
+];
+const EASTSIDE = new Set(["Bellevue", "Redmond", "Kirkland"]);
+
+// Google's neighborhood names that are one of our areas under another name.
+// Anything else falls back to the nearest area center.
+const GOOGLE_HOOD_ALIASES = {
+  "downtown": "Downtown Seattle",
+  "central business district": "Downtown Seattle",
+  "denny triangle": "Downtown Seattle",
+  "pike place market": "Downtown Seattle",
+  "lower queen anne": "Queen Anne",
+  "uptown": "Queen Anne",
+  "east queen anne": "Queen Anne",
+  "west queen anne": "Queen Anne",
+  "north queen anne": "Queen Anne",
+  "u district": "University District",
+  "phinney ridge": "Greenwood",
+  "central area": "Central District",
+  "minor": "Central District",
+  "squire park": "Central District",
+  "atlantic": "Central District",
+  "west woodland": "Ballard",
+};
+
+/**
+ * Which of our areas a place is in. A cafe used to get the name of whichever
+ * search area found it first, and the Downtown and Capitol Hill grids reach
+ * into South Lake Union, Belltown and First Hill ("Ba Bar South Lake Union
+ * (Capitol Hill)"). Now: the Eastside city from Google's address, else
+ * Google's own neighborhood when it is one of ours, else the nearest center.
+ * `current` is the cafe's present label: Google files much of Belltown under
+ * "Downtown Seattle", so a Belltown label survives a plain "Downtown".
+ */
+export function neighborhoodFor({ addressComponents, lat, lng, current }) {
+  const named = (type) => (addressComponents ?? []).find(c => c.types?.includes(type))?.longText?.trim();
+  const city = named("locality");
+  if (city && EASTSIDE.has(city)) return city;
+  const hood = named("neighborhood")?.toLowerCase();
+  if (hood) {
+    const area = AREAS.find(a => a.name.toLowerCase() === hood && !EASTSIDE.has(a.name))?.name ?? GOOGLE_HOOD_ALIASES[hood];
+    if (area === "Downtown Seattle" && current === "Belltown") return current;
+    if (area) return area;
+  }
+  if (typeof lat !== "number" || typeof lng !== "number") return null;
+  // In Seattle, never fall back to an Eastside city (and vice versa elsewhere).
+  const candidates = city === "Seattle" ? AREAS.filter(a => !EASTSIDE.has(a.name)) : AREAS;
+  const k = Math.cos((lat * Math.PI) / 180);   // a degree of longitude is shorter than one of latitude
+  const dist = (a) => (a.lat - lat) ** 2 + ((a.lng - lng) * k) ** 2;
+  return candidates.reduce((best, a) => (dist(a) < dist(best) ? a : best)).name;
+}
+
+// Chains Google lists as cafes that are not places to sit and work
+// (convenience stores, fast food).
+const NOT_A_CAFE = /^\s*(7[-\s]?eleven|mcdonald['’]?s|am\s?\/?\s?pm|circle k)\b/i;
+export const isNotACafe = (name) => NOT_A_CAFE.test(name ?? "");
+
+/** In GitHub Actions, also show `text` as a note at the top of the run's page. */
+export function runNote(title, text) {
+  if (!process.env.GITHUB_ACTIONS) return;
+  const esc = (x) => x.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  // GitHub cuts a note at about 4,000 characters: split long text by line.
+  const parts = [""];
+  for (const line of text.split("\n")) {
+    if (parts.at(-1).length + line.length > 3500) parts.push("");
+    parts[parts.length - 1] += (parts.at(-1) ? "\n" : "") + line;
+  }
+  parts.slice(0, 9).forEach((p, i) => console.log(
+    `::notice title=${esc(title).replace(/[:,]/g, " ")}${parts.length > 1 ? ` (${i + 1}/${parts.length})` : ""}::${esc(p)}`));
+}
+
+/** Name with case, spacing and punctuation removed, for spotting duplicates ("MOMENT coffee" = "Moment Coffee"). */
+export const nameKey = (name) => (name ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+// ---------------------------------------------------------------------------
+// Tagging quality, for the pipeline's gate (scripts/quality-metrics.mjs).
+// A row is a cafe with tagging_confidence and the five *_llm columns.
+// ---------------------------------------------------------------------------
+
+const TAG_KEYS = ATTRS.map(([k]) => k);
+const round3 = (x) => Math.round(x * 1000) / 1000;
+const hasEvidence = (c) => c?.evidence?.length > 0;
+
+/** Per attribute: how often the tagger gave up (unknown), cited a review (evidence), or had nothing to go on (silent). */
+export function tagQuality(rows) {
+  const n = rows.length;
+  const rate = (x) => n ? round3(x / n) : null;   // an empty cohort has no rate, not a zero
+  const out = {};
+  for (const attr of TAG_KEYS) {
+    const conf = rows.map(r => r.tagging_confidence?.[attr]);
+    const scores = conf.map(c => c?.confidence).filter(v => typeof v === "number");
+    out[attr] = {
+      unknown_rate:         rate(rows.filter(r => (r[`${attr}_llm`] ?? "unknown") === "unknown").length),
+      evidence_backed_rate: rate(conf.filter(hasEvidence).length),
+      // The tagger's "reviews are silent" signal: unknown at ~0.3 confidence
+      // with nothing to cite (the prompt rule in analyze-reviews-llm.mjs).
+      silent_rate:          rate(conf.filter(c => typeof c?.confidence === "number" && c.confidence <= 0.3 && !hasEvidence(c)).length),
+      mean_confidence:      scores.length ? round3(scores.reduce((s, x) => s + x, 0) / scores.length) : null,
+    };
+  }
+  return out;
+}
+
+/** Metrics that got worse by more than `tolerance` from `before` to `after` (both from tagQuality). */
+export function qualityRegressions(before, after, tolerance) {
+  const out = [];
+  for (const attr of TAG_KEYS) {
+    const was = before?.[attr], now = after?.[attr];
+    if (!was || !now) continue;
+    for (const metric of ["unknown_rate", "evidence_backed_rate", "silent_rate"]) {
+      if (now[metric] == null || was[metric] == null) continue;
+      const delta = round3(now[metric] - was[metric]);
+      const worse = metric === "evidence_backed_rate" ? -delta > tolerance : delta > tolerance;
+      if (worse) out.push({ attribute: attr, metric, was: was[metric], now: now[metric], delta });
+    }
+  }
+  return out;
+}
+
+/** Accuracy of the automated tags against human labels, counted only where the tagger committed. */
+export function tagAccuracy(rows) {
+  const out = { labeled_cafes: rows.length, attributes: {} };
+  for (const attr of TAG_KEYS) {
+    const pairs = rows.map(r => [r.human_labels?.[attr], r[`${attr}_llm`] ?? "unknown"]).filter(([h]) => h);
+    const committed = pairs.filter(([, m]) => m !== "unknown");
+    out.attributes[attr] = {
+      labeled: pairs.length,
+      coverage: pairs.length ? round3(committed.length / pairs.length) : null,
+      accuracy: committed.length ? round3(committed.filter(([h, m]) => h === m).length / committed.length) : null,
+    };
+  }
+  return out;
+}
+
+/** Attributes whose accuracy dropped by more than `tolerance` (both from tagAccuracy). */
+export function accuracyRegressions(before, after, tolerance) {
+  const out = [];
+  for (const attr of TAG_KEYS) {
+    const was = before?.attributes?.[attr]?.accuracy, now = after?.attributes?.[attr]?.accuracy;
+    if (was == null || now == null) continue;
+    if (round3(was - now) > tolerance) out.push({ attribute: attr, metric: "accuracy", was, now, delta: round3(now - was) });
+  }
+  return out;
+}
+
+/** A cafe's tags in the compact form the gate stores with each pass: attribute → [value, confidence, has evidence]. */
+export function tagSnapshot(row) {
+  return Object.fromEntries(TAG_KEYS.map(a => {
+    const c = row.tagging_confidence?.[a];
+    return [a, [row[`${a}_llm`] ?? "unknown", typeof c?.confidence === "number" ? c.confidence : null, hasEvidence(c) ? 1 : 0]];
+  }));
+}
+
+/** A stored snapshot back in the row shape tagQuality and tagAccuracy read. */
+export function rowFromSnapshot(snap) {
+  const row = { tagging_confidence: {} };
+  for (const a of TAG_KEYS) {
+    const [value, confidence, evidence] = snap?.[a] ?? ["unknown", null, 0];
+    row[`${a}_llm`] = value;
+    if (confidence != null || evidence) row.tagging_confidence[a] = { confidence, evidence: evidence ? [true] : [] };
+  }
+  return row;
+}
+
 /**
  * Why a cafe needs tagging, or null when its tag is current:
  *   "untagged"      never tagged

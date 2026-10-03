@@ -77,8 +77,6 @@ const API_DELAY_MS = parseInt(flagVal("--api-delay-ms", "21000"), 10);
 const golden = JSON.parse(
   readFileSync(resolve(process.cwd(), "scripts/golden-queries.json"), "utf-8"),
 ).queries;
-const labeled = golden.filter(q => expectedCount(q) > 0);
-const triage  = golden.filter(q => expectedCount(q) === 0);
 
 // ---------------------------------------------------------------------------
 // embed all queries in one batched Voyage call (mirrors src/lib/embeddings.ts:
@@ -135,23 +133,32 @@ async function searchViaApi(query) {
 }
 
 async function run() {
+  if (golden.length === 0) { console.error("golden-queries.json has no queries"); process.exit(1); }
+
+  // An expected cafe that is no longer on the map (removed, renamed, hidden)
+  // can never be returned, so it is left out of the score rather than counted
+  // as a miss. Say so, so the golden file can be updated.
+  const { data: visible, error: namesErr } = await supabase.from("cafes").select("id, name, neighborhood").eq("hidden", false);
+  if (namesErr) { console.error("Supabase error:", namesErr.message); process.exit(1); }
+  const ids = new Set(visible.map(c => c.id));
+  const current = golden.map(q => {
+    const expected = (q.expected ?? []).filter(exp => {
+      const ok = visible.some(c => nameMatches(c, exp));
+      if (!ok) console.warn(`⚠ ignoring expected "${exp}" (query: "${q.query}"): no such cafe on the map`);
+      return ok;
+    });
+    const expected_ids = (q.expected_ids ?? []).filter(id => {
+      const ok = ids.has(id);
+      if (!ok) console.warn(`⚠ ignoring expected id ${id} (query: "${q.query}"): no such cafe on the map`);
+      return ok;
+    });
+    return { ...q, expected, expected_ids };
+  });
+  const labeled = current.filter(q => expectedCount(q) > 0);
+  const triage  = current.filter(q => expectedCount(q) === 0);
   const all = [...labeled, ...triage];
-  if (all.length === 0) { console.error("golden-queries.json has no queries"); process.exit(1); }
 
   const vectors = VIA_API ? [] : await embedAll(all.map(q => q.query));
-
-  // Sanity check: warn about expected names that match no cafe in the DB at
-  // all (typo guard) so a miss isn't silently blamed on the embeddings.
-  const { data: allCafes, error: namesErr } = await supabase.from("cafes").select("name, neighborhood");
-  if (namesErr) { console.error("Supabase error:", namesErr.message); process.exit(1); }
-  const dbNames = (allCafes ?? []);
-  for (const q of labeled) {
-    for (const exp of q.expected ?? []) {
-      if (!dbNames.some(n => nameMatches(n, exp))) {
-        console.warn(`⚠ expected "${exp}" (query: "${q.query}") matches no cafe name in the DB`);
-      }
-    }
-  }
 
   const results = [];
   for (let i = 0; i < all.length; i++) {
@@ -160,7 +167,15 @@ async function run() {
     if (VIA_API) {
       if (i > 0) await new Promise(r => setTimeout(r, API_DELAY_MS));
       try { names = (await searchViaApi(q.query)).slice(0, K); }
-      catch (e) { console.error(`/api/search failed for "${q.query}": ${e.message}`); process.exit(1); }
+      catch (e) {
+        // The live site shares the Voyage key, so a visitor's search can use up
+        // the minute's quota. Wait the minute out and try once more.
+        if (!/rate-limited/.test(e.message)) { console.error(`/api/search failed for "${q.query}": ${e.message}`); process.exit(1); }
+        console.error(`rate-limited on "${q.query}"; waiting 65s and retrying once`);
+        await new Promise(r => setTimeout(r, 65000));
+        try { names = (await searchViaApi(q.query)).slice(0, K); }
+        catch (e2) { console.error(`/api/search failed for "${q.query}": ${e2.message}`); process.exit(1); }
+      }
     } else {
       const fn = HYBRID ? "match_cafes_hybrid" : "match_cafes";
       const { data, error } = await supabase.rpc(fn, {

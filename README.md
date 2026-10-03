@@ -41,7 +41,7 @@ IN PERSON · Visit mode (password-protected)
 3. `match_cafes()` ranks cafes by cosine similarity (pgvector) inside the place and chip filters, reading a person's label first where one exists.
 4. Closed and hidden cafes are dropped, the open-now and productivity filters apply, and the top 30 are returned. If embedding fails, search falls back to filter-only ranking and says so.
 
-A full-text + vector hybrid (reciprocal rank fusion) is built and switched off with `SEARCH_HYBRID`. It turns on only if the nightly eval shows it ranks better.
+A full-text + vector hybrid (reciprocal rank fusion) is built and switched off with `SEARCH_HYBRID`. It turns on only if the weekly eval shows it ranks better.
 
 ### The tagging graph
 
@@ -92,7 +92,7 @@ A full system review, followed by six releases (PRs #13–#18), all live:
 - **Trust:**
   - Evidence quotes are checked against their sources.
   - The quality gate adds up small daily runs and keeps a history.
-  - A nightly eval scores tag accuracy and search ranking.
+  - A weekly eval scores tag accuracy and search ranking.
   - Every stored score now matches the score on the card.
 - **People in the loop:** Visit mode lets someone in the cafe record tags, a note and photos from a phone, and hide places that aren't work spots.
 - **AI access:** a read-only MCP server.
@@ -106,7 +106,7 @@ What we measure today:
 
 - **Tag accuracy against human labels** (`scripts/evaluate-accuracy.mjs`), run nightly. This is the number that matters. It needs at least 20 labeled cafes before it is reported or used to block a pipeline run; 4 are labeled so far.
 - **Search ranking** (`scripts/evaluate-retrieval.mjs`): Hit@k, Recall@k, nDCG@k and MRR on a set of golden queries, for vector-only and hybrid ranking and for the production route.
-- **Coverage** (`scripts/quality-metrics.mjs`): the share of “unknown” tags and tags with evidence, compared with a baseline before each finalize.
+- **Coverage** (`scripts/quality-metrics.mjs`): the share of “unknown” tags and tags with evidence, for the cafes each run re-tagged, compared with the same cafes before that run; checked before each finalize.
 
 **Earlier comparison, May 2026, 252 cafes.** Before any human labels existed, the LLM was compared with the original keyword tagger (`scripts/evaluate-tagging.mjs`, full output in [`docs/EVAL.md`](./docs/EVAL.md)). This measures agreement with a flawed baseline, not accuracy.
 
@@ -169,7 +169,7 @@ Tags and notes show on the site immediately. The score and search index catch up
 | Tagging LLM | Gemini 2.5 Flash | Forced function calling for structured output; free tier covers the catalog |
 | Orchestration | LangGraph.js | Retries and stop conditions as explicit graph edges |
 | Maps and places | Google Maps JavaScript API, Google Places API (pipeline only) | |
-| Pipeline and CI | GitHub Actions: daily data pipeline, nightly eval, lint + typecheck + tests on every PR | |
+| Pipeline and CI | GitHub Actions: daily data pipeline, weekly eval, lint + typecheck + tests on every PR | |
 | Hosting | Netlify | |
 
 ## Run it locally
@@ -237,7 +237,7 @@ This project has automatic Data API grants turned off. A new table or function n
 | `finalize-cafes.mjs` | Merge tags, score, embed (10 cafes per request on Voyage's free tier) |
 | `evaluate-accuracy.mjs`, `evaluate-retrieval.mjs`, `compare-embedding-text.mjs` | Evals |
 
-To test pipeline changes before merging, open **Actions → Monthly data pipeline → Run workflow**, pick the PR's branch, and tick **Dry run**. Every step runs on at most 5 cafes and calls the APIs as usual, but nothing is written to the database and the quality gate records nothing.
+To test pipeline changes before merging, open **Actions → Daily data pipeline → Run workflow**, pick the PR's branch, and tick **Dry run**. Every step runs on at most 5 cafes and calls the APIs as usual, but nothing is written to the database and the quality gate records nothing.
 
 More detail in [`scripts/SCRIPTS.md`](./scripts/SCRIPTS.md).
 

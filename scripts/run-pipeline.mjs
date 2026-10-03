@@ -12,10 +12,10 @@
  *   1. research-cafes      Reddit/Yelp evidence  → web_research_snippets, yelp_free_wifi
  *   2. analyze-reviews-llm  text tags + embedding → *_llm, tagging_confidence, cafe_embedding
  *   3. visual-tag-cafes     fill gaps from photos → *_llm (outlets/seating/laptop)
- *   4. quality-metrics      GATE — scores every cafe changed since the last passing
- *                            gate (so small runs accumulate) against
- *                            docs/quality-baseline.json, plus accuracy against
- *                            human labels once there are enough, and stops the
+ *   4. quality-metrics      GATE — compares every cafe changed since the last passing
+ *                            gate (so small runs accumulate) with the same cafes'
+ *                            tags at that pass, plus accuracy against human
+ *                            labels once there are enough, and stops the
  *                            pipeline if either got worse. Records the outcome.
  *   5. finalize-cafes       re-embed + re-score from the MERGED tags
  *                            → cafe_embedding, productivity_score, finalized_at
@@ -44,6 +44,9 @@
  * Orchestrator-only flags (NOT forwarded to stages):
  *   --plan                 print the ordered plan and exit without running anything
  *   --continue-on-error    keep going if a stage fails (default: stop at the failure)
+ *   --approve-gate         accept the gate's result even if tags got worse (an
+ *                          expected drop, e.g. after a prompt change) and record
+ *                          the current tags as the new "before"
  *
  * Usage:
  *   node scripts/run-pipeline.mjs --plan
@@ -53,10 +56,11 @@
 
 import { spawnSync } from "child_process";
 
-const ORCHESTRATOR_FLAGS = new Set(["--plan", "--continue-on-error"]);
+const ORCHESTRATOR_FLAGS = new Set(["--plan", "--continue-on-error", "--approve-gate"]);
 const argv      = process.argv.slice(2);
 const PLAN      = argv.includes("--plan");
 const CONTINUE  = argv.includes("--continue-on-error");
+const APPROVE   = argv.includes("--approve-gate");
 const forwarded = argv.filter(a => !ORCHESTRATOR_FLAGS.has(a));
 const DRY_RUN   = forwarded.includes("--dry-run");
 
@@ -83,7 +87,7 @@ const STAGES = [
 // its outcome, because a recorded "pass" moves the start of the next real
 // gate's cohort.
 const argsFor = (stage) => stage.gate
-  ? (DRY_RUN ? stage.args.filter(a => a !== "--record") : stage.args)
+  ? (DRY_RUN ? stage.args.filter(a => a !== "--record") : [...stage.args, ...(APPROVE ? ["--approve"] : [])])
   : forwarded;
 
 console.log("🚚 Needle Space — pipeline orchestrator");
@@ -116,11 +120,11 @@ for (const stage of STAGES) {
   if (!ok) {
     console.error(`\n❌ Stage "${stage.key}" exited with ${res.status != null ? `code ${res.status}` : `signal ${res.signal}`}.`);
     if (stage.gate) {
-      console.error("   The gate found the cafes this run tagged came back worse than the approved");
-      console.error("   baseline. Finalize did NOT run, so nothing was re-embedded or re-scored —");
-      console.error("   the weak tags are on the rows but not in the search index.");
-      console.error("   Inspect with: node scripts/quality-metrics.mjs --baseline docs/quality-baseline.json");
-      console.error("   Then either fix the tagger and re-run, or approve the drop with --write-baseline.");
+      console.error("   The gate found the cafes tagged since the last passing run got worse than");
+      console.error("   they were at that run. Finalize did NOT run, so nothing was re-embedded or");
+      console.error("   re-scored — the weak tags are on the rows but not in the search index.");
+      console.error("   Either fix the tagger and re-run, or, if the drop is expected, re-run with");
+      console.error("   --approve-gate (Actions → Run workflow → args) to accept it.");
     }
     if (!CONTINUE) {
       console.error("   Stopping. Fix the stage above, then re-run — earlier stages are idempotent and skip finished work.");

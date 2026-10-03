@@ -162,6 +162,7 @@ async function main() {
     .from("cafes")
     .select("id, name, neighborhood, google_place_id, photo_url")
     .not("photo_url", "is", null)
+    .eq("hidden", false)
     .order("name");
   const { data: cafes, error } = await q;
   if (error) { console.error("❌", error.message); process.exit(1); }

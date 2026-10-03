@@ -153,7 +153,7 @@ async function main() {
     "wifi_quality_llm, outlet_availability_llm, noise_level_llm, laptop_policy_llm, seating_availability_llm, " +
     "human_labels, google_review_summary, google_editorial_summary, " +
     "llm_tagged_at, visual_tagged_at, finalized_at" + (HAS_SEARCH_TEXT ? ", search_text" : "")
-  ).not("llm_tagged_at", "is", null).order("name");
+  ).not("llm_tagged_at", "is", null).eq("hidden", false).order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
 
   const { data: cafes, error } = await q;
