@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Coffee, ArrowUp } from "@phosphor-icons/react";
+import { ArrowUp } from "@phosphor-icons/react";
 import FilterChips from "@/components/FilterChips";
 import Ticket, { checksForFilters } from "@/components/Ticket";
 import { seattleNow } from "@/lib/open-now";
