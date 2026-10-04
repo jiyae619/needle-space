@@ -33,49 +33,6 @@ export async function getCafes(): Promise<Cafe[]> {
   return ((data as unknown as Cafe[]) || []).filter(visible).map(withoutKeyedPhoto);
 }
 
-// Used by /treasure (Surprise me). Returns all cafes scoring above the
-// threshold, ordered by productivity descending. The trailing .order("id")
-// gives a deterministic tie-break so SSR↔client hydration is consistent.
-export async function getCafesAboveScore(minScore: number): Promise<Cafe[]> {
-  if (USE_SAMPLE_DATA) {
-    return SAMPLE_CAFES
-      .filter(c => (c.productivity_score ?? 0) > minScore)
-      .sort((a, b) => (b.productivity_score ?? 0) - (a.productivity_score ?? 0));
-  }
-
-  const { data, error } = await supabase
-    .from("cafes")
-    .select(CAFE_COLUMNS)
-    .gt("productivity_score", minScore)
-    .eq("hidden", false)
-    .order("productivity_score", { ascending: false, nullsFirst: false })
-    .order("id", { ascending: true });
-  if (error) {
-    console.error("[getCafesAboveScore] Supabase error:", error.message);
-    return [];
-  }
-  return ((data as unknown as Cafe[]) || []).filter(visible).map(withoutKeyedPhoto);
-}
-
-export async function getVerifiedCafes(): Promise<Cafe[]> {
-  if (USE_SAMPLE_DATA) return SAMPLE_CAFES.filter((c) => c.verified);
-
-  // Stable order — without an ORDER BY, Postgres returns rows in arbitrary
-  // sequence and consumers like /treasure see different `pool[0]` across
-  // requests, which breaks SSR↔client hydration consistency.
-  const { data, error } = await supabase
-    .from("cafes")
-    .select(CAFE_COLUMNS)
-    .eq("verified", true)
-    .eq("hidden", false)
-    .order("id", { ascending: true });
-  if (error) {
-    console.error("Supabase error:", error.message);
-    return [];
-  }
-  return ((data as unknown as Cafe[]) || []).filter(visible).map(withoutKeyedPhoto);
-}
-
 // Calls the /api/search route. Used by HomeClient when the user types in the
 // NL search bar OR adjusts a filter chip. Falls back to in-memory filtering on
 // the initial cafe set if the API errors (graceful degradation).

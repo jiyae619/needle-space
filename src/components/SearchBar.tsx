@@ -113,11 +113,8 @@ export default function SearchBar({
 
       {/* Eyebrow + AI explainer popover */}
       <div ref={infoWrapRef} className="relative mb-1.5 flex items-center gap-1">
-        <span
-          className="text-[10px] uppercase tracking-widest"
-          style={{ color: "var(--gs-kraft)" }}
-        >
-          AI search
+        <span className="gs-mono-label" style={{ color: "var(--gs-accent)" }}>
+          Search by what you need
         </span>
         <button
           type="button"

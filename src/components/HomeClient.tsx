@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Coffee, ArrowUp } from "@phosphor-icons/react";
+import { ArrowUp } from "@phosphor-icons/react";
 import FilterChips from "@/components/FilterChips";
-import CafeCard from "@/components/CafeCard";
+import Ticket, { checksForFilters } from "@/components/Ticket";
+import { seattleNow } from "@/lib/open-now";
 import MapView from "@/components/MapView";
 import SearchBar from "@/components/SearchBar";
 import { Cafe, Filters, FilterKey, EMPTY_FILTERS, isFilterEmpty } from "@/lib/types";
-import { filtersFromUrl, filtersToParams } from "@/lib/filter-url";
+import { areaName, filtersFromUrl, filtersToParams } from "@/lib/filter-url";
 import { searchCafes } from "@/lib/cafes";
 
 const PAGE_SIZE = 16;
@@ -38,6 +39,10 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
   const urlShow = Math.max(PAGE_SIZE, parseInt(searchParams.get("show") || String(PAGE_SIZE), 10) || PAGE_SIZE);
 
   const [filters, setFilters] = useState<Filters>(() => filtersFromUrl(searchParams));
+  // Seattle wall-clock time for the tickets' "Today" hours and Open now.
+  const [now, setNow] = useState(() => seattleNow());
+  useEffect(() => { const id = setInterval(() => setNow(seattleNow()), 60_000); return () => clearInterval(id); }, []);
+  const clock = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   const [viewMode, setViewMode] = useState<ViewMode>(() => searchParams.get("view") === "map" ? "map" : "list");
   const [selectedCafeId, setSelectedCafeId] = useState<string | null>(null);
   // Yelp-style hover sync: source of truth for which cafe is currently
@@ -55,17 +60,39 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const mastRef = useRef<HTMLDivElement>(null);
+  const pickedRef = useRef<HTMLDivElement>(null);
 
   const stateQuery = exploreStateQuery(searchQuery, filters, visibleCount, viewMode);
   const returnHref = stateQuery ? `${pathname}?${stateQuery}` : pathname;
 
   // replaceState prevents a history entry for every typed character or scroll
   // batch while still keeping a complete return destination for café details.
+  // `written` holds the URLs we replaced to that Next hasn't reported back yet,
+  // so an echo of our own write is never mistaken for a new link.
+  const written = useRef<string[]>([]);
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.pathname + window.location.search !== returnHref) {
+      written.current.push(returnHref);
       router.replace(returnHref, { scroll: false });
     }
   }, [returnHref, router]);
+
+  // Any other URL change on this page (the header's "See all" or "Map", the
+  // browser's back button) is a new destination: take its filters and view.
+  const urlNow = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname;
+  const seenUrl = useRef(urlNow);
+  useEffect(() => {
+    if (urlNow === seenUrl.current) return;
+    seenUrl.current = urlNow;
+    const echo = written.current.indexOf(urlNow);
+    if (echo >= 0) { written.current.splice(0, echo + 1); return; }
+    written.current = [];
+    setFilters(filtersFromUrl(searchParams));
+    setSearchQuery(searchParams.get("q") || "");
+    setViewMode(searchParams.get("view") === "map" ? "map" : "list");
+    setSelectedCafeId(null);
+  }, [urlNow, searchParams]);
 
   // Back-to-top visibility — appears after a meaningful scroll.
   useEffect(() => {
@@ -203,6 +230,15 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
   const visibleCafes = filteredCafes.slice(0, visibleCount);
   const selectedCafe = filteredCafes.find((c) => c.id === selectedCafeId);
 
+  // Phones: the search band is tall, so bring the map up when it opens, and
+  // bring a tapped dot's ticket (shown under the map) into view.
+  useEffect(() => {
+    if (viewMode === "map" && window.innerWidth < 768) mastRef.current?.scrollIntoView({ block: "start" });
+  }, [viewMode]);
+  useEffect(() => {
+    if (selectedCafeId && window.innerWidth < 768) pickedRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [selectedCafeId]);
+
   // Filter context label for the section mast — orients the user to what
   // they're looking at. Search query wins precedence (most specific), then
   // location filter, then nothing (the unfiltered top-picks index).
@@ -211,6 +247,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
     if (q) return `“${q}”`;
     const locs = filters.location || [];
     if (locs.length === 1) return locs[0];
+    if (areaName(locs)) return areaName(locs);
     if (locs.length >= 2) return `${locs.length} neighborhoods`;
     return null;
   })();
@@ -220,21 +257,34 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* NL search bar with AI badge */}
-      <SearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        isSearching={isSearching}
-        resultsCount={results.length}
-      />
+    <div>
+      {/* Head band — the landing page's sage stage, so both pages read as one place. */}
+      <section className="gs-browse-head">
+        <div className="max-w-7xl mx-auto pt-6 sm:pt-8">
+          <div className="px-4">
+            <p className="gs-browse-eyebrow">See all · every ticket on the counter · Seattle, Bellevue, Redmond &amp; Kirkland</p>
+            <h1 className="gs-browse-title">
+              {noUserIntent ? `All ${initialCafes.length} orders up.` : `${filteredCafes.length} order${filteredCafes.length === 1 ? "" : "s"} up.`}
+            </h1>
+          </div>
+          {/* NL search bar with AI badge */}
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            isSearching={isSearching}
+            resultsCount={results.length}
+          />
 
-      {/* Filter chips — multi-value pickers */}
-      <FilterChips
-        filters={filters}
-        onChange={handleChipChange}
-        onClear={handleClear}
-      />
+          {/* Filter chips — multi-value pickers */}
+          <FilterChips
+            filters={filters}
+            onChange={handleChipChange}
+            onClear={handleClear}
+          />
+        </div>
+      </section>
+
+      <div className="max-w-7xl mx-auto pt-4">
 
       {/* Status — one quiet line for either kind of degradation, never two banners. */}
       {(searchError || semanticFallback) && (
@@ -249,9 +299,9 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
 
       {/* Section mast — editorial pacing before the grid. Updates with the
           user's filter context so "10-seconds-after-Cap-Hill" feels oriented. */}
-      <div className="gs-section-mast">
+      <div className="gs-section-mast" ref={mastRef}>
         <p className="gs-section-eyebrow">
-          <strong>Top picks</strong>
+          <strong>Order up</strong>
           {filterContext && (
             <>
               <span aria-hidden style={{ opacity: 0.5 }}> · </span>
@@ -261,7 +311,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
         </p>
         <div className="flex items-baseline gap-4">
           <p className="gs-section-count" aria-live="polite">
-            {isSearching ? "Searching…" : `${filteredCafes.length} cafe${filteredCafes.length !== 1 ? "s" : ""}`}
+            {isSearching ? "Printing tickets…" : `${filteredCafes.length} ticket${filteredCafes.length !== 1 ? "s" : ""}`}
           </p>
           <div className="gs-view-toggle">
             <button
@@ -297,44 +347,44 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
                   ? ["No cafes match these filters", "Try clearing one of the filters above."]
                   : hasQuery && filtersActive
                     ? ["No cafes match your search and filters", "Try clearing a filter or simplifying your search."]
-                    : ["No cafes here yet", "The cafe list refreshes monthly."];
+                    : ["No cafes here yet", "The cafe list refreshes daily."];
               return (
-                <div className="gs-card text-center py-12 px-6 flex flex-col items-center">
-                  <Coffee size={32} weight="regular" style={{ color: "var(--gs-kraft)" }} aria-hidden />
-                  <p className="font-display font-bold text-lg mt-3" style={{ color: "var(--gs-espresso)" }}>{headline}</p>
+                <div className="gs-empty-ticket">
+                  <span className="ct-stamp" aria-hidden="true">Maybe next time!</span>
+                  <p className="font-display font-bold text-lg mt-24" style={{ color: "var(--gs-espresso)" }}>{headline}</p>
                   <p className="text-sm mt-1" style={{ color: "var(--gs-kraft)" }}>{hint}</p>
                 </div>
               );
             })()
           ) : (
             <>
-              <div
-                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-12 transition-opacity duration-200"
+              <ol
+                className="ct-wall is-grid gs-tickets transition-opacity duration-200"
                 style={{ opacity: isSearching ? 0.45 : 1 }}
                 aria-busy={isSearching}
               >
                 {visibleCafes.map((cafe, i) => (
-                  <div key={cafe.id} className={i === 0 ? "col-span-2 sm:col-span-3 lg:col-span-2" : undefined}>
-                    <CafeCard
-                      cafe={cafe}
-                      href={`/cafe/${cafe.id}?from=${encodeURIComponent(returnHref)}`}
-                      index={i}
-                      hero={i === 0}
-                      featured={i === 0 && showTodaysPickHero}
-                    />
-                  </div>
+                  <Ticket
+                    key={cafe.id}
+                    cafe={cafe}
+                    now={now}
+                    clock={clock}
+                    checks={checksForFilters(cafe, filters, now)}
+                    note={i === 0 && showTodaysPickHero ? "Today’s pick!" : undefined}
+                    href={`/cafe/${cafe.id}?from=${encodeURIComponent(returnHref)}`}
+                  />
                 ))}
-              </div>
+              </ol>
 
               {/* Infinite-scroll sentinel + end-of-index status. */}
               {visibleCount < filteredCafes.length && (
-                <div ref={sentinelRef} className="py-8 text-center text-[11px] tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
-                  Loading more…
+                <div ref={sentinelRef} className="py-8 text-center gs-mono-label" style={{ color: "var(--gs-kraft)" }}>
+                  Printing more tickets…
                 </div>
               )}
               {visibleCount >= filteredCafes.length && filteredCafes.length > PAGE_SIZE && (
-                <p className="py-8 text-center text-[11px] tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
-                  End of index · {filteredCafes.length} cafes
+                <p className="py-8 text-center gs-mono-label" style={{ color: "var(--gs-kraft)" }}>
+                  That’s every ticket · {filteredCafes.length}
                 </p>
               )}
             </>
@@ -347,19 +397,19 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
             <div className="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
               <div className="flex flex-wrap items-start justify-between gap-2 shrink-0">
                 <p className="text-xs leading-snug min-w-0 flex-1" style={{ color: "var(--gs-ink)" }}>
-                  Hover a card or marker to sync. Darker dots welcome laptops; lighter dots are limited or unknown.
+                  Where to pick up your order. Hover a ticket or a dot to match them; darker dots welcome laptops.
                 </p>
                 {selectedCafeId && (
                   <button
                     type="button"
                     onClick={() => setSelectedCafeId(null)}
-                    className="gs-chip text-xs tracking-widest uppercase shrink-0"
+                    className="ns-chip shrink-0"
                   >
-                    Undo selection
+                    Clear selection
                   </button>
                 )}
               </div>
-              <div className="flex-1 min-h-0 rounded-xl overflow-hidden border border-[var(--gs-rule)]">
+              <div className="flex-1 min-h-0 gs-map-frame">
                 <MapView
                   cafes={filteredCafes}
                   selectedCafeId={selectedCafeId}
@@ -373,30 +423,42 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
             {/* Scrollable list — Yelp-style. Each card syncs hover state
                 with its corresponding map marker. */}
             <div className="hidden md:flex md:flex-col md:w-80 lg:w-96 shrink-0 overflow-y-auto pr-1">
-              <div className="grid grid-cols-1 gap-5">
-                {filteredCafes.slice(0, 60).map((cafe, i) => (
-                  <CafeCard
+              <ol className="ct-wall is-column gs-tickets">
+                {filteredCafes.slice(0, 60).map((cafe) => (
+                  <Ticket
                     key={cafe.id}
                     cafe={cafe}
+                    now={now}
+                    clock={clock}
+                    checks={checksForFilters(cafe, filters, now)}
                     href={`/cafe/${cafe.id}?from=${encodeURIComponent(returnHref)}`}
-                    index={i}
-                    highlighted={cafe.id === hoveredCafeId || cafe.id === selectedCafeId}
-                    onHoverEnter={handleHoverEnter}
-                    onHoverLeave={handleHoverLeave}
+                    id={`card-${cafe.id}`}
+                    className={cafe.id === hoveredCafeId || cafe.id === selectedCafeId ? "is-highlighted" : undefined}
+                    onMouseEnter={() => handleHoverEnter(cafe.id)}
+                    onMouseLeave={handleHoverLeave}
                   />
                 ))}
-              </div>
+              </ol>
+              {filteredCafes.length > 60 && (
+                <p className="py-4 text-center gs-mono-label" style={{ color: "var(--gs-kraft)" }}>
+                  First 60 of {filteredCafes.length} · add a filter to narrow it
+                </p>
+              )}
             </div>
           </div>
 
           {/* Mobile: when a marker is tapped, show that single card below. */}
           {selectedCafe && (
-            <div className="mt-3 md:hidden">
-              <CafeCard cafe={selectedCafe} href={`/cafe/${selectedCafe.id}?from=${encodeURIComponent(returnHref)}`} />
+            <div className="mt-3 md:hidden" ref={pickedRef}>
+              <ol className="ct-wall is-column gs-tickets">
+                <Ticket cafe={selectedCafe} now={now} clock={clock} checks={checksForFilters(selectedCafe, filters, now)} href={`/cafe/${selectedCafe.id}?from=${encodeURIComponent(returnHref)}`} />
+              </ol>
             </div>
           )}
         </div>
       )}
+
+      </div>
 
       {/* Back-to-top — visible after a meaningful scroll. */}
       <button

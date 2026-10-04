@@ -93,7 +93,7 @@ export default function FilterChip<K extends FilterKey>({
           ref={popoverRef}
           role="listbox"
           aria-label={def.label}
-          className={`gs-popover fixed z-50 min-w-[180px] p-1${closing ? " is-closing" : ""}`}
+          className={`gs-popover fixed z-50 min-w-[220px] p-2${closing ? " is-closing" : ""}`}
           style={{
             left: pos.left,
             top: pos.top,
@@ -109,18 +109,10 @@ export default function FilterChip<K extends FilterKey>({
                 role="option"
                 aria-selected={selected}
                 onClick={() => { onChange(opt.value); requestClose(); }}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-stone-50 focus-visible:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--gs-accent)] focus-visible:outline-offset-[-2px]"
-                style={{ color: "var(--gs-ink)" }}
+                className="gs-option"
               >
-                <span
-                  aria-hidden
-                  className={`inline-block h-3.5 w-3.5 rounded-full border ${selected ? "" : "bg-white"}`}
-                  style={{
-                    borderColor: selected ? "var(--gs-accent)" : "var(--gs-rule)",
-                    backgroundColor: selected ? "var(--gs-accent)" : undefined,
-                  }}
-                />
-                {opt.label}
+                <span className="gs-option-label">{opt.label}</span>
+                <svg className="gs-option-check" viewBox="0 0 16 12" aria-hidden="true"><path d="M1.5 6.5 5.8 10.5 14.5 1.5" /></svg>
               </button>
             );
           })}

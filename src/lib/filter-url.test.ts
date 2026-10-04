@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   filtersFromUrl, filtersToParams, orderToFilters, orderHref,
-  ORDER_SLOTS, DEFAULT_ORDER, EASTSIDE,
+  ORDER_SLOTS, DEFAULT_ORDER, EASTSIDE, areaName,
 } from "./filter-url";
 import { EMPTY_FILTERS, NEIGHBORHOODS, type Filters } from "./types";
 
@@ -42,5 +42,12 @@ describe("the landing page order", () => {
     const east = ORDER_SLOTS.area[2].filters.location as string[];
     expect([...seattle, ...east].sort()).toEqual([...NEIGHBORHOODS].sort());
     expect(east).toEqual([...EASTSIDE]);
+  });
+  it("names the area the home page picked, so See all says 'Seattle' instead of '14 selected'", () => {
+    const seattle = ORDER_SLOTS.area[1].filters.location as string[];
+    expect(areaName([...seattle].reverse())).toBe("Seattle");
+    expect(areaName([...EASTSIDE])).toBe("Eastside");
+    // one neighborhood short of Seattle is a hand-picked list, not "Seattle"
+    expect(areaName(seattle.slice(1))).toBeNull();
   });
 });
