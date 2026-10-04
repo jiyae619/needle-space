@@ -109,7 +109,7 @@ export interface Filters {
   noise:        "quiet" | "quiet_or_moderate" | "any";
   outlets:      "every_table" | "any_outlets" | "any";
   laptop:       "welcome" | "welcome_or_limited" | "any";
-  productivity: "above_4" | "under_4" | "any";
+  productivity: "above_4" | "any";
   open_now:     "open_now" | "any";
 }
 
@@ -210,7 +210,6 @@ export const FILTER_DEFS: FilterDef[] = [
     label: "Work score",
     options: [
       { value: "above_4",             label: "4 or above" },
-      { value: "under_4",             label: "Under 4" },
       { value: "any",                 label: "Any" },
     ],
   },

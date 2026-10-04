@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CaretDown, X } from "@phosphor-icons/react";
 import { NEIGHBORHOODS } from "@/lib/types";
+import { areaName } from "@/lib/filter-url";
 
 interface Props {
   value: string[];
@@ -67,7 +68,7 @@ export default function LocationFilterChip({ value, onChange }: Props) {
     value.length === 0 ? null :
     value.length === 1 ? value[0] :
     value.length === 2 ? `${value[0]}, ${value[1]}` :
-    `${value.length} selected`;
+    areaName(value) ?? `${value.length} selected`;
 
   function toggle(n: string) {
     if (value.includes(n)) onChange(value.filter(v => v !== n));

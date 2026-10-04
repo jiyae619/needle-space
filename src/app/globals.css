@@ -158,35 +158,6 @@ h1, h2, h3, .font-display {
 .gs-chip-strip::-webkit-scrollbar { display: none; }
 .gs-chip-strip > * { scroll-snap-align: start; flex-shrink: 0; }
 
-/* ── Crowdness indicator (estimate, not real popular_times) ────── */
-.gs-crowd {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-family: var(--gs-mono);
-  font-stretch: 87.5%;
-  font-size: 0.55rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.gs-crowd-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.gs-crowd-quiet    { color: var(--gs-good); }
-.gs-crowd-quiet    .gs-crowd-dot { background: var(--gs-good); }
-.gs-crowd-moderate { color: var(--gs-warn); }
-.gs-crowd-moderate .gs-crowd-dot { background: var(--gs-warn); }
-.gs-crowd-busy     { color: var(--gs-bad); }
-.gs-crowd-busy     .gs-crowd-dot { background: var(--gs-bad); }
-
 .gs-score {
   font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
   font-size: 1.5rem;
@@ -364,6 +335,7 @@ h1, h2, h3, .font-display {
    table-of-contents pacing. Pairs with the count line for a two-line
    editorial mast that orients the reader before the grid starts. */
 .gs-section-mast {
+  scroll-margin-top: 56px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -759,6 +731,9 @@ h1, h2, h3, .font-display {
 .ct-t-name { margin: 12px 0 4px; min-height: 44px; font: 760 21px/1.05 var(--ct-display); font-stretch: 82%; letter-spacing: -.012em; text-transform: none;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ct-t-name a { color: inherit; text-decoration: none; }
+/* The whole ticket opens the cafe; Directions stays its own link above it. */
+.ct-t-name a::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.ct-t-foot a { position: relative; z-index: 2; }
 @media (hover: hover) { .ct-t-name a:hover { text-decoration: underline; text-underline-offset: 3px; } }
 .ct-t-where { margin: 0; padding-bottom: 10px; border-bottom: 1.5px dashed rgba(51,39,31,.25); font-size: 9.5px; color: var(--ct-soft); }
 .ct-t-lines { list-style: none; margin: 9px 0 0; padding: 0 0 10px; display: grid; gap: 5px; border-bottom: 1.5px dashed rgba(51,39,31,.25); }

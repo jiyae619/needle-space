@@ -76,10 +76,9 @@ export function applyPostFilters(
     if (c.business_status === "CLOSED_PERMANENTLY") return false;
     if (hoods && !hoods.has(c.neighborhood)) return false;
     if (!inCities(c.address, cities)) return false;
-    if (filters.productivity === "above_4" || filters.productivity === "under_4") {
+    if (filters.productivity === "above_4") {
       const score = computeMergedScore(c);
-      if (score == null) return false;
-      if (filters.productivity === "above_4" ? score < 4 : score >= 4) return false;
+      if (score == null || score < 4) return false;
     }
     if (filters.open_now === "open_now" && !isOpenNow(c.hours_json, now)) return false;
     return true;

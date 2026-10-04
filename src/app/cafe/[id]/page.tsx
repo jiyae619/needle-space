@@ -3,7 +3,6 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import ScoreBreakdown from "@/components/ScoreBreakdown";
 import BackLink from "@/components/BackLink";
-import CafeCrowdness from "@/components/CafeCrowdness";
 import { seattleNow } from "@/lib/open-now";
 
 export const dynamic = "force-dynamic";
@@ -54,10 +53,7 @@ export default async function CafeDetailPage({
         )}
 
         <header className="rc-head">
-          <div className="rc-where">
-            <span>{cafe.neighborhood}</span>
-            <CafeCrowdness cafeId={cafe.id} />
-          </div>
+          <p className="rc-where">{cafe.neighborhood}</p>
           <h1 className="rc-name">{cafe.name}</h1>
           {cafe.vibe_keywords && cafe.vibe_keywords.length > 0 && (
             <p className="rc-vibes">{cafe.vibe_keywords.join(" · ")}</p>
@@ -113,11 +109,6 @@ export default async function CafeDetailPage({
           <h2 className="rc-h" id="rc-pickup-h">Pick up at</h2>
           <p className="rc-note">{cafe.address}</p>
           {cafe.phone && <p className="rc-fine">{cafe.phone}</p>}
-          {cafe.website && (
-            <p className="rc-fine">
-              <a href={cafe.website} target="_blank" rel="noopener noreferrer">{cafe.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a>
-            </p>
-          )}
           <div className="rc-actions">
             <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="rc-btn rc-btn-primary">Directions ↗</a>
             {cafe.website && <a href={cafe.website} target="_blank" rel="noopener noreferrer" className="rc-btn">Website ↗</a>}

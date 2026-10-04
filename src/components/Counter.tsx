@@ -74,6 +74,24 @@ export default function Counter({ rows, day, photoBase, nowIso, neighborhoods, f
   const count = matched.length;
   const top = matched[0];
 
+  // Remember the order for this tab, so coming back from See all or a cafe
+  // page doesn't reset it. Storage can be blocked; the default order is fine then.
+  const restored = useRef(false);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem("ns-order") ?? "null") as Order | null;
+      if (saved && ORDER_KEYS.every(k => Number.isInteger(saved[k]) && opts(k)[saved[k]])) {
+        hintDone.current = true;
+        setOrder(saved);
+      }
+    } catch {}
+    restored.current = true;
+  }, []);
+  useEffect(() => {
+    if (!restored.current) return;
+    try { sessionStorage.setItem("ns-order", JSON.stringify(order)); } catch {}
+  }, [order]);
+
   // Tell the cup what the barista should write.
   useEffect(() => { cup.current?.setOrder(ORDER_KEYS.map(k => opts(k)[order[k]].code)); }, [order]);
   useEffect(() => { if (!hovered.current) cup.current?.showName(top ? shortName(top.name) : "no match"); }, [top]);

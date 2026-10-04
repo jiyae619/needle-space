@@ -17,7 +17,7 @@ export function filtersFromUrl(params: Params): Filters {
     noise: oneOf(params.get("noise"), ["quiet", "quiet_or_moderate"] as const),
     outlets: oneOf(params.get("outlets"), ["every_table", "any_outlets"] as const),
     laptop: oneOf(params.get("laptop"), ["welcome", "welcome_or_limited"] as const),
-    productivity: oneOf(params.get("productivity"), ["above_4", "under_4"] as const),
+    productivity: oneOf(params.get("productivity"), ["above_4"] as const),
     open_now: oneOf(params.get("open_now"), ["open_now"] as const),
   };
 }
@@ -38,6 +38,12 @@ export function filtersToParams(filters: Filters): URLSearchParams {
 
 export const EASTSIDE: readonly string[] = ["Bellevue", "Redmond", "Kirkland"];
 const SEATTLE = NEIGHBORHOODS.filter((n) => !EASTSIDE.includes(n));
+
+/** "Seattle" / "Eastside" when a location filter is exactly one of the order's areas. */
+export function areaName(locations: string[]): string | null {
+  const same = (area: readonly string[]) => locations.length === area.length && area.every((n) => locations.includes(n));
+  return same(SEATTLE) ? "Seattle" : same(EASTSIDE) ? "Eastside" : null;
+}
 
 export interface OrderOption {
   label: string;

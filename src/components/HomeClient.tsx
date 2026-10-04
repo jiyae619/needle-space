@@ -9,7 +9,7 @@ import { seattleNow } from "@/lib/open-now";
 import MapView from "@/components/MapView";
 import SearchBar from "@/components/SearchBar";
 import { Cafe, Filters, FilterKey, EMPTY_FILTERS, isFilterEmpty } from "@/lib/types";
-import { filtersFromUrl, filtersToParams } from "@/lib/filter-url";
+import { areaName, filtersFromUrl, filtersToParams } from "@/lib/filter-url";
 import { searchCafes } from "@/lib/cafes";
 
 const PAGE_SIZE = 16;
@@ -60,17 +60,39 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const mastRef = useRef<HTMLDivElement>(null);
+  const pickedRef = useRef<HTMLDivElement>(null);
 
   const stateQuery = exploreStateQuery(searchQuery, filters, visibleCount, viewMode);
   const returnHref = stateQuery ? `${pathname}?${stateQuery}` : pathname;
 
   // replaceState prevents a history entry for every typed character or scroll
   // batch while still keeping a complete return destination for café details.
+  // `written` holds the URLs we replaced to that Next hasn't reported back yet,
+  // so an echo of our own write is never mistaken for a new link.
+  const written = useRef<string[]>([]);
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.pathname + window.location.search !== returnHref) {
+      written.current.push(returnHref);
       router.replace(returnHref, { scroll: false });
     }
   }, [returnHref, router]);
+
+  // Any other URL change on this page (the header's "See all" or "Map", the
+  // browser's back button) is a new destination: take its filters and view.
+  const urlNow = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname;
+  const seenUrl = useRef(urlNow);
+  useEffect(() => {
+    if (urlNow === seenUrl.current) return;
+    seenUrl.current = urlNow;
+    const echo = written.current.indexOf(urlNow);
+    if (echo >= 0) { written.current.splice(0, echo + 1); return; }
+    written.current = [];
+    setFilters(filtersFromUrl(searchParams));
+    setSearchQuery(searchParams.get("q") || "");
+    setViewMode(searchParams.get("view") === "map" ? "map" : "list");
+    setSelectedCafeId(null);
+  }, [urlNow, searchParams]);
 
   // Back-to-top visibility — appears after a meaningful scroll.
   useEffect(() => {
@@ -208,6 +230,15 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
   const visibleCafes = filteredCafes.slice(0, visibleCount);
   const selectedCafe = filteredCafes.find((c) => c.id === selectedCafeId);
 
+  // Phones: the search band is tall, so bring the map up when it opens, and
+  // bring a tapped dot's ticket (shown under the map) into view.
+  useEffect(() => {
+    if (viewMode === "map" && window.innerWidth < 768) mastRef.current?.scrollIntoView({ block: "start" });
+  }, [viewMode]);
+  useEffect(() => {
+    if (selectedCafeId && window.innerWidth < 768) pickedRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [selectedCafeId]);
+
   // Filter context label for the section mast — orients the user to what
   // they're looking at. Search query wins precedence (most specific), then
   // location filter, then nothing (the unfiltered top-picks index).
@@ -216,6 +247,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
     if (q) return `“${q}”`;
     const locs = filters.location || [];
     if (locs.length === 1) return locs[0];
+    if (areaName(locs)) return areaName(locs);
     if (locs.length >= 2) return `${locs.length} neighborhoods`;
     return null;
   })();
@@ -231,7 +263,9 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
         <div className="max-w-7xl mx-auto pt-6 sm:pt-8">
           <div className="px-4">
             <p className="gs-browse-eyebrow">See all · every ticket on the counter · Seattle, Bellevue, Redmond &amp; Kirkland</p>
-            <h1 className="gs-browse-title">All {initialCafes.length} orders up.</h1>
+            <h1 className="gs-browse-title">
+              {noUserIntent ? `All ${initialCafes.length} orders up.` : `${filteredCafes.length} order${filteredCafes.length === 1 ? "" : "s"} up.`}
+            </h1>
           </div>
           {/* NL search bar with AI badge */}
           <SearchBar
@@ -265,7 +299,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
 
       {/* Section mast — editorial pacing before the grid. Updates with the
           user's filter context so "10-seconds-after-Cap-Hill" feels oriented. */}
-      <div className="gs-section-mast">
+      <div className="gs-section-mast" ref={mastRef}>
         <p className="gs-section-eyebrow">
           <strong>Order up</strong>
           {filterContext && (
@@ -313,7 +347,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
                   ? ["No cafes match these filters", "Try clearing one of the filters above."]
                   : hasQuery && filtersActive
                     ? ["No cafes match your search and filters", "Try clearing a filter or simplifying your search."]
-                    : ["No cafes here yet", "The cafe list refreshes monthly."];
+                    : ["No cafes here yet", "The cafe list refreshes daily."];
               return (
                 <div className="gs-empty-ticket">
                   <span className="ct-stamp" aria-hidden="true">Maybe next time!</span>
@@ -371,7 +405,7 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
                     onClick={() => setSelectedCafeId(null)}
                     className="ns-chip shrink-0"
                   >
-                    Undo selection
+                    Clear selection
                   </button>
                 )}
               </div>
@@ -405,12 +439,17 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
                   />
                 ))}
               </ol>
+              {filteredCafes.length > 60 && (
+                <p className="py-4 text-center gs-mono-label" style={{ color: "var(--gs-kraft)" }}>
+                  First 60 of {filteredCafes.length} · add a filter to narrow it
+                </p>
+              )}
             </div>
           </div>
 
           {/* Mobile: when a marker is tapped, show that single card below. */}
           {selectedCafe && (
-            <div className="mt-3 md:hidden">
+            <div className="mt-3 md:hidden" ref={pickedRef}>
               <ol className="ct-wall is-column gs-tickets">
                 <Ticket cafe={selectedCafe} now={now} clock={clock} checks={checksForFilters(selectedCafe, filters, now)} href={`/cafe/${selectedCafe.id}?from=${encodeURIComponent(returnHref)}`} />
               </ol>
