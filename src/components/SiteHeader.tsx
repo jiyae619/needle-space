@@ -8,13 +8,12 @@ import AlgorithmExplainer from "./AlgorithmExplainer";
 
 export default function SiteHeader() {
   const path = usePathname();
-  // Browse and Map share /explore; reading ?view would force every page to
-  // render dynamically (useSearchParams needs a Suspense boundary), so Browse
+  // "See all" and Map share /explore; reading ?view would force every page to
+  // render dynamically (useSearchParams needs a Suspense boundary), so "See all"
   // carries the "you are here" state for both.
   const links = [
-    { href: "/explore", label: "Browse", active: path === "/explore", hideNarrow: false },
-    { href: "/explore?view=map", label: "Map", active: false, hideNarrow: true },
-    { href: "/treasure", label: "Surprise me", active: path === "/treasure", hideNarrow: false },
+    { href: "/explore", label: "See all", active: path === "/explore", hideNarrow: false },
+    { href: "/explore?view=map", label: "Map", active: false, hideNarrow: false },
   ];
   return (
     <header className="sticky top-0 z-50 gs-header border-b border-[var(--gs-rule)]">

@@ -328,7 +328,7 @@ export default function Counter({ rows, day, photoBase, nowIso, neighborhoods, f
             One {slot("noise")} table, {slot("outlets")}, {slot("wifi")} Wi&#8209;Fi, {slot("hours")}, {slot("area")}.
           </h1>
           <div className="ct-actions">
-            <Link className="ct-btn ct-btn-primary" href={orderHref(order)}>See all {count} in Browse →</Link>
+            <Link className="ct-btn ct-btn-primary" href={orderHref(order)}>See all {count} →</Link>
             <button className="ct-btn ct-btn-line" type="button" onClick={barista}>Barista’s choice</button>
           </div>
         </section>
@@ -391,11 +391,10 @@ export default function Counter({ rows, day, photoBase, nowIso, neighborhoods, f
 
         <section className="ct-closer" aria-labelledby="ct-closer-h">
           <h2 id="ct-closer-h">Can’t decide?</h2>
-          <p>Let the barista write your order, or get five cafes picked for you.</p>
+          <p>Let the barista write your order for you.</p>
           <div className="ct-actions">
             <button className="ct-btn ct-btn-primary" type="button" onClick={() => { orderRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); barista(); }}>Barista’s choice</button>
-            <Link className="ct-btn ct-btn-line" href="/treasure">Surprise me</Link>
-            <Link className="ct-btn ct-btn-line" href="/explore">Browse all {cafes.length}</Link>
+            <Link className="ct-btn ct-btn-line" href="/explore">See all {cafes.length}</Link>
           </div>
           <p className="ct-colophon">Needle Space · laptop-friendly cafes in Seattle, Bellevue, Redmond &amp; Kirkland · {cafes.length} cafes across {neighborhoods} neighborhoods</p>
         </section>

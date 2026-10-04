@@ -874,88 +874,6 @@ h1, h2, h3, .font-display {
   color: var(--gs-ink);
 }
 
-/* ── Treasure swipe deck ────────────────────────────────────── */
-.gs-treasure-card {
-  background: var(--gs-paper);
-  border: 1px solid var(--gs-rule);
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 6px 24px rgba(51, 39, 31, 0.12);
-  cursor: grab;
-  user-select: none;
-  -webkit-user-select: none;
-  position: relative;
-}
-
-.gs-treasure-card:active {
-  cursor: grabbing;
-}
-
-.gs-treasure-stamp {
-  position: absolute;
-  top: 1.25rem;
-  z-index: 10;
-  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
-  font-weight: 800;
-  font-size: 2.25rem;
-  letter-spacing: 0.08em;
-  padding: 0.4rem 1rem;
-  border: 4px solid;
-  border-radius: 8px;
-  transform: rotate(-12deg);
-  pointer-events: none;
-  text-transform: uppercase;
-  opacity: 1;
-}
-
-.gs-treasure-yes {
-  right: 1.25rem;
-  color: var(--gs-good);
-  border-color: var(--gs-good);
-  background: color-mix(in srgb, var(--gs-good-bg) 85%, transparent);
-}
-
-.gs-treasure-no {
-  left: 1.25rem;
-  color: var(--gs-bad);
-  border-color: var(--gs-bad);
-  background: color-mix(in srgb, var(--gs-bad-bg) 85%, transparent);
-  transform: rotate(12deg);
-}
-
-.gs-treasure-btn {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  border: 2px solid;
-  font-size: 1.7rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gs-cream);
-  cursor: pointer;
-  transition: transform 0.12s var(--gs-ease), background 0.12s var(--gs-ease);
-  box-shadow: 0 2px 8px rgba(51, 39, 31, 0.1);
-}
-
-.gs-treasure-btn:active { transform: scale(0.96); }
-@media (hover: hover) {
-  .gs-treasure-btn:hover     { transform: scale(1.06); }
-  .gs-treasure-btn-yes:hover { background: var(--gs-good-bg); }
-  .gs-treasure-btn-no:hover  { background: var(--gs-bad-bg); }
-}
-
-.gs-treasure-btn-yes {
-  color: var(--gs-good);
-  border-color: var(--gs-good);
-}
-
-.gs-treasure-btn-no {
-  color: var(--gs-bad);
-  border-color: var(--gs-bad);
-}
-
 /* ── Popover (filter chip dropdown, AI badge tooltip) ───────── */
 .gs-popover {
   background: #fff;
@@ -995,7 +913,7 @@ h1, h2, h3, .font-display {
 
 @media (prefers-reduced-motion: reduce) {
   .gs-rise, .gs-popover, .gs-popover.is-closing, .gs-spin { animation: none; }
-  .gs-card, .gs-chip, .gs-btn-primary, .gs-treasure-card, .gs-treasure-btn { transition: none; }
+  .gs-card, .gs-chip, .gs-btn-primary { transition: none; }
   /* Reduced-motion users still need to know the search is busy — fall back to opacity pulse. */
   .gs-spin { opacity: 0.6; }
 }
