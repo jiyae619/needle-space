@@ -158,258 +158,6 @@ h1, h2, h3, .font-display {
 .gs-chip-strip::-webkit-scrollbar { display: none; }
 .gs-chip-strip > * { scroll-snap-align: start; flex-shrink: 0; }
 
-/* ── Tags (on cards) ────────────────────────────────────────── */
-.gs-tag {
-  display: inline-block;
-  padding: 0.2rem 0.45rem;
-  border-radius: 3px;
-  font-family: var(--gs-mono);
-  font-stretch: 87.5%;
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.gs-tag-good    { background: rgba(201, 213, 189, .55); color: var(--gs-accent); }
-.gs-tag-neutral { background: transparent; color: var(--gs-kraft); border: 1px solid var(--gs-rule); }
-.gs-tag-bad     { background: #F3E5E2; color: var(--gs-rose); }
-
-/* ── Cafe card ─────────────────────────────────────────────────
-   Receipt paper, like the landing page's tickets: photo inset at the top,
-   mono labels, dashed rule above the footer, torn bottom edge. */
-.gs-card-postcard {
-  position: relative;
-  background: var(--gs-ticket);
-  border-radius: 3px;
-  padding: 10px 10px 0;
-  margin-bottom: 10px;
-  box-shadow: 0 10px 22px -16px rgba(58, 40, 28, .45), 0 0 0 1px rgba(139, 112, 88, .12);
-  transition: transform 0.4s cubic-bezier(.22, 1, .36, 1);
-}
-.gs-card-postcard::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: -10px; height: 10px;
-  background:
-    linear-gradient(135deg, var(--gs-ticket) 50%, transparent 50%) 0 0 / 12px 12px repeat-x,
-    linear-gradient(-135deg, var(--gs-ticket) 50%, transparent 50%) 0 0 / 12px 12px repeat-x;
-}
-@media (hover: hover) { .gs-card-postcard:hover { transform: translateY(-3px); } }
-
-.gs-postcard-photo {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  overflow: hidden;
-  border-radius: 2px;
-  background: var(--gs-paper);
-}
-
-.gs-postcard-photo img {
-  transition: transform 600ms var(--gs-ease);
-  outline: 1px solid color-mix(in srgb, var(--gs-espresso) 12%, transparent);
-  outline-offset: -1px;
-}
-
-/* A missing or rate-limited source image should read as an intentional card
-   surface, rather than a broken blank rectangle that disrupts the grid. */
-.gs-postcard-photo-fallback {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--gs-paper) 80%, var(--gs-accent)) 0%, var(--gs-paper) 100%);
-  color: color-mix(in srgb, var(--gs-espresso) 64%, transparent);
-  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
-  font-size: clamp(2.4rem, 8vw, 4.5rem);
-  font-weight: 500;
-  outline: 1px solid color-mix(in srgb, var(--gs-espresso) 10%, transparent);
-  outline-offset: -1px;
-}
-
-@media (hover: hover) {
-  .gs-card-postcard:hover .gs-postcard-photo img {
-    transform: scale(1.03);
-  }
-}
-
-/* Map ↔ list hover sync: when a marker is hovered, JS adds this class to
-   the matching card so the card lifts in concert with the map. */
-.gs-card-postcard-highlighted .gs-postcard-photo img { transform: scale(1.03); }
-.gs-card-postcard-highlighted .gs-postcard-title {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-}
-
-/* Sibling to .gs-postcard-photo so its descendants escape the photo's
-   overflow:hidden. The 0-height anchor lets the stamp float onto the
-   photo's bottom edge via negative `top` without consuming layout space. */
-.gs-postcard-stamp-anchor {
-  position: relative;
-  height: 0;
-}
-.gs-postcard-stamp-anchor .gs-score-stamp {
-  position: absolute;
-  right: 0.85rem;
-  /* Anchor's top edge is at the photo's bottom. We want the stamp to sit
-     fully inside the photo's lower-right with a small margin, so we go
-     up by stamp_height + margin (~67px ≈ 4.2rem). `bottom: auto` clears
-     the base rule so positioning is by `top` alone. */
-  top: -4.2rem;
-  bottom: auto;
-  z-index: 5;
-}
-
-.gs-postcard-body {
-  /* Keep photography edge-to-edge, but give the editorial copy its own
-     comfortable reading column. */
-  padding: 0.85rem 0.35rem 0.9rem;
-  gap: 0.4rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.gs-postcard-eyebrow {
-  font-family: var(--gs-mono);
-  font-stretch: 87.5%;
-  font-size: 0.58rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--gs-kraft);
-  font-weight: 600;
-}
-
-/* Editorial numerical index — sits inside the eyebrow line like a magazine
-   table-of-contents marker. Slightly darker to anchor the eye while staying
-   subordinate to the cafe name below. */
-.gs-postcard-index {
-  color: var(--gs-espresso);
-  font-weight: 700;
-}
-.gs-postcard-eyebrow-sep { opacity: 0.5; }
-
-/* "TODAY'S PICK" eyebrow — replaces the numerical index on the hero card
-   when no filter/search intent is active. Accent color + leading star give
-   it the editorial-curation feel without competing with the title below. */
-.gs-postcard-featured {
-  color: var(--gs-accent);
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-/* Hero card — the first result on /explore gets editorial-spread treatment.
-   Wider span comes from a Tailwind col-span-2 in the grid; this gives the
-   photo a cinematic aspect, scales the title up, and lets the glance quote
-   become the visual hook (the thing that earns the click). */
-.gs-card-postcard-hero .gs-postcard-photo { aspect-ratio: 16 / 10; }
-.gs-card-postcard-hero .gs-postcard-body  { padding: 1.25rem 1.2rem 1.05rem; gap: 0.6rem; }
-.gs-card-postcard-hero .gs-postcard-title {
-  font-size: clamp(1.8rem, 3vw, 2.6rem);
-  line-height: 0.98;
-  font-weight: 800;
-  font-stretch: 78%;
-  font-variation-settings: var(--fv-hero);
-  letter-spacing: -0.03em;
-  -webkit-line-clamp: 2;
-  text-wrap: balance;
-}
-.gs-card-postcard-hero .gs-postcard-quote { font-size: 1.05rem; -webkit-line-clamp: 2; }
-/* Hero's stamp sits a touch higher relative to the wider photo. */
-.gs-card-postcard-hero .gs-postcard-stamp-anchor .gs-score-stamp { top: -4.5rem; right: 1.1rem; }
-
-/* On desktop the featured card has room for a more generous editorial
-   margin, while its image remains full-width above the copy. */
-@media (min-width: 768px) {
-  .gs-card-postcard-hero .gs-postcard-body {
-    padding: 1.5rem 1.6rem 1.3rem;
-    gap: 0.7rem;
-  }
-}
-
-.gs-postcard-title {
-  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
-  font-weight: 760;
-  font-stretch: 82%;
-  font-variation-settings: var(--fv-title);
-  font-size: 1.22rem;
-  line-height: 1.05;
-  color: var(--gs-espresso);
-  letter-spacing: -0.012em;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.gs-postcard-status {
-  width: fit-content;
-  margin-top: -0.1rem;
-  padding: 0.16rem 0.42rem;
-  border-radius: 0.35rem;
-  background: color-mix(in srgb, var(--gs-warn) 13%, var(--gs-paper));
-  color: var(--gs-warn);
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.055em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
-.gs-postcard-quote {
-  position: relative;
-  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
-  font-style: italic;
-  font-variation-settings: var(--fv-sub);
-  font-size: 0.98rem;
-  line-height: 1.45;
-  color: var(--gs-ink);
-  padding-left: 0.85rem;
-  border-left: 3px solid var(--gs-accent);
-  margin: 0.15rem 0 0.4rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-wrap: pretty;
-}
-
-/* Italic placeholder shown when neither LLM nor regex produced a known
-   value for any work attribute. */
-.gs-postcard-meta-pending {
-  font-style: italic;
-  font-size: 0.78rem;
-  color: var(--gs-kraft);
-  opacity: 0.85;
-}
-
-.gs-postcard-foot {
-  margin-top: auto;
-  padding-top: 0.6rem;
-  border-top: 1.5px dashed rgba(51, 39, 31, .2);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-family: var(--gs-mono);
-  font-stretch: 87.5%;
-  font-size: 0.6rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--gs-kraft);
-  font-variant-numeric: tabular-nums;
-}
-
-.gs-postcard-foot-dot {
-  width: 2px;
-  height: 2px;
-  border-radius: 50%;
-  background: var(--gs-kraft);
-  opacity: 0.5;
-  flex-shrink: 0;
-}
-
 /* ── Crowdness indicator (estimate, not real popular_times) ────── */
 .gs-crowd {
   display: inline-flex;
@@ -438,129 +186,6 @@ h1, h2, h3, .font-display {
 .gs-crowd-moderate .gs-crowd-dot { background: var(--gs-warn); }
 .gs-crowd-busy     { color: var(--gs-bad); }
 .gs-crowd-busy     .gs-crowd-dot { background: var(--gs-bad); }
-
-.gs-postcard-street {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-  min-width: 0;
-}
-
-/* Work-score stamp — a paper tag overlapping the photo's lower-right
-   corner: heavy condensed number, mono label, as on the landing tickets. */
-.gs-score-stamp {
-  position: absolute;
-  right: 0.75rem;
-  bottom: 0.75rem;
-  z-index: 5;
-  background: var(--gs-ticket);
-  border: 1px solid rgba(139, 112, 88, .25);
-  border-radius: 4px;
-  padding: 0.45rem 0.6rem 0.4rem;
-  display: flex;
-  align-items: baseline;
-  gap: 0.18rem;
-  box-shadow: 0 4px 14px -4px rgba(51, 39, 31, 0.18);
-  cursor: help;
-  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
-  /* Make the label sit underneath via a flex-wrap technique. */
-  flex-wrap: wrap;
-  max-width: 6.5rem;
-}
-
-.gs-score-stamp:focus-visible {
-  outline: 2px solid var(--gs-accent);
-  outline-offset: 2px;
-}
-
-.gs-score-stamp-num {
-  font-size: 1.65rem;
-  font-weight: 800;
-  font-stretch: 75%;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  color: var(--gs-espresso);
-  font-variant-numeric: tabular-nums;
-  font-variation-settings: var(--fv-hero);
-}
-
-.gs-score-stamp-denom {
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--gs-kraft);
-  font-variant-numeric: tabular-nums;
-}
-
-.gs-score-stamp-label {
-  flex-basis: 100%;
-  font-family: var(--gs-mono);
-  font-stretch: 87.5%;
-  font-style: normal;
-  font-size: 0.5rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--gs-kraft);
-  line-height: 1;
-  margin-top: 0.15rem;
-}
-
-/* Tooltip is shared between the postcard stamp and any other badge that
-   uses gs-score-tip — anchored bottom-right of the parent. */
-.gs-score-tip {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  min-width: 200px;
-  padding: 0.65rem 0.8rem;
-  background: var(--gs-espresso);
-  color: var(--gs-paper);
-  border-radius: 8px;
-  font-size: 0.72rem;
-  font-weight: 500;
-  text-align: left;
-  letter-spacing: 0;
-  text-transform: none;
-  line-height: 1.4;
-  box-shadow: 0 8px 24px -6px rgba(0,0,0,0.25);
-  opacity: 0;
-  /* Slide DOWN into final position — matches the tooltip's placement
-     below the stamp (origin-aware: animate from where it's anchored). */
-  transform: translateY(4px);
-  pointer-events: none;
-  transition: opacity 140ms var(--gs-ease), transform 140ms var(--gs-ease);
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.gs-score-tip strong {
-  display: block;
-  font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
-  font-weight: 700;
-  font-size: 0.78rem;
-  margin-bottom: 4px;
-}
-.gs-score-tip-row { font-variant-numeric: tabular-nums; }
-.gs-score-tip-foot {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid color-mix(in srgb, var(--gs-paper) 20%, transparent);
-  font-style: italic;
-  opacity: 0.85;
-}
-
-@media (hover: hover) {
-  .gs-score-stamp:hover .gs-score-tip {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.gs-score-stamp:focus-visible .gs-score-tip {
-  opacity: 1;
-  transform: translateY(0);
-}
 
 .gs-score {
   font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif;
@@ -644,16 +269,6 @@ h1, h2, h3, .font-display {
 
 @keyframes gs-spin { to { transform: rotate(360deg); } }
 .gs-spin { animation: gs-spin 0.9s linear infinite; transform-origin: center; }
-
-/* ── Staggered reveal animation ─────────────────────────────── */
-@keyframes gs-rise {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.gs-rise {
-  animation: gs-rise 0.4s ease both;
-}
 
 /* ── CTA button ─────────────────────────────────────────────── */
 .gs-btn-primary {
@@ -990,8 +605,8 @@ h1, h2, h3, .font-display {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gs-rise, .gs-popover, .gs-popover.is-closing, .gs-spin { animation: none; }
-  .gs-card, .gs-chip, .gs-btn-primary, .gs-card-postcard, .gs-view-btn { transition: none; }
+  .gs-popover, .gs-popover.is-closing, .gs-spin { animation: none; }
+  .gs-card, .gs-chip, .gs-btn-primary, .gs-view-btn { transition: none; }
   /* Reduced-motion users still need to know the search is busy — fall back to opacity pulse. */
   .gs-spin { opacity: 0.6; }
 }
@@ -999,11 +614,18 @@ h1, h2, h3, .font-display {
 /* ── Landing page: the Counter ─────────────────────────────────
    Sage cup stage beside a linen counter. Fonts come in as CSS variables
    from src/app/page.tsx (Bricolage Grotesque, Martian Mono, Permanent Marker). */
-.ct {
+/* Counter tokens live on :root so the shared ticket (Ticket.tsx) looks the
+   same on the landing page, See all and the map. */
+:root {
   --ct-sage-hi: #D8E1CE; --ct-sage: #C9D5BD; --ct-sage-lo: #B8C7AB; --ct-sage-num: #B6C5A9;
   --ct-moss: var(--gs-accent); --ct-espresso: var(--gs-espresso); --ct-soft: #7A6554;
   --ct-paper: #FFFCF6; --ct-paper-miss: #F0EAE0; --ct-rose: #9E5F58; --ct-open: #3F6B3A;
   --ct-ease: cubic-bezier(.22,1,.36,1); --ct-gut: clamp(16px,4vw,56px);
+  --ct-display: var(--font-display), "Helvetica Neue", Arial, sans-serif;
+  --ct-mono: var(--font-mono), ui-monospace, monospace;
+  --ct-marker: var(--font-marker), "Marker Felt", cursive;
+}
+.ct {
   display: grid; grid-template-columns: minmax(0,1fr);
   font-family: var(--ct-display); color: var(--ct-espresso); background: var(--gs-cream);
 }
@@ -1126,6 +748,23 @@ h1, h2, h3, .font-display {
   .ct-ticket { flex: 0 0 min(76vw,264px); scroll-snap-align: center; }
   .ct-swipe { display: flex; }
 }
+
+/* The barista's handwritten note on a ticket ("Today's pick!"). */
+.ct-note { position: absolute; top: 118px; right: 10px; transform: rotate(-6deg); padding: .1em .45em; pointer-events: none;
+  background: rgba(255,252,246,.9); border-radius: 3px; color: var(--ct-moss); font: 400 1.15rem/1.1 var(--ct-marker); text-transform: none; letter-spacing: 0; }
+
+/* See all keeps the rail as a vertical grid on phones (it scrolls down,
+   not sideways); the map's side list is one column of tickets. */
+@media (max-width: 699px) {
+  .ct-wall.is-grid { display: grid; overflow: visible; margin-inline: 0; padding-inline: 0; grid-template-columns: minmax(0, 1fr); }
+  .ct-wall.is-grid .ct-ticket { flex: none; }
+}
+.ct-wall.is-column { grid-template-columns: minmax(0, 1fr); margin-top: 0; }
+.gs-tickets { font-family: var(--ct-display); color: var(--ct-espresso); }
+.ct-ticket.is-highlighted .ct-paper { transform: translateY(-3px); box-shadow: inset 0 0 0 2px var(--ct-moss); }
+.gs-empty-ticket { position: relative; max-width: 420px; margin: 8px auto 0; padding: 28px 24px 30px; text-align: center; background: var(--ct-paper-miss);
+  border-radius: 3px; box-shadow: 0 10px 22px -16px rgba(58,40,28,.45); }
+.gs-empty-ticket .ct-stamp { display: block; top: 64px; }
 
 .ct-closer { margin-top: clamp(64px,9vw,112px); padding-top: 30px; border-top: 1.5px dashed rgba(139,112,88,.35); }
 .ct-closer > p { margin: 14px 0 0; max-width: 40em; color: var(--ct-soft); font-size: 1.05rem; }

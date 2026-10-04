@@ -7,45 +7,18 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import CounterCup, { type CounterCupHandle } from "./CounterCup";
+import Ticket, { shortName } from "./Ticket";
 import {
   ORDER_SLOTS, ORDER_KEYS, DEFAULT_ORDER, orderToFilters, orderHref,
   type Order, type OrderSlot, type OrderOption,
 } from "@/lib/filter-url";
 import { matchesFilters } from "@/lib/search-filters";
-import { mergeTag } from "@/lib/merge-tags";
-import { isOpenNow } from "@/lib/open-now";
 import type { Cafe } from "@/lib/types";
 import { decodeRow, type CounterRow } from "@/lib/counter-rows";
 
 const TICKETS = 12;
 const TITLES: Record<OrderSlot, string> = { noise: "Noise", outlets: "Outlets", wifi: "Wi‑Fi", hours: "Hours", area: "Where" };
-const LINE_LABEL: Record<OrderSlot, string> = { noise: "Noise", outlets: "Outlets", wifi: "Wi-Fi", hours: "Today", area: "City" };
-const VALUE = {
-  noise: { quiet: "Quiet", moderate: "Chatty", loud: "Loud" } as Record<string, string>,
-  outlets: { every_table: "Every seat", most: "Most seats", limited: "A few", none: "None" } as Record<string, string>,
-  wifi: { fast: "Fast", moderate: "Solid", slow: "Spotty", none: "None" } as Record<string, string>,
-  seats: { ample: "Plenty", adequate: "Enough", limited: "Tight", none: "None" } as Record<string, string>,
-};
-const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const opts = (k: OrderSlot) => ORDER_SLOTS[k] as OrderOption[];
-
-function shortName(name: string) {
-  const s = name.replace(/^The /, "").split(/\s+(?:Coffee|Cafe|Café|Roasters|Coffeehouse|&|\/|-|Co\.?$)/)[0];
-  return s.length > 14 ? s.split(" ").slice(0, 2).join(" ") : s;
-}
-function city(address: string) {
-  const m = address.match(/,\s*([^,]+),\s*WA\b/);
-  return m ? m[1] : "Seattle";
-}
-function todayHours(c: Cafe, now: Date) {
-  const v = c.hours_json?.[DAYS[now.getDay()]];
-  if (!v) return "No hours";
-  if (/closed/i.test(v)) return "Closed";
-  return v.replace(/:00/g, "").replace(/\s*[–-]\s*/, "–").replace(/ | /g, " ");
-}
-function mapsUrl(c: Cafe) {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${c.name}, ${c.address}`)}&query_place_id=${c.google_place_id}`;
-}
 
 interface CounterProps {
   rows: CounterRow[];     // every visible cafe, best score first, compacted by encodeRow
@@ -347,44 +320,9 @@ export default function Counter({ rows, day, photoBase, nowIso, neighborhoods, f
             onScroll={onWallScroll}
             onFocus={e => { const id = (e.target as Element).closest<HTMLElement>("[data-id]")?.dataset.id; const t = tickets.find(x => x.cafe.id === id); if (t) setHover(t.cafe); }}
           >
-            {tickets.map(({ cafe: c, match, lines }) => {
-              const open = isOpenNow(c.hours_json, now);
-              const cls = (k: OrderSlot) => (lines[k] === null ? undefined : lines[k] ? "is-ok" : "is-no");
-              return (
-                <li key={c.id} data-id={c.id} className={`ct-ticket${match ? "" : " is-miss"}`} onPointerOver={() => setHover(c)}>
-                  <div className="ct-swing">
-                    <span className="ct-clip" aria-hidden="true" />
-                    <article className="ct-paper" aria-labelledby={`t-${c.id}`}>
-                      <div className="ct-t-meta"><span>Dine-in · 1 laptop</span><span>{clock}</span></div>
-                      {c.photo_url
-                        // eslint-disable-next-line @next/next/no-img-element
-                        ? <img className="ct-t-photo" src={c.photo_url} alt={c.name} width={400} height={250} />
-                        : <div className="ct-t-photo" aria-hidden="true" />}
-                      <h3 className="ct-t-name" id={`t-${c.id}`}><Link href={`/cafe/${c.id}`}>{c.name}</Link></h3>
-                      <p className="ct-t-where">{c.neighborhood}</p>
-                      <ul className="ct-t-lines">
-                        <li className={cls("noise")}><span>{LINE_LABEL.noise}</span><i /><b>{VALUE.noise[mergeTag(c, "noise_level")] ?? "No data"}</b></li>
-                        <li className={cls("outlets")}><span>{LINE_LABEL.outlets}</span><i /><b>{VALUE.outlets[mergeTag(c, "outlet_availability")] ?? "No data"}</b></li>
-                        <li className={cls("wifi")}><span>{LINE_LABEL.wifi}</span><i /><b>{VALUE.wifi[mergeTag(c, "wifi_quality")] ?? "No data"}</b></li>
-                        <li className={cls("hours")}><span>{LINE_LABEL.hours}</span><i /><b>{todayHours(c, now)}</b></li>
-                        <li className={cls("area")}><span>{LINE_LABEL.area}</span><i /><b>{city(c.address)}</b></li>
-                        <li><span>Seats</span><i /><b>{VALUE.seats[mergeTag(c, "seating_availability")] ?? "No data"}</b></li>
-                      </ul>
-                      <div className="ct-t-score"><span>Work<br />score</span><b>{(c.productivity_score ?? 0).toFixed(1)}</b><small>/5</small></div>
-                      <p className="ct-t-google">
-                        {c.google_rating != null ? `${c.google_rating.toFixed(1)}★ on Google · ${(c.google_review_count ?? 0).toLocaleString("en-US")} reviews` : " "}
-                      </p>
-                      <div className="ct-t-foot">
-                        <span className={`ct-t-open${open ? " is-open" : ""}`}>{open ? "Open now" : "Closed now"}</span>
-                        <a href={mapsUrl(c)} target="_blank" rel="noopener noreferrer">Directions ↗</a>
-                      </div>
-                      {!match && <span className="ct-stamp" aria-hidden="true">Maybe next time!</span>}
-                      <span className="sr-only">{match ? "Fits your order." : "Maybe next time: doesn't fit every part of your order."}</span>
-                    </article>
-                  </div>
-                </li>
-              );
-            })}
+            {tickets.map(({ cafe: c, match, lines }) => (
+              <Ticket key={c.id} cafe={c} now={now} clock={clock} checks={lines} match={match} onPointerOver={() => setHover(c)} />
+            ))}
           </ol>
           <p className="ct-swipe" aria-hidden="true"><span><b>{railPos}</b> of {tickets.length}</span><span>Swipe for more →</span></p>
         </section>
