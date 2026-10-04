@@ -105,6 +105,7 @@ export interface TaggingConfidence {
 // strings whose default is "any".
 export interface Filters {
   location:     string[]; // [] = any. Multi-select neighborhoods.
+  wifi:         "fast" | "fast_or_moderate" | "any";
   noise:        "quiet" | "quiet_or_moderate" | "any";
   outlets:      "every_table" | "any_outlets" | "any";
   laptop:       "welcome" | "welcome_or_limited" | "any";
@@ -116,6 +117,7 @@ export type FilterKey = keyof Filters;
 
 export const EMPTY_FILTERS: Filters = {
   location:     [],
+  wifi:         "any",
   noise:        "any",
   outlets:      "any",
   laptop:       "any",
@@ -168,6 +170,15 @@ export interface FilterDef<K extends FilterKey = FilterKey> {
 // FILTER_DEFS only covers the single-select chips.
 export const FILTER_DEFS: FilterDef[] = [
   {
+    key: "wifi",
+    label: "Wi‑Fi",
+    options: [
+      { value: "fast",                label: "Fast only" },
+      { value: "fast_or_moderate",    label: "Fast or moderate" },
+      { value: "any",                 label: "Any" },
+    ],
+  },
+  {
     key: "noise",
     label: "Noise",
     options: [
@@ -196,7 +207,7 @@ export const FILTER_DEFS: FilterDef[] = [
   },
   {
     key: "productivity",
-    label: "Productivity",
+    label: "Work score",
     options: [
       { value: "above_4",             label: "4 or above" },
       { value: "under_4",             label: "Under 4" },

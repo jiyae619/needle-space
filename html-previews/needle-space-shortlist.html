@@ -1,0 +1,532 @@
+<title>Needle Space Shortlist</title>
+<meta name="description" content="Twelve Seattle-area cafes worth opening a laptop in, with a cobalt cup that fills to each cafe's work score.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..800&family=Geist+Mono:wght@400..600&display=swap">
+<style>
+:root{
+  --bg:#FFFFFF; --ink:#0B0B0D; --mute:#5A5F6D; --rule:#E2E4EB; --soft:#F3F4F8;
+  --accent:#2340E8; --accent-ink:#FFFFFF; --open:#16833A;
+  --f:"Geist","Helvetica Neue",Arial,system-ui,sans-serif;
+  --m:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){color-scheme:dark;--bg:#0A0B0F;--ink:#F3F4F7;--mute:#9BA1AF;--rule:#23262F;--soft:#14161C;--accent:#7D8EFF;--accent-ink:#0A0B0F;--open:#4CC374}
+}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0A0B0F;--ink:#F3F4F7;--mute:#9BA1AF;--rule:#23262F;--soft:#14161C;--accent:#7D8EFF;--accent-ink:#0A0B0F;--open:#4CC374}
+
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--bg)}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.55 var(--f);-webkit-font-smoothing:antialiased;font-feature-settings:"ss01"}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:clamp(16px,4vw,48px)}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.num{font-variant-numeric:tabular-nums}
+
+/* header */
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-block:20px;border-bottom:1px solid var(--rule)}
+.logo{font-weight:700;font-size:1.05rem;letter-spacing:-.02em;text-decoration:none;display:flex;align-items:center;gap:10px}
+.logo i{width:10px;height:10px;background:var(--accent);display:inline-block}
+.top nav{display:flex;gap:4px}
+.top nav a,.top nav button{background:none;border:0;padding:8px 10px;font-size:.88rem;color:var(--mute);text-decoration:none;cursor:pointer;border-radius:3px}
+@media (hover:hover){.top nav a:hover,.top nav button:hover{color:var(--ink);background:var(--soft)}}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;padding-block:clamp(36px,7vw,88px) clamp(28px,5vw,56px)}
+@media (min-width:900px){.hero{grid-template-columns:minmax(0,7fr) minmax(0,5fr);align-items:center;gap:40px}}
+.eyebrow{margin:0 0 20px;font:500 .74rem/1.4 var(--m);letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+h1{margin:0;font-weight:650;font-size:clamp(2.6rem,6.4vw,5.6rem);line-height:.96;letter-spacing:-.045em;text-wrap:balance;max-width:11ch}
+h1 em{font-style:normal;color:var(--accent)}
+.lede{margin:24px 0 0;max-width:34em;font-size:1.12rem;line-height:1.5;color:var(--mute)}
+.cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:32px}
+.btn{display:inline-flex;align-items:center;gap:10px;height:46px;padding:0 18px;border-radius:3px;border:1px solid transparent;font-weight:550;font-size:.95rem;text-decoration:none;cursor:pointer;transition:background-color .15s,color .15s,border-color .15s,transform .15s var(--ease)}
+.btn.primary{background:var(--ink);color:var(--bg)}
+.btn.ghost{background:transparent;border-color:var(--rule)}
+@media (hover:hover){.btn.primary:hover{background:var(--accent);color:var(--accent-ink)}.btn.ghost:hover{border-color:var(--ink)}}
+.btn:active{transform:scale(.98)}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;margin:40px 0 0;border-top:1px solid var(--rule)}
+@media (min-width:600px){.stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.stats div{padding:14px 12px 0 0}
+.stats dt{font:500 .68rem/1.3 var(--m);letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.stats dd{margin:6px 0 0;font-weight:600;font-size:1.6rem;letter-spacing:-.03em}
+
+.hero-cup{position:relative;margin:0;height:clamp(300px,42vw,470px)}
+#cup{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:pan-y}
+.cup-fallback{display:none}
+.no-webgl #cup{display:none}
+.no-webgl .cup-fallback{display:block;position:absolute;left:50%;top:44%;width:min(60%,260px);transform:translate(-50%,-50%)}
+.readout{position:absolute;left:0;bottom:0;display:flex;align-items:flex-end;gap:12px;pointer-events:none}
+.readout b{font-weight:650;font-size:clamp(2.8rem,5vw,4rem);line-height:.8;letter-spacing:-.05em;color:var(--accent)}
+.readout span{font:500 .7rem/1.45 var(--m);letter-spacing:.04em;text-transform:uppercase;color:var(--mute);max-width:26ch}
+.readout strong{display:block;color:var(--ink);font-weight:600}
+
+/* list */
+.list{padding-block:clamp(40px,6vw,72px) 32px;border-top:1px solid var(--ink);scroll-margin-top:12px}
+.list-head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap}
+h2{margin:0;font-weight:650;font-size:clamp(1.8rem,3.4vw,2.6rem);letter-spacing:-.04em;line-height:1}
+.count{margin:0;font:500 .82rem var(--m);color:var(--mute)}
+.count b{color:var(--ink);font-weight:600}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px;align-items:center}
+.toggle,.seg button{height:38px;padding:0 14px;border-radius:999px;border:1px solid var(--rule);background:transparent;cursor:pointer;font-size:.88rem;font-weight:500;transition:background-color .15s,color .15s,border-color .15s}
+.toggle[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.seg{display:inline-flex;gap:0;margin-left:auto;border:1px solid var(--rule);border-radius:999px;padding:3px}
+.seg button{height:30px;border:0;padding:0 12px}
+.seg button[aria-checked="true"]{background:var(--ink);color:var(--bg)}
+@media (hover:hover){.toggle:hover{border-color:var(--ink)}.seg button:hover:not([aria-checked="true"]){background:var(--soft)}}
+@media (max-width:640px){.seg{margin-left:0}}
+
+.cols,.row-main{display:grid;grid-template-columns:96px minmax(0,2.3fr) repeat(3,minmax(0,1fr)) minmax(0,1.35fr) 56px;gap:20px;align-items:center}
+.cols{margin-top:28px;padding-bottom:10px;border-bottom:1px solid var(--rule);font:500 .68rem/1.3 var(--m);letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.cols span:last-child{text-align:right}
+.cols .on{color:var(--accent)}
+.rows{list-style:none;margin:0;padding:0}
+.row{border-bottom:1px solid var(--rule)}
+.row-main{width:100%;padding:14px 0;background:none;border:0;text-align:left;cursor:pointer;transition:background-color .15s}
+@media (hover:hover){.row-main:hover{background:linear-gradient(90deg,transparent,var(--soft) 8%,var(--soft) 92%,transparent)}}
+.thumb{width:96px;height:72px;object-fit:cover;border-radius:2px;display:block;background:var(--soft)}
+.name strong{display:block;font-weight:600;font-size:1.08rem;letter-spacing:-.015em;line-height:1.25}
+.name small{display:block;margin-top:3px;font:400 .76rem/1.4 var(--m);color:var(--mute)}
+.attrs{display:contents}
+.attr{font-size:.92rem;min-width:0}
+.attr small{display:none}
+.attr.on{color:var(--accent);font-weight:600}
+.today{display:flex;align-items:center;gap:8px;font-size:.88rem}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--rule);flex:none}
+.dot.open{background:var(--open);box-shadow:0 0 0 3px color-mix(in srgb,var(--open) 22%,transparent)}
+.score{text-align:right;font-weight:650;font-size:1.7rem;letter-spacing:-.04em}
+.chev{display:none}
+
+.detail{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;padding:4px 0 28px 116px}
+@media (min-width:900px){.detail{grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:32px}}
+.detail img{width:100%;max-width:480px;aspect-ratio:4/3;object-fit:cover;border-radius:2px;display:block}
+.facts{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 18px;font-size:.9rem;align-content:start}
+.facts dt{font:500 .68rem/1.9 var(--m);letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.facts dd{margin:0}
+.week{font:400 .78rem/1.7 var(--m);color:var(--mute)}
+.week b{color:var(--ink);font-weight:600}
+.detail .btn{margin-top:18px}
+
+@media (max-width:899px){
+  .cols{display:none}
+  .row-main{grid-template-columns:72px minmax(0,1fr) auto;grid-template-areas:"t n s" "t a a";gap:6px 14px}
+  .thumb{grid-area:t;width:72px;height:72px}
+  .name{grid-area:n}
+  .score{grid-area:s;font-size:1.4rem}
+  .attrs{grid-area:a;display:flex;flex-wrap:wrap;gap:4px 14px}
+  .attr{font-size:.8rem}
+  .attr small{display:inline;font:500 .66rem var(--m);letter-spacing:.04em;text-transform:uppercase;color:var(--mute);margin-right:5px}
+  .detail{padding-left:0}
+}
+.empty{margin:0;padding:28px 0;border-bottom:1px solid var(--rule);font-size:1rem;color:var(--mute)}
+.empty button{background:none;border:0;padding:0;color:var(--accent);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
+/* method + footer */
+.method{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;padding-block:clamp(40px,6vw,72px);border-top:1px solid var(--rule)}
+@media (min-width:760px){.method{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.method h3{margin:0 0 8px;font-weight:600;font-size:1rem;letter-spacing:-.01em}
+.method p{margin:0;color:var(--mute);font-size:.94rem;max-width:34em}
+.foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-block:24px 40px;border-top:1px solid var(--rule);font:400 .74rem/1.6 var(--m);color:var(--mute)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9;max-width:calc(100% - 32px);padding:12px 16px;border-radius:3px;background:var(--ink);color:var(--bg);font-size:.88rem}
+@media (prefers-reduced-motion:reduce){.btn,.row-main,.toggle{transition:none}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <a class="logo" href="#"><i aria-hidden="true"></i>needle space</a>
+    <nav aria-label="Page"><a href="#list">The list</a><a href="#method">How we score</a><button type="button" data-app="/explore">Map</button></nav>
+  </header>
+
+  <section class="hero" aria-labelledby="hero-h">
+    <div>
+      <p class="eyebrow">Seattle · Bellevue · Redmond · Kirkland</p>
+      <h1 id="hero-h">Twelve cafes worth opening a <em>laptop</em> in.</h1>
+      <p class="lede">The best work scores out of 472 cafes we track, each one checked for Wi‑Fi, outlets and noise. Pick one and go.</p>
+      <div class="cta">
+        <a class="btn primary" href="#list">See the list</a>
+        <button class="btn ghost" type="button" data-app="/explore">Open the map</button>
+      </div>
+      <dl class="stats">
+        <div><dt>Cafes tracked</dt><dd class="num">472</dd></div>
+        <div><dt>Neighborhoods</dt><dd class="num">17</dd></div>
+        <div><dt>Open now, of 12</dt><dd class="num" id="open-count">—</dd></div>
+        <div><dt>Hours refreshed</dt><dd>Monthly</dd></div>
+      </dl>
+    </div>
+    <figure class="hero-cup" id="stage">
+      <canvas id="cup" role="img" aria-label="A glossy cobalt cup of coffee. Its fill level shows the work score of the cafe you point at."></canvas>
+      <svg class="cup-fallback" viewBox="0 0 200 130" aria-hidden="true"><ellipse cx="100" cy="112" rx="92" ry="14" fill="#E2E4EB"/><path d="M40 30h120c0 50-22 78-60 78S40 80 40 30z" fill="#2340E8"/><ellipse cx="100" cy="30" rx="60" ry="10" fill="#6B3F1F"/><path d="M160 44c20 0 22 26 0 30" fill="none" stroke="#2340E8" stroke-width="8"/></svg>
+      <figcaption class="readout"><b class="num" id="read-score">4.9</b><span><strong id="read-name">Chocolati Café Greenwood</strong>Work score · the fill line</span></figcaption>
+    </figure>
+  </section>
+
+  <section class="list" id="list" aria-labelledby="list-h">
+    <div class="list-head">
+      <h2 id="list-h">The shortlist</h2>
+      <p class="count" aria-live="polite"><b id="count">12</b> <span id="count-word">cafes</span></p>
+    </div>
+    <div class="filters" role="group" aria-label="Filter cafes">
+      <button class="toggle" type="button" id="f-quiet" data-f="quiet" aria-pressed="false">Quiet</button>
+      <button class="toggle" type="button" id="f-outlets" data-f="outlets" aria-pressed="false">Outlet at every seat</button>
+      <button class="toggle" type="button" id="f-wifi" data-f="wifi" aria-pressed="false">Fast Wi‑Fi</button>
+      <button class="toggle" type="button" id="f-open" data-f="open" aria-pressed="false">Open now</button>
+      <div class="seg" role="radiogroup" aria-label="Area">
+        <button type="button" role="radio" id="a-all" data-a="all" aria-checked="true">All</button>
+        <button type="button" role="radio" id="a-sea" data-a="sea" aria-checked="false">Seattle</button>
+        <button type="button" role="radio" id="a-east" data-a="east" aria-checked="false">Eastside</button>
+      </div>
+    </div>
+    <div class="cols" aria-hidden="true"><span></span><span>Cafe</span><span data-c="wifi">Wi‑Fi</span><span data-c="outlets">Outlets</span><span data-c="quiet">Noise</span><span data-c="open">Today</span><span>Score</span></div>
+    <ol class="rows" id="rows"></ol>
+    <p class="empty" id="empty" hidden></p>
+  </section>
+
+  <section class="method" id="method" aria-label="How we score">
+    <div><h3>Read from reviews</h3><p>A language model reads each cafe’s public reviews and tags Wi‑Fi speed, outlet coverage, noise and laptop policy, quoting the review lines it relied on.</p></div>
+    <div><h3>Scored out of five</h3><p>Wi‑Fi counts for 25%, outlets, noise and seating 20% each, laptop policy 15%. That result makes up three quarters of the work score; the Google rating makes up the rest. The fill line in the cup is that number.</p></div>
+    <div><h3>Kept current</h3><p>Hours and details come from Google Places and refresh monthly. “Open now” uses Seattle time as you read this.</p></div>
+  </section>
+
+  <footer class="foot"><span>needle space · laptop-friendly cafes, Seattle metro</span><span>Landing page prototype · live index data, September 2026</span></footer>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const H = (mon, tue, wed, thu, fri, sat, sun) => ({monday:mon, tuesday:tue, wednesday:wed, thursday:thu, friday:fri, saturday:sat, sunday:sun});
+const D = s => H(s, s, s, s, s, s, s);
+const CAFES = [
+  {name:'Chocolati Café Greenwood', slug:'chocolati', hood:'Greenwood', city:'Seattle', addr:'8319 Greenwood Ave N, Seattle', lat:47.6897253, lng:-122.3555189, pid:'ChIJ7_18miEUkFQRaH9WwkOCxdw', score:4.9, rating:4.6, reviews:662, wifi:'fast', outlets:'every_table', noise:'quiet', seats:'ample', hours:D('8:00 AM – 8:30 PM')},
+  {name:'The Shop by Porter', slug:'porter', hood:'Downtown', city:'Seattle', addr:'1201 2nd Ave #100, Seattle', lat:47.6065056, lng:-122.3376377, pid:'ChIJZXzsp_5rkFQRbN2ATdDzqEE', score:4.7, rating:4.5, reviews:132, wifi:'fast', outlets:'most', noise:'quiet', seats:'ample', hours:H('7:00 AM – 7:00 PM','7:00 AM – 7:00 PM','7:00 AM – 7:00 PM','7:00 AM – 7:00 PM','7:00 AM – 7:00 PM','8:00 AM – 4:00 PM','Closed')},
+  {name:'Inkling Art Cafe', slug:'inkling', hood:'Capitol Hill', city:'Seattle', addr:'610 19th Ave E, Seattle', lat:47.6247222, lng:-122.3069444, pid:'ChIJgUdofAAVkFQRBplfK_IelZQ', score:4.5, rating:5.0, reviews:18, wifi:'moderate', outlets:'most', noise:'quiet', seats:'ample', hours:D('7:00 AM – 5:00 PM')},
+  {name:'The Fremont Social Cafe', slug:'fremont-social', hood:'Fremont', city:'Seattle', addr:'127 N 35th St, Seattle', lat:47.6517061, lng:-122.3564924, pid:'ChIJtakurKQVkFQRnSbcery5UGc', score:4.5, rating:4.8, reviews:13, wifi:'fast', outlets:'most', noise:'moderate', seats:'ample', hours:D('8:00 AM – 5:00 PM')},
+  {name:'Capital One Café', slug:'capital-one', hood:'Downtown Bellevue', city:'Bellevue', addr:'400 Bellevue Way NE, Bellevue', lat:47.6140799, lng:-122.2013634, pid:'ChIJb4GNEYZskFQRE7VgD5cQya4', score:4.4, rating:4.0, reviews:192, wifi:'moderate', outlets:'every_table', noise:'quiet', seats:'ample', hours:H('10:00 AM – 9:00 PM','10:00 AM – 9:00 PM','10:00 AM – 9:00 PM','10:00 AM – 9:00 PM','10:00 AM – 9:00 PM','10:00 AM – 9:00 PM','11:00 AM – 7:00 PM')},
+  {name:'Zoka Coffee Company / University', slug:'zoka', hood:'University District', city:'Seattle', addr:'2901 NE Blakeley St, Seattle', lat:47.6660835, lng:-122.2976194, pid:'ChIJXfLA8YYUkFQR6Zimch60wH0', score:4.4, rating:4.5, reviews:618, wifi:'moderate', outlets:'most', noise:'quiet', seats:'ample', hours:D('6:00 AM – 5:00 PM')},
+  {name:'Woodland Coffee', slug:'woodland', hood:'Ballard', city:'Seattle', addr:'1417 NW 54th St #101, Seattle', lat:47.6677341, lng:-122.3750668, pid:'ChIJyQwSx8kVkFQR1Utoi8oQDVU', score:4.4, rating:4.7, reviews:372, wifi:'moderate', outlets:'unknown', noise:'quiet', seats:'ample', hours:H('6:30 AM – 6:00 PM','6:30 AM – 6:00 PM','6:30 AM – 6:00 PM','6:30 AM – 6:00 PM','6:30 AM – 6:00 PM','7:00 AM – 6:00 PM','7:00 AM – 6:00 PM')},
+  {name:'Lula Coffee Co', slug:'lula', hood:'West Seattle', city:'Seattle', addr:'4451 California Ave SW, Seattle', lat:47.563218, lng:-122.3869583, pid:'ChIJa2gKsmlBkFQRsNPqi8Jb6W4', score:4.4, rating:4.5, reviews:316, wifi:'fast', outlets:'most', noise:'quiet', seats:'adequate', hours:H('5:00 AM – 7:00 PM','5:00 AM – 7:00 PM','5:00 AM – 7:00 PM','5:00 AM – 7:00 PM','5:00 AM – 7:00 PM','5:00 AM – 7:00 PM','5:00 AM – 6:00 PM')},
+  {name:'PLUS84', slug:'plus84', hood:'Belltown', city:'Seattle', addr:'2401 3rd Ave, Seattle', lat:47.6154409, lng:-122.3465609, pid:'ChIJ1RjHsxwVkFQRQtjvw0mai-Y', score:4.4, rating:4.6, reviews:392, wifi:'moderate', outlets:'most', noise:'quiet', seats:'ample', hours:H('8:00 AM – 10:00 PM','8:00 AM – 10:00 PM','8:00 AM – 10:00 PM','8:00 AM – 10:00 PM','8:00 AM – 12:00 AM','8:00 AM – 12:00 AM','9:00 AM – 8:00 PM')},
+  {name:'Victor’s Celtic Coffee & Roasters', slug:'victors', hood:'Downtown Redmond', city:'Redmond', addr:'7993 Gilman St, Redmond', lat:47.6745394, lng:-122.1219836, pid:'ChIJ_SUMHrJykFQRvFNNAvZixGg', score:4.3, rating:4.4, reviews:1220, wifi:'moderate', outlets:'most', noise:'quiet', seats:'ample', hours:H('7:00 AM – 3:00 PM','7:00 AM – 3:00 PM','7:00 AM – 3:00 PM','7:00 AM – 3:00 PM','7:00 AM – 3:00 PM','7:00 AM – 4:00 PM','8:00 AM – 4:00 PM')},
+  {name:'5 Stones Coffee Co', slug:'5-stones', hood:'Downtown Kirkland', city:'Kirkland', addr:'312 Central Way, Kirkland', lat:47.6777479, lng:-122.2029491, pid:'ChIJm4bU8iMTkFQRHiTMBsEPMcI', score:4.1, rating:4.5, reviews:196, wifi:'moderate', outlets:'most', noise:'quiet', seats:'adequate', hours:H('7:00 AM – 5:00 PM','7:00 AM – 5:00 PM','7:00 AM – 5:00 PM','7:00 AM – 5:00 PM','7:00 AM – 5:00 PM','7:00 AM – 5:00 PM','7:00 AM – 3:00 PM')},
+  {name:'Thruline Coffee Co.', slug:'thruline', hood:'Downtown Kirkland', city:'Kirkland', addr:'136 Park Ln, Kirkland', lat:47.6764515, lng:-122.2054057, pid:'ChIJAW2bknATkFQRCCgTkvG-QLA', score:3.9, rating:4.6, reviews:987, wifi:'moderate', outlets:'most', noise:'quiet', seats:'limited', hours:D('7:00 AM – 9:00 PM')},
+];
+const L = {
+  wifi:{fast:'Fast', moderate:'Solid', slow:'Spotty', unknown:'No data'},
+  outlets:{every_table:'Every seat', most:'Most seats', limited:'A few', none:'None', unknown:'No data'},
+  noise:{quiet:'Quiet', moderate:'Chatty', loud:'Loud', unknown:'No data'},
+  seats:{ample:'Plenty', adequate:'Enough', limited:'Tight', unknown:'No data'},
+};
+const DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+
+/* time */
+const TZ = 'America/Los_Angeles';
+function seattleNow() {
+  const parts = new Intl.DateTimeFormat('en-US', {timeZone:TZ, weekday:'long', hour:'numeric', minute:'2-digit', hourCycle:'h23'}).formatToParts(new Date());
+  const g = t => (parts.find(p => p.type === t) || {}).value;
+  return {day:String(g('weekday')).toLowerCase(), mins:(+g('hour') % 24) * 60 + (+g('minute'))};
+}
+const toMin = (h, m, ap) => ((+h % 12) + (/p/i.test(ap) ? 12 : 0)) * 60 + (+m);
+function range(s) {
+  if (!s || /closed/i.test(s)) return null;
+  const m = [...s.matchAll(/(\d{1,2}):(\d{2})\s*([AP]M)/gi)];
+  if (m.length < 2) return null;
+  const o = toMin(m[0][1], m[0][2], m[0][3]); let c = toMin(m[1][1], m[1][2], m[1][3]);
+  if (c <= o) c += 1440;
+  return [o, c];
+}
+function t12(min) {
+  min %= 1440; if (min === 0) return 'midnight';
+  const h = Math.floor(min / 60), m = min % 60;
+  return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+const fmt = r => r ? `${t12(r[0])}–${t12(r[1])}` : 'Closed';
+function fromNeedle(lat, lng) {
+  const r = d => d * Math.PI / 180, la1 = r(47.6205), lo1 = r(-122.3493), la2 = r(lat), lo2 = r(lng);
+  const a = Math.sin((la2 - la1) / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin((lo2 - lo1) / 2) ** 2;
+  const mi = 2 * 3958.8 * Math.asin(Math.sqrt(a));
+  const b = (Math.atan2(Math.sin(lo2 - lo1) * Math.cos(la2), Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(lo2 - lo1)) * 180 / Math.PI + 360) % 360;
+  return `${mi.toFixed(1)} mi ${['N','NE','E','SE','S','SW','W','NW'][Math.round(b / 45) % 8]}`;
+}
+
+/* rows */
+const rowsEl = $('#rows');
+CAFES.forEach((c, i) => {
+  c.id = 'c' + i;
+  c.maps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.name + ', ' + c.addr)}&query_place_id=${c.pid}`;
+  const li = document.createElement('li');
+  li.className = 'row';
+  li.innerHTML = `
+    <button class="row-main" type="button" aria-expanded="false" aria-controls="${c.id}-d">
+      <img class="thumb" src="cafe-photos/${c.slug}.jpg" alt="" width="96" height="72" loading="lazy">
+      <span class="name"><strong>${esc(c.name)}</strong><small>${esc(c.hood)} · ${fromNeedle(c.lat, c.lng)} of the Needle</small></span>
+      <span class="attrs">
+        <span class="attr" data-c="wifi"><small>Wi‑Fi</small>${L.wifi[c.wifi]}</span>
+        <span class="attr" data-c="outlets"><small>Outlets</small>${L.outlets[c.outlets]}</span>
+        <span class="attr" data-c="quiet"><small>Noise</small>${L.noise[c.noise]}</span>
+        <span class="attr today" data-c="open"><i class="dot"></i><span class="t-today">—</span></span>
+      </span>
+      <span class="score num">${c.score.toFixed(1)}</span>
+    </button>
+    <div class="detail" id="${c.id}-d" hidden>
+      <img src="cafe-photos/${c.slug}.jpg" alt="${esc(c.name)}" loading="lazy">
+      <div>
+        <dl class="facts">
+          <dt>Address</dt><dd>${esc(c.addr)}</dd>
+          <dt>Seats</dt><dd>${L.seats[c.seats]}</dd>
+          <dt>Google</dt><dd>${c.rating.toFixed(1)} ★ from ${c.reviews.toLocaleString('en-US')} reviews</dd>
+          <dt>Hours</dt><dd class="week">${DAYS.map(d => `<span data-day="${d}">${d.slice(0, 3)} ${fmt(range(c.hours[d]))}</span>`).join('<br>')}</dd>
+        </dl>
+        <a class="btn primary" href="${c.maps}" target="_blank" rel="noopener">Directions ↗</a>
+      </div>
+    </div>`;
+  c.el = li;
+  li._c = c;
+  rowsEl.appendChild(li);
+});
+
+const filters = {quiet:false, outlets:false, wifi:false, open:false};
+let area = 'all';
+const FILTER_NAMES = {quiet:'Quiet', outlets:'Outlet at every seat', wifi:'Fast Wi‑Fi', open:'Open now'};
+const PRED = {
+  quiet: c => c.noise === 'quiet',
+  outlets: c => c.outlets === 'every_table',
+  wifi: c => c.wifi === 'fast',
+  open: c => c.openNow,
+};
+const inArea = (c, a) => a === 'all' || (a === 'sea' ? c.city === 'Seattle' : c.city !== 'Seattle');
+const passes = (c, f, a) => inArea(c, a) && Object.keys(f).every(k => !f[k] || PRED[k](c));
+
+function refreshTimes() {
+  const now = seattleNow();
+  CAFES.forEach(c => {
+    const r = range(c.hours[now.day]);
+    c.openNow = !!r && now.mins >= r[0] && now.mins < r[1];
+    c.el.querySelector('.t-today').textContent = fmt(r);
+    const dot = c.el.querySelector('.dot');
+    dot.classList.toggle('open', c.openNow);
+    dot.title = c.openNow ? 'Open now' : 'Closed now';
+    c.el.querySelectorAll('.week span').forEach(s => { s.innerHTML = s.dataset.day === now.day ? `<b>${s.textContent}</b>` : s.textContent; });
+  });
+  $('#open-count').textContent = CAFES.filter(c => c.openNow).length;
+}
+
+function render() {
+  const shown = CAFES.filter(c => passes(c, filters, area));
+  CAFES.forEach(c => { c.el.hidden = !shown.includes(c); });
+  $('#count').textContent = shown.length;
+  $('#count-word').textContent = shown.length === 1 ? 'cafe' : 'cafes';
+  Object.keys(filters).forEach(k => {
+    $$(`[data-c="${k}"]`).forEach(el => el.classList.toggle('on', filters[k]));
+  });
+  const empty = $('#empty');
+  if (!shown.length) {
+    // Suggest the one filter whose removal brings back the most cafes.
+    let best = null;
+    Object.keys(filters).filter(k => filters[k]).forEach(k => {
+      const n = CAFES.filter(c => passes(c, {...filters, [k]:false}, area)).length;
+      if (!best || n > best.n) best = {k, n};
+    });
+    empty.innerHTML = best && best.n
+      ? `No cafe on the shortlist fits all of that. <button type="button" data-drop="${best.k}">Turn off “${FILTER_NAMES[best.k]}”</button> to see ${best.n}.`
+      : `No cafe on the shortlist fits that area and those filters. Try <button type="button" data-area="all">all areas</button>.`;
+    empty.hidden = false;
+  } else empty.hidden = true;
+  if (!hovered) cup.show(shown[0] || null);
+}
+$$('.toggle').forEach(b => b.addEventListener('click', () => {
+  const k = b.dataset.f;
+  filters[k] = !filters[k];
+  b.setAttribute('aria-pressed', filters[k]);
+  render();
+}));
+function setArea(a) {
+  area = a;
+  $$('.seg button').forEach(x => x.setAttribute('aria-checked', x.dataset.a === a));
+  render();
+}
+$$('.seg button').forEach(b => b.addEventListener('click', () => setArea(b.dataset.a)));
+$('#empty').addEventListener('click', e => {
+  const drop = e.target.closest('[data-drop]'), all = e.target.closest('[data-area]');
+  if (drop) { filters[drop.dataset.drop] = false; $(`[data-f="${drop.dataset.drop}"]`).setAttribute('aria-pressed', 'false'); render(); }
+  if (all) setArea('all');
+});
+
+/* expand one row at a time */
+rowsEl.addEventListener('click', e => {
+  const btn = e.target.closest('.row-main'); if (!btn) return;
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  $$('.row-main[aria-expanded="true"]').forEach(b => { b.setAttribute('aria-expanded', 'false'); b.nextElementSibling.hidden = true; });
+  if (!open) {
+    btn.setAttribute('aria-expanded', 'true');
+    const d = btn.nextElementSibling; d.hidden = false;
+    if (!RM) d.animate([{opacity:0, transform:'translateY(-6px)'}, {opacity:1, transform:'none'}], {duration:240, easing:'cubic-bezier(.2,.8,.2,1)'});
+  }
+});
+
+/* hover or focus a row → the cup fills to that cafe's score */
+let hovered = null;
+function point(c) { if (c === hovered) return; hovered = c; cup.show(c || CAFES.find(x => !x.el.hidden) || null); }
+rowsEl.addEventListener('pointerover', e => { const li = e.target.closest('.row'); if (li) point(li._c); });
+rowsEl.addEventListener('pointerleave', () => point(null));
+rowsEl.addEventListener('focusin', e => { const li = e.target.closest('.row'); if (li) point(li._c); });
+rowsEl.addEventListener('focusout', e => { if (!rowsEl.contains(e.relatedTarget)) point(null); });
+
+const toast = $('#toast');
+$$('[data-app]').forEach(b => b.addEventListener('click', () => {
+  toast.textContent = `In the Needle Space app, this opens ${b.dataset.app}: all 472 cafes on a map.`;
+  toast.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => { toast.hidden = true; }, 3000);
+}));
+
+/* ── The cup: glossy glaze, white interior, crema that rises to the score ── */
+function makeCup() {
+  const T = window.THREE; if (!T) throw new Error('no three');
+  const canvas = $('#cup'), stage = $('#stage');
+  const renderer = new T.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = T.sRGBEncoding;
+  renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.setClearColor(0, 0);
+  const col = hex => new T.Color(hex).convertSRGBToLinear();
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  const scene = new T.Scene();
+  const camera = new T.PerspectiveCamera(26, 1, 0.1, 50);
+  const LOOK = new T.Vector3(0, 0.42, 0);
+
+  // neutral studio: a white room with two long softboxes for crisp glaze highlights
+  const pm = new T.PMREMGenerator(renderer), env = new T.Scene();
+  env.add(new T.Mesh(new T.BoxGeometry(12, 12, 12), new T.MeshBasicMaterial({color:col(0x6d7080), side:T.BackSide})));
+  const box = (w, h, k, x, y, z) => { const m = new T.MeshBasicMaterial({color:0xffffff, side:T.DoubleSide}); m.color.multiplyScalar(k); const p = new T.Mesh(new T.PlaneGeometry(w, h), m); p.position.set(x, y, z); p.lookAt(0, 0.5, 0); env.add(p); };
+  box(1.2, 7, 5, -4, 2, 2.5); box(6, 1.2, 3, 0, 5.5, 0); box(1, 5, 2.5, 4.5, 1.5, -1);
+  scene.environment = pm.fromScene(env, 0.02).texture;
+  scene.add(new T.HemisphereLight(0xffffff, col(0x9aa0b4), 0.35));
+  const key = new T.DirectionalLight(0xffffff, 0.9); key.position.set(-3, 5, 4); scene.add(key);
+
+  const glaze = new T.MeshPhysicalMaterial({color:col(css('--accent') || '#2340E8'), roughness:0.16, metalness:0, clearcoat:1, clearcoatRoughness:0.04, side:T.DoubleSide});
+  const white = new T.MeshPhysicalMaterial({color:col(0xf7f7f4), roughness:0.2, clearcoat:0.8, clearcoatRoughness:0.08, side:T.DoubleSide});
+
+  const V = (x, y) => new T.Vector2(x, y);
+  const outer = new T.SplineCurve([V(0,0), V(0.27,0), V(0.31,0.02), V(0.32,0.06), V(0.37,0.1), V(0.47,0.2), V(0.555,0.36), V(0.605,0.55), V(0.628,0.75), V(0.634,0.92), V(0.628,0.99), V(0.614,1.0)]).getPoints(90);
+  const innerPts = [V(0.614,1.0), V(0.598,0.985), V(0.593,0.9), V(0.578,0.72), V(0.538,0.52), V(0.462,0.34), V(0.36,0.22), V(0.22,0.155), V(0,0.14)];
+  const inner = new T.SplineCurve(innerPts).getPoints(80);
+  const rInner = y => { // radius of the inner wall at height y
+    for (let i = 1; i < inner.length; i++) {
+      const a = inner[i - 1], b = inner[i];
+      if ((a.y - y) * (b.y - y) <= 0 && a.y !== b.y) return a.x + (b.x - a.x) * (y - a.y) / (b.y - a.y);
+    }
+    return 0.3;
+  };
+  const group = new T.Group(); scene.add(group);
+  const cup = new T.Group(); cup.position.y = 0.075; group.add(cup);
+  cup.add(new T.Mesh(new T.LatheGeometry(outer, 128), glaze));
+  cup.add(new T.Mesh(new T.LatheGeometry(inner, 128), white));
+  const handle = new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3([
+    new T.Vector3(0.6, 0.8, 0), new T.Vector3(0.84, 0.82, 0), new T.Vector3(0.95, 0.66, 0), new T.Vector3(0.87, 0.48, 0), new T.Vector3(0.68, 0.4, 0), new T.Vector3(0.52, 0.36, 0)]), 64, 0.048, 16, false), glaze);
+  cup.add(handle);
+  const saucer = new T.Mesh(new T.LatheGeometry(new T.SplineCurve([V(0,0), V(0.46,0), V(0.52,0.02), V(0.62,0.03), V(0.9,0.06), V(1.05,0.1), V(1.11,0.135), V(1.09,0.15), V(1.0,0.13), V(0.8,0.095), V(0.6,0.08), V(0.42,0.075), V(0,0.075)]).getPoints(90), 128), white);
+  group.add(saucer);
+
+  // crema: radial gradient + a poured heart
+  const cc = Object.assign(document.createElement('canvas'), {width:512, height:512}), cx = cc.getContext('2d');
+  const g = cx.createRadialGradient(256, 256, 20, 256, 256, 256);
+  g.addColorStop(0, '#B57A45'); g.addColorStop(0.55, '#8C552B'); g.addColorStop(0.9, '#5A321A'); g.addColorStop(1, '#3A1F10');
+  cx.fillStyle = g; cx.fillRect(0, 0, 512, 512);
+  cx.fillStyle = '#F4E6D2';
+  cx.beginPath(); cx.moveTo(256, 360);
+  cx.bezierCurveTo(150, 290, 150, 180, 212, 176); cx.bezierCurveTo(240, 174, 252, 196, 256, 214);
+  cx.bezierCurveTo(260, 196, 272, 174, 300, 176); cx.bezierCurveTo(362, 180, 362, 290, 256, 360); cx.fill();
+  const cremaTex = new T.CanvasTexture(cc); cremaTex.encoding = T.sRGBEncoding; cremaTex.center.set(0.5, 0.5);
+  const coffee = new T.Mesh(new T.CircleGeometry(1, 96), new T.MeshPhysicalMaterial({map:cremaTex, roughness:0.35, clearcoat:0.6, clearcoatRoughness:0.2}));
+  coffee.rotation.x = -Math.PI / 2; cup.add(coffee);
+
+  // contact shadow
+  const sc = Object.assign(document.createElement('canvas'), {width:256, height:256}), sx = sc.getContext('2d');
+  const sg = sx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  sg.addColorStop(0, 'rgba(0,0,0,.34)'); sg.addColorStop(0.5, 'rgba(0,0,0,.14)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+  sx.fillStyle = sg; sx.fillRect(0, 0, 256, 256);
+  const shadow = new T.Mesh(new T.PlaneGeometry(3, 3), new T.MeshBasicMaterial({map:new T.CanvasTexture(sc), transparent:true, depthWrite:false}));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = -0.002; scene.add(shadow);
+
+  function theme() {
+    glaze.color.copy(col(css('--accent') || '#2340E8'));
+    const dark = getComputedStyle(document.documentElement).colorScheme.includes('dark');
+    shadow.material.opacity = dark ? 0.9 : 0.75;
+    key.intensity = dark ? 1.1 : 0.9;
+  }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', theme);
+  new MutationObserver(theme).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+  theme();
+
+  function resize() {
+    const w = stage.clientWidth || 1, h = stage.clientHeight || 1;
+    renderer.setSize(w, h, false); camera.aspect = w / h;
+    const v = camera.fov * Math.PI / 360;
+    const d = Math.max(1.55 / 2 / Math.tan(v), 2.7 / 2 / (Math.tan(v) * camera.aspect));
+    const el = 0.5;
+    camera.position.set(0, LOOK.y + Math.sin(el) * d, Math.cos(el) * d);
+    camera.lookAt(LOOK); camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(stage); resize();
+
+  // drag to turn, otherwise a slow turntable
+  let yaw = 0.6, vel = RM ? 0 : 0.28, drag = null;
+  canvas.addEventListener('pointerdown', e => { drag = {x:e.clientX, t:performance.now()}; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, now = performance.now();
+    yaw += dx * 0.012; vel = clamp(dx * 0.012 / Math.max(0.008, (now - drag.t) / 1000), -10, 10);
+    drag.x = e.clientX; drag.t = now;
+  });
+  const end = () => { drag = null; canvas.style.cursor = ''; };
+  canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+
+  const lvl = {v:0.5, s:0};
+  let target = 0.85;
+  const levelFor = score => 0.36 + 0.54 * clamp((score - 3.5) / 1.5, 0, 1);
+  let last = performance.now(), raf = 0, visible = true, t = 0;
+  function frame(now) {
+    raf = 0; if (!visible) return;
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    if (!drag) {
+      const cruise = RM ? 0 : 0.28;
+      vel += (cruise - vel) * Math.min(1, dt * 1.6);
+      yaw += vel * dt;
+    }
+    group.rotation.y = yaw;
+    // springy fill with a little overshoot
+    if (RM) lvl.v = target;
+    else { lvl.s += ((target - lvl.v) * 90 - lvl.s * 11) * dt; lvl.v += lvl.s * dt; }
+    const y = clamp(lvl.v, 0.16, 0.97);
+    const r = rInner(y) * 0.995;
+    coffee.position.y = y; coffee.scale.set(r, r, 1);
+    coffee.rotation.z = RM ? 0 : Math.sin(t * 0.7) * 0.2;
+    renderer.render(scene, camera);
+    raf = requestAnimationFrame(frame);
+  }
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible && !raf) { last = performance.now(); raf = requestAnimationFrame(frame); } }).observe(stage);
+  return { setScore(score) { target = score == null ? 0.2 : levelFor(score); } };
+}
+
+let gl = null;
+try { gl = makeCup(); } catch (e) { $('#stage').classList.add('no-webgl'); }
+const cup = {
+  show(c) {
+    $('#read-score').textContent = c ? c.score.toFixed(1) : '—';
+    $('#read-name').textContent = c ? c.name : 'No cafe selected';
+    if (gl) gl.setScore(c ? c.score : null);
+  },
+};
+
+refreshTimes();
+render();
+setInterval(() => { refreshTimes(); render(); }, 60000);
+})();
+</script>

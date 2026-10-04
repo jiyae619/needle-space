@@ -171,6 +171,7 @@ export async function runSearch(
       .neq("business_status", "CLOSED_PERMANENTLY")
       .eq("hidden", false)
       .order("productivity_score", { ascending: false, nullsFirst: false });
+    if (rpcArgs.p_wifi_in)    q = q.or(mergedFilter("wifi_quality",        rpcArgs.p_wifi_in));
     if (rpcArgs.p_noise_in)   q = q.or(mergedFilter("noise_level",         rpcArgs.p_noise_in));
     if (rpcArgs.p_outlets_in) q = q.or(mergedFilter("outlet_availability", rpcArgs.p_outlets_in));
     if (rpcArgs.p_laptop_in)  q = q.or(mergedFilter("laptop_policy",       rpcArgs.p_laptop_in));

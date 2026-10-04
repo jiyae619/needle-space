@@ -34,7 +34,7 @@ export default function AlgorithmExplainer() {
         onClick={() => setOpen(s => !s)}
         aria-label="How Needle Space works"
         aria-expanded={open}
-        className="gs-nav-link inline-flex items-center justify-center rounded-sm min-w-[40px] min-h-[40px]"
+        className="ns-chip ns-chip-icon"
       >
         <Info size={18} weight="regular" aria-hidden />
       </button>
@@ -59,7 +59,7 @@ export default function AlgorithmExplainer() {
             </li>
             <li>
               <span className="font-semibold">Score →</span>{" "}
-              the productivity number weights wifi, outlets, noise, seating, and laptop policy, then blends with the cafe&rsquo;s Google rating. Hover the score for the breakdown.
+              the work score weights wifi, outlets, noise, seating, and laptop policy, then blends with the cafe&rsquo;s Google rating. Hover the score for the breakdown.
             </li>
             <li>
               <span className="font-semibold">Search →</span>{" "}

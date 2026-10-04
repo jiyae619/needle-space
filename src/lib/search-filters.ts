@@ -3,15 +3,19 @@
 import type { Cafe, Filters } from "./types";
 import { isOpenNow } from "./open-now";
 import { computeMergedScore } from "./score";
+import { mergeTag, type AttrKey } from "./merge-tags";
 
 // Translate the multi-value Filters into the match_cafes RPC arg shape.
 // `null` for an arg = "no constraint applied". The match_cafes signature
-// still expects p_wifi_in / p_seating_in / p_verified_only — we pass null
-// or false since those chips were retired from the UI.
+// still expects p_seating_in / p_verified_only — we pass null or false since
+// those chips were retired from the UI.
 export function buildRpcArgs(filters: Partial<Filters> | undefined) {
   const f = filters ?? {};
   return {
-    p_wifi_in: null as string[] | null,
+    p_wifi_in:
+      f.wifi === "fast" ? ["fast"]
+      : f.wifi === "fast_or_moderate" ? ["fast", "moderate"]
+      : null,
     p_noise_in:
       f.noise === "quiet" ? ["quiet"]
       : f.noise === "quiet_or_moderate" ? ["quiet", "moderate"]
@@ -80,4 +84,24 @@ export function applyPostFilters(
     if (filters.open_now === "open_now" && !isOpenNow(c.hours_json, now)) return false;
     return true;
   });
+}
+
+/**
+ * Does one cafe fit these filters? The browser-side twin of the search API's
+ * filter path: the same allowed tag values (buildRpcArgs), the same tag merge
+ * as mergedFilter() and match_cafes() (mergeTag), and the same post-filters.
+ * Lets a page count matches without a round trip and still agree with /explore.
+ */
+export function matchesFilters(cafe: Cafe, filters: Partial<Filters>, now?: Date): boolean {
+  if (cafe.hidden) return false;
+  const a = buildRpcArgs(filters);
+  const tagChecks: [AttrKey, string[] | null][] = [
+    ["wifi_quality", a.p_wifi_in],
+    ["noise_level", a.p_noise_in],
+    ["outlet_availability", a.p_outlets_in],
+    ["laptop_policy", a.p_laptop_in],
+  ];
+  if (tagChecks.some(([key, allowed]) => allowed && !allowed.includes(mergeTag(cafe, key)))) return false;
+  const neighborhoods = filters.location?.length ? filters.location : null;
+  return applyPostFilters([cafe], { filters, neighborhoods, cities: null, now }).length === 1;
 }
