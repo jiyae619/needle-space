@@ -220,21 +220,32 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* NL search bar with AI badge */}
-      <SearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        isSearching={isSearching}
-        resultsCount={results.length}
-      />
+    <div>
+      {/* Head band — the landing page's sage stage, so both pages read as one place. */}
+      <section className="gs-browse-head">
+        <div className="max-w-7xl mx-auto pt-6 sm:pt-8">
+          <div className="px-4">
+            <p className="gs-browse-eyebrow">See all · {initialCafes.length} cafes · Seattle, Bellevue, Redmond &amp; Kirkland</p>
+            <h1 className="gs-browse-title">Every cafe worth opening a laptop in.</h1>
+          </div>
+          {/* NL search bar with AI badge */}
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            isSearching={isSearching}
+            resultsCount={results.length}
+          />
 
-      {/* Filter chips — multi-value pickers */}
-      <FilterChips
-        filters={filters}
-        onChange={handleChipChange}
-        onClear={handleClear}
-      />
+          {/* Filter chips — multi-value pickers */}
+          <FilterChips
+            filters={filters}
+            onChange={handleChipChange}
+            onClear={handleClear}
+          />
+        </div>
+      </section>
+
+      <div className="max-w-7xl mx-auto pt-4">
 
       {/* Status — one quiet line for either kind of degradation, never two banners. */}
       {(searchError || semanticFallback) && (
@@ -328,12 +339,12 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
 
               {/* Infinite-scroll sentinel + end-of-index status. */}
               {visibleCount < filteredCafes.length && (
-                <div ref={sentinelRef} className="py-8 text-center text-[11px] tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
+                <div ref={sentinelRef} className="py-8 text-center gs-mono-label" style={{ color: "var(--gs-kraft)" }}>
                   Loading more…
                 </div>
               )}
               {visibleCount >= filteredCafes.length && filteredCafes.length > PAGE_SIZE && (
-                <p className="py-8 text-center text-[11px] tracking-widest uppercase" style={{ color: "var(--gs-kraft)" }}>
+                <p className="py-8 text-center gs-mono-label" style={{ color: "var(--gs-kraft)" }}>
                   End of index · {filteredCafes.length} cafes
                 </p>
               )}
@@ -353,13 +364,13 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
                   <button
                     type="button"
                     onClick={() => setSelectedCafeId(null)}
-                    className="gs-chip text-xs tracking-widest uppercase shrink-0"
+                    className="ns-chip shrink-0"
                   >
                     Undo selection
                   </button>
                 )}
               </div>
-              <div className="flex-1 min-h-0 rounded-xl overflow-hidden border border-[var(--gs-rule)]">
+              <div className="flex-1 min-h-0 gs-map-frame">
                 <MapView
                   cafes={filteredCafes}
                   selectedCafeId={selectedCafeId}
@@ -397,6 +408,8 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
           )}
         </div>
       )}
+
+      </div>
 
       {/* Back-to-top — visible after a meaningful scroll. */}
       <button

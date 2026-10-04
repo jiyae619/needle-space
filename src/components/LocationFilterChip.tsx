@@ -99,7 +99,7 @@ export default function LocationFilterChip({ value, onChange }: Props) {
           role="listbox"
           aria-label="Location"
           aria-multiselectable
-          className={`gs-popover fixed z-50 min-w-[220px] p-1 max-h-[60vh] overflow-y-auto${closing ? " is-closing" : ""}`}
+          className={`gs-popover fixed z-50 min-w-[240px] p-2 max-h-[60vh] overflow-y-auto${closing ? " is-closing" : ""}`}
           style={{
             left: pos.left,
             top: pos.top,
@@ -115,20 +115,10 @@ export default function LocationFilterChip({ value, onChange }: Props) {
                 role="option"
                 aria-selected={selected}
                 onClick={() => toggle(n)}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-stone-50 focus-visible:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--gs-accent)] focus-visible:outline-offset-[-2px]"
-                style={{ color: "var(--gs-ink)" }}
+                className="gs-option"
               >
-                <span
-                  aria-hidden
-                  className="inline-flex h-4 w-4 items-center justify-center rounded border"
-                  style={{
-                    borderColor: selected ? "var(--gs-accent)" : "var(--gs-rule)",
-                    backgroundColor: selected ? "var(--gs-accent)" : "transparent",
-                  }}
-                >
-                  {selected && <span className="text-white text-[10px] leading-none">✓</span>}
-                </span>
-                {n}
+                <span className="gs-option-label">{n}</span>
+                <svg className="gs-option-check" viewBox="0 0 16 12" aria-hidden="true"><path d="M1.5 6.5 5.8 10.5 14.5 1.5" /></svg>
               </button>
             );
           })}
@@ -137,7 +127,7 @@ export default function LocationFilterChip({ value, onChange }: Props) {
               type="button"
               onClick={clear}
               aria-label="Clear all neighborhoods"
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 mt-1 text-left text-sm hover:bg-stone-50 focus-visible:bg-stone-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--gs-accent)] focus-visible:outline-offset-[-2px] border-t min-h-[40px]"
+              className="gs-option gs-mono-label mt-1 border-t min-h-[40px]"
               style={{ color: "var(--gs-kraft)", borderColor: "var(--gs-rule)" }}
             >
               <X size={12} weight="bold" aria-hidden />

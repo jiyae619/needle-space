@@ -60,8 +60,8 @@ export default async function CafeDetailPage({
           <CafeCrowdness cafeId={cafe.id} />
         </div>
         <h1
-          className="font-display font-medium text-4xl md:text-5xl leading-[1.05] tracking-tight"
-          style={{ color: "var(--gs-espresso)" }}
+          className="gs-browse-title"
+          style={{ maxWidth: "none" }}
         >
           {cafe.name}
         </h1>

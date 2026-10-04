@@ -73,8 +73,8 @@ export default function ScoreBreakdown({ cafe }: { cafe: Cafe }) {
   return (
     <div className="gs-card p-5">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="font-display font-bold text-lg" style={{ color: "var(--gs-espresso)" }}>
-          Score breakdown
+        <h2 className="font-display font-bold text-lg" style={{ color: "var(--gs-espresso)", fontStretch: "85%" }}>
+          Work score breakdown
         </h2>
         {score !== null && (
           <div>
