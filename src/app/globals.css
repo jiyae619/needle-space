@@ -611,6 +611,54 @@ h1, h2, h3, .font-display {
   .gs-spin { opacity: 0.6; }
 }
 
+/* ── Cafe page: the full receipt ────────────────────────────────
+   One long ticket: the same paper, mono labels, dotted leaders and torn
+   edges as the tickets on the rail, itemizing the work score. */
+.rc { --rc-paper: var(--gs-ticket); position: relative; margin: 22px auto 14px; padding: 26px clamp(18px, 4vw, 34px) 30px;
+  background: var(--rc-paper); color: var(--gs-espresso); box-shadow: 0 18px 40px -28px rgba(58, 40, 28, .5);
+  font: 500 0.78rem/1.5 var(--gs-mono); font-stretch: 87.5%; letter-spacing: .02em; text-transform: uppercase; }
+.rc::before, .rc::after { content: ""; position: absolute; left: 0; right: 0; height: 10px;
+  background: linear-gradient(135deg, var(--rc-paper) 50%, transparent 50%) 0 0 / 12px 12px repeat-x,
+              linear-gradient(-135deg, var(--rc-paper) 50%, transparent 50%) 0 0 / 12px 12px repeat-x; }
+.rc::after { bottom: -10px; }
+.rc::before { top: -10px; transform: scaleY(-1); }
+.rc-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 0.66rem; letter-spacing: .08em; color: var(--ct-soft); }
+.rc-photo { position: relative; aspect-ratio: 16 / 9; margin-top: 12px; overflow: hidden; border-radius: 2px; background: var(--gs-paper); }
+.rc-head { padding: 18px 0 16px; border-bottom: 1.5px dashed rgba(51, 39, 31, .25); }
+.rc-where { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 0.68rem; letter-spacing: .08em; color: var(--ct-soft); }
+.rc-name { margin: 8px 0 0; font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif; font-weight: 800; font-stretch: 75%;
+  font-size: clamp(2.2rem, 7vw, 3.4rem); line-height: .92; letter-spacing: -.035em; text-transform: none; text-wrap: balance; }
+.rc-vibes { margin: 10px 0 0; font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif; font-style: italic;
+  font-size: 0.95rem; letter-spacing: 0; text-transform: none; color: var(--gs-ink); }
+.rc-section { padding: 16px 0; border-bottom: 1.5px dashed rgba(51, 39, 31, .25); }
+.rc-h { margin: 0 0 10px; font: 700 0.66rem/1.4 var(--gs-mono); font-stretch: 87.5%; letter-spacing: .12em; color: var(--gs-accent); }
+.rc-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rc-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.rc-line i { flex: 1; min-width: 12px; border-bottom: 1.5px dotted rgba(51, 39, 31, .32); transform: translateY(-3px); }
+.rc-line b { font-weight: 700; white-space: nowrap; text-align: right; }
+.rc-line b.is-unknown { color: var(--ct-soft); font-weight: 500; }
+.rc-items li.is-today .rc-line { font-weight: 800; color: var(--gs-accent); }
+.rc-fine { margin: 4px 0 0; font-size: 0.64rem; line-height: 1.45; letter-spacing: .03em; color: var(--ct-soft); }
+.rc-fine a { color: inherit; text-underline-offset: 3px; }
+.rc-quote { display: block; margin-top: 2px; font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif; font-style: italic;
+  font-size: 0.82rem; letter-spacing: 0; text-transform: none; color: var(--gs-ink); }
+.rc-total { display: flex; align-items: flex-end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1.5px solid var(--gs-espresso); }
+.rc-total span { font-size: 0.66rem; line-height: 1.3; letter-spacing: .08em; color: var(--ct-soft); }
+.rc-total b { margin-left: auto; font: 800 3.4rem/.8 var(--font-display), "Helvetica Neue", Arial, sans-serif; font-stretch: 75%; letter-spacing: -.035em; }
+.rc-total small { font-size: 0.8rem; font-weight: 700; }
+.rc-note { margin: 0; font-family: var(--font-display), "Helvetica Neue", Arial, sans-serif; font-size: 1rem; line-height: 1.5;
+  letter-spacing: 0; text-transform: none; color: var(--gs-ink); white-space: pre-line; }
+.rc-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.rc-btn { display: inline-flex; align-items: center; justify-content: center; flex: 1 1 140px; min-height: 46px; padding: 0 16px; border-radius: 4px;
+  border: 1.5px solid rgba(51, 39, 31, .35); color: var(--gs-espresso); text-decoration: none; font: 700 0.72rem/1 var(--gs-mono);
+  font-stretch: 87.5%; letter-spacing: .08em; text-transform: uppercase; transition: background-color .2s, border-color .2s, transform .3s var(--ct-ease); }
+.rc-btn-primary { background: var(--gs-espresso); border-color: var(--gs-espresso); color: var(--gs-cream); }
+@media (hover: hover) { .rc-btn:hover { border-color: var(--gs-espresso); transform: translateY(-1px); } .rc-btn-primary:hover { background: var(--gs-accent); border-color: var(--gs-accent); } }
+.rc-foot { padding-top: 18px; text-align: center; }
+.rc-foot > p:first-child { margin: 0; font-weight: 800; letter-spacing: .14em; }
+.rc-barcode { display: block; height: 34px; margin: 14px auto 0; width: min(240px, 70%); opacity: .85;
+  background: repeating-linear-gradient(90deg, var(--gs-espresso) 0 2px, transparent 2px 4px, var(--gs-espresso) 4px 5px, transparent 5px 8px, var(--gs-espresso) 8px 11px, transparent 11px 13px); }
+
 /* ── Landing page: the Counter ─────────────────────────────────
    Sage cup stage beside a linen counter. Fonts come in as CSS variables
    from src/app/page.tsx (Bricolage Grotesque, Martian Mono, Permanent Marker). */

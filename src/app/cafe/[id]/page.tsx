@@ -1,12 +1,15 @@
 import { getCafeById } from "@/lib/cafes";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { MapPin, Phone, Globe, Star, NavigationArrow } from "@phosphor-icons/react/dist/ssr";
 import ScoreBreakdown from "@/components/ScoreBreakdown";
 import BackLink from "@/components/BackLink";
 import CafeCrowdness from "@/components/CafeCrowdness";
+import { seattleNow } from "@/lib/open-now";
 
 export const dynamic = "force-dynamic";
+
+const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+const DAYS_FROM_MONDAY = [...DAYS.slice(1), DAYS[0]];
 
 // Direct Google Places URLs leak the API key; treat them as broken so we
 // fall through to no hero image instead of a broken-image icon.
@@ -32,170 +35,103 @@ export default async function CafeDetailPage({
   // The main photo is already the hero; don't show it twice. Newest first.
   const visitPhotos = [...(cafe.visit_photos ?? [])].reverse().filter(url => url !== photo);
 
+  const now = seattleNow();
+  const today = DAYS[now.getDay()];
+  const printed = now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
   return (
-    <article className="max-w-3xl mx-auto px-4 py-4 pb-16">
+    <div className="max-w-2xl mx-auto px-4 py-4 pb-16">
       <BackLink />
 
-      {/* Hero — full-bleed editorial, no border, taller than before. */}
-      {photo && (
-        <div className="gs-detail-hero">
-          <Image
-            src={photo}
-            alt={`Inside ${cafe.name}`}
-            fill
-            sizes="(max-width: 768px) 100vw, 800px"
-            className="object-cover"
-            unoptimized
-            priority
-          />
-        </div>
-      )}
+      {/* The cafe as one receipt — the same paper as the tickets on the rail. */}
+      <article className="rc">
+        <div className="rc-meta"><span>Dine-in · 1 laptop</span><span>{printed}</span></div>
 
-      {/* Header */}
-      <header className="mt-8 mb-10">
-        <div className="flex items-center justify-between gap-3 mb-2">
-          <p className="text-xs tracking-[0.22em] uppercase font-semibold" style={{ color: "var(--gs-kraft)" }}>
-            {cafe.neighborhood}
-          </p>
-          <CafeCrowdness cafeId={cafe.id} />
-        </div>
-        <h1
-          className="gs-browse-title"
-          style={{ maxWidth: "none" }}
-        >
-          {cafe.name}
-        </h1>
-
-        {cafe.vibe_keywords && cafe.vibe_keywords.length > 0 && (
-          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-5">
-            {cafe.vibe_keywords.map((kw) => (
-              <span key={kw} className="gs-vibe-tag">{kw}</span>
-            ))}
+        {photo && (
+          <div className="rc-photo">
+            <Image src={photo} alt={`Inside ${cafe.name}`} fill sizes="(max-width: 768px) 100vw, 640px" className="object-cover" unoptimized priority />
           </div>
         )}
 
-        {cafe.google_rating && (
-          <div className="flex items-center gap-1.5 mt-5 text-sm gs-num" style={{ color: "var(--gs-ink)" }}>
-            <Star size={14} weight="fill" style={{ color: "var(--gs-warn)" }} aria-hidden />
-            <span>{cafe.google_rating}</span>
-            <span style={{ color: "var(--gs-kraft)" }}>
-              · {cafe.google_review_count} reviews
-            </span>
+        <header className="rc-head">
+          <div className="rc-where">
+            <span>{cafe.neighborhood}</span>
+            <CafeCrowdness cafeId={cafe.id} />
           </div>
-        )}
-      </header>
+          <h1 className="rc-name">{cafe.name}</h1>
+          {cafe.vibe_keywords && cafe.vibe_keywords.length > 0 && (
+            <p className="rc-vibes">{cafe.vibe_keywords.join(" · ")}</p>
+          )}
+          {cafe.google_rating && (
+            <p className="rc-fine">{cafe.google_rating}★ on Google · {cafe.google_review_count} reviews</p>
+          )}
+        </header>
 
-      {/* Score breakdown */}
-      <section className="gs-detail-section">
-        <ScoreBreakdown cafe={cafe} />
-      </section>
-
-      {/* What was recorded in person via /admin/visit. */}
-      {(cafe.visit_note || visitPhotos.length > 0) && (
-        <section className="gs-detail-section">
-          <h2 className="gs-detail-heading">From a visit</h2>
-          {cafe.visited_at && (
-            <p className="text-xs gs-num mb-2" style={{ color: "var(--gs-kraft)" }}>
-              {new Date(cafe.visited_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-            </p>
-          )}
-          {cafe.visit_note && (
-            <p className="text-sm whitespace-pre-line" style={{ color: "var(--gs-ink)" }}>{cafe.visit_note}</p>
-          )}
-          {visitPhotos.length > 0 && (
-            <div className="flex gap-3 overflow-x-auto mt-4 -mx-4 px-4 pb-2 snap-x">
-              {visitPhotos.map(url => (
-                <div key={url} className="relative w-56 aspect-[4/3] shrink-0 rounded overflow-hidden snap-start bg-[var(--gs-paper)]">
-                  <Image src={url} alt={`At ${cafe.name}`} fill sizes="224px" className="object-cover" unoptimized />
-                </div>
-              ))}
-            </div>
-          )}
+        <section className="rc-section" aria-labelledby="rc-items-h">
+          <h2 className="rc-h" id="rc-items-h">Your order, itemized</h2>
+          <ScoreBreakdown cafe={cafe} />
         </section>
-      )}
 
-      {/* Location & Info — borderless editorial section with horizontal rule. */}
-      <section className="gs-detail-section">
-        <h2 className="gs-detail-heading">Location &amp; Info</h2>
-        <div className="space-y-2.5 text-sm" style={{ color: "var(--gs-ink)" }}>
-          <div className="flex items-start gap-3">
-            <MapPin size={16} weight="regular" className="shrink-0 mt-0.5" style={{ color: "var(--gs-kraft)" }} aria-hidden />
-            <span>{cafe.address}</span>
-          </div>
-          {cafe.phone && (
-            <div className="flex items-start gap-3">
-              <Phone size={16} weight="regular" className="shrink-0 mt-0.5" style={{ color: "var(--gs-kraft)" }} aria-hidden />
-              <a href={`tel:${cafe.phone}`} className="hover:underline">{cafe.phone}</a>
-            </div>
-          )}
-          {cafe.website && (
-            <div className="flex items-start gap-3">
-              <Globe size={16} weight="regular" className="shrink-0 mt-0.5" style={{ color: "var(--gs-kraft)" }} aria-hidden />
-              <a
-                href={cafe.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="truncate hover:underline"
-                style={{ color: "var(--gs-ink)" }}
-              >
-                {cafe.website.replace(/^https?:\/\//, "")}
-              </a>
-            </div>
-          )}
-        </div>
-      </section>
+        {/* What was recorded in person via /admin/visit. */}
+        {(cafe.visit_note || visitPhotos.length > 0) && (
+          <section className="rc-section" aria-labelledby="rc-visit-h">
+            <h2 className="rc-h" id="rc-visit-h">
+              From a visit
+              {cafe.visited_at && <> · {new Date(cafe.visited_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</>}
+            </h2>
+            {cafe.visit_note && <p className="rc-note">{cafe.visit_note}</p>}
+            {visitPhotos.length > 0 && (
+              <div className="flex gap-3 overflow-x-auto mt-4 pb-2 snap-x">
+                {visitPhotos.map(url => (
+                  <div key={url} className="relative w-56 aspect-[4/3] shrink-0 overflow-hidden snap-start rounded-sm bg-[var(--gs-paper)]">
+                    <Image src={url} alt={`At ${cafe.name}`} fill sizes="224px" className="object-cover" unoptimized />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
-      {/* Hours */}
-      {cafe.hours_json && (
-        <section className="gs-detail-section">
-          <h2 className="gs-detail-heading">Hours</h2>
-          <div className="space-y-1.5 text-sm gs-num">
-            {(["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] as const)
-              .map(day => {
+        {cafe.hours_json && (
+          <section className="rc-section" aria-labelledby="rc-hours-h">
+            <h2 className="rc-h" id="rc-hours-h">Hours</h2>
+            <ul className="rc-items">
+              {DAYS_FROM_MONDAY.map(day => {
                 const value = cafe.hours_json?.[day];
                 if (!value) return null;
                 return (
-                  <div key={day} className="flex justify-between">
-                    <span className="capitalize" style={{ color: "var(--gs-kraft)" }}>{day}</span>
-                    <span style={{ color: "var(--gs-espresso)" }}>{value}</span>
-                  </div>
+                  <li key={day} className={day === today ? "is-today" : undefined}>
+                    <div className="rc-line"><span>{day === today ? `${day.slice(0, 3)} · today` : day.slice(0, 3)}</span><i /><b>{value}</b></div>
+                  </li>
                 );
               })}
+            </ul>
+          </section>
+        )}
+
+        <section className="rc-section" aria-labelledby="rc-pickup-h">
+          <h2 className="rc-h" id="rc-pickup-h">Pick up at</h2>
+          <p className="rc-note">{cafe.address}</p>
+          {cafe.phone && <p className="rc-fine">{cafe.phone}</p>}
+          {cafe.website && (
+            <p className="rc-fine">
+              <a href={cafe.website} target="_blank" rel="noopener noreferrer">{cafe.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a>
+            </p>
+          )}
+          <div className="rc-actions">
+            <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="rc-btn rc-btn-primary">Directions ↗</a>
+            {cafe.website && <a href={cafe.website} target="_blank" rel="noopener noreferrer" className="rc-btn">Website ↗</a>}
           </div>
         </section>
-      )}
 
-      {/* Actions */}
-      <div className="flex gap-3 mt-10">
-        <a
-          href={googleMapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="gs-btn-ink flex-1 justify-center"
-        >
-          <NavigationArrow size={16} weight="fill" aria-hidden />
-          Get directions
-        </a>
-        {cafe.website && (
-          <a
-            href={cafe.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="gs-btn-ghost flex-1 justify-center"
-          >
-            <Globe size={16} weight="regular" aria-hidden />
-            Visit website
-          </a>
-        )}
-      </div>
-
-      <p className="text-center text-xs mt-10" style={{ color: "var(--gs-kraft)" }}>
-        Last verified{" "}
-        {new Date(cafe.last_synced_at).toLocaleDateString("en-US", {
-          month: "long",
-          year: "numeric",
-        })}
-      </p>
-    </article>
+        <footer className="rc-foot">
+          <p>Thank you for working here</p>
+          <p className="rc-fine">
+            Last checked {new Date(cafe.last_synced_at).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+          </p>
+          <span className="rc-barcode" aria-hidden="true" />
+        </footer>
+      </article>
+    </div>
   );
 }
