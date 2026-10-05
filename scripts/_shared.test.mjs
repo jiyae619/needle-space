@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey, brandPhrase, mentionsCafe, chainBrands, resultsAboutCafe, explicitQuotes, websiteSentences } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -340,5 +340,81 @@ describe("cafe list rules", () => {
   it("spots duplicate names", () => {
     expect(nameKey("Moment Coffee")).toBe(nameKey("MOMENT coffee"));
     expect(nameKey("Moment Coffee")).not.toBe(nameKey("Momento Coffee"));
+  });
+});
+
+describe("evidence has to be about this cafe", () => {
+  // 2026-10-05: TruLe Yours was tagged "fast Wi-Fi, most outlets" from a 2017
+  // r/Coffee reply about somebody else's favourite shop.
+  const trule = { name: "TruLe Yours Cafe", neighborhood: "Queen Anne" };
+  const offTopic = { url: "https://reddit.com/r/Coffee/6bah01", snippet: "They have a ton of tables, super fast wifi, lots of outlets, large outdoor area." };
+  const onTopic = { url: "https://reddit.com/r/Seattle/x", snippet: "TruLe Yours on Aurora has fast wifi and outlets by the window." };
+
+  it("drops a Reddit post that never names the cafe", () => {
+    expect(resultsAboutCafe([offTopic, onTopic], trule)).toEqual([onTopic]);
+  });
+
+  it("names a cafe by its distinctive words, not 'coffee' or its area", () => {
+    expect(brandPhrase("TruLe Yours Cafe")).toBe("trule yours");
+    expect(brandPhrase("Espresso Vivace South Lake Union")).toBe("vivace");
+    expect(brandPhrase("Caffe Appassionato Coffee Roastery and Tasting Bar")).toBe("appassionato");
+    expect(brandPhrase("Coffee Shop")).toBe("");
+    // a generic name can't be matched to any post, so it gets no Reddit evidence
+    expect(mentionsCafe("Best coffee shop in Seattle", { name: "Coffee Shop" })).toBe(false);
+  });
+
+  it("matches whole words, accents and possessives", () => {
+    expect(mentionsCafe("I love Bob's Java Jive", { name: "Bob's Java Jive" })).toBe(true);
+    expect(mentionsCafe("cafe allegro is great", { name: "Café Allegro" })).toBe(true);
+    expect(mentionsCafe("an allegrotto band", { name: "Café Allegro" })).toBe(false);
+  });
+
+  it("keeps only the words near the cafe's name when a post lists several cafes", () => {
+    const post = "Cherry Street Coffee House is great for sitting inside and doing work. " + "x ".repeat(150) +
+      "Some other place has super fast wifi and outlets everywhere.";
+    const [kept] = resultsAboutCafe([{ snippet: post }], { name: "Cherry Street Coffee House" });
+    expect(kept.snippet).toContain("great for sitting inside");
+    expect(kept.snippet).not.toContain("super fast wifi");
+  });
+
+  it("needs the branch's area for a chain, or the post could be about any branch", () => {
+    const cafes = [{ name: "Zoka Coffee Company / Greenlake" }, { name: "Zoka Coffee - Kirkland" }, trule];
+    const chains = chainBrands(cafes);
+    expect([...chains]).toEqual(["zoka"]);
+    const greenlake = { name: "Zoka Coffee Company / Greenlake", neighborhood: "Wallingford" };
+    expect(resultsAboutCafe([{ snippet: "Zoka has good wifi" }], greenlake, chains)).toEqual([]);
+    expect(resultsAboutCafe([{ snippet: "The Zoka in Wallingford has good wifi" }], greenlake, chains)).toHaveLength(1);
+  });
+});
+
+describe("a tag needs a quote that names its category", () => {
+  it("keeps 'fast wifi' for Wi-Fi but not a vibe line", () => {
+    expect(explicitQuotes({
+      wifi_quality: ["super fast wifi", "great place to hang out"],
+      noise_level: ["very calm and not loud at all", "Great little coffee shop, super chill, nice vibe"],
+      seating_availability: ["The place has plenty of room to sit"],
+      outlet_availability: ["has a decent number of armchairs"],
+      laptop_policy: ["Limited to 45 min", "Super cute drive-up or walk-up spot!"],
+    })).toEqual({
+      wifi_quality: ["super fast wifi"],
+      noise_level: ["very calm and not loud at all"],
+      seating_availability: ["The place has plenty of room to sit"],
+      outlet_availability: [],
+      laptop_policy: ["Limited to 45 min"],
+    });
+  });
+});
+
+describe("websiteSentences", () => {
+  it("keeps what a cafe's own page says about working there, not menu copy or scripts", () => {
+    const html = `<p>Come in for free WiFi and cozy seating!</p><script>var wifi = 1;</script>
+      <p>Bring a slice of Albania to your Seattle table.</p><div>Outlets along the window bar</div>`;
+    expect(websiteSentences(html)).toEqual(["Come in for free WiFi and cozy seating!", "Outlets along the window bar."]);
+  });
+
+  it("doesn't change the research fingerprint of a cafe with no website text", () => {
+    const r = [{ url: "u", snippet: "Fast wifi." }];
+    expect(researchFingerprint(r, false, [])).toBe(researchFingerprint(r, false));
+    expect(researchFingerprint(r, false, ["Free WiFi."])).not.toBe(researchFingerprint(r, false));
   });
 });

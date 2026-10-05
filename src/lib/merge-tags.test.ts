@@ -50,7 +50,19 @@ describe("tagProvenance", () => {
   it("returns the review quote and confidence for a text tag", () => {
     const c = { ...base, noise_level_llm: "quiet",
       tagging_confidence: { noise_level: { confidence: 0.8, evidence: ["so quiet"], source: "text" } } } as Cafe;
-    expect(tagProvenance(c, "noise_level")).toEqual({ source: "text", confidence: 0.8, quote: "so quiet" });
+    expect(tagProvenance(c, "noise_level")).toEqual({ source: "text", confidence: 0.8, quote: "so quiet", from: null });
+  });
+
+  it("says where a quote came from, so a page can tell a review from the cafe's website", () => {
+    const c = { ...base, wifi_quality_llm: "fast",
+      tagging_confidence: { wifi_quality: { confidence: 0.8, evidence: ["free fast WiFi"], source: "text", from: "website" } } } as Cafe;
+    expect(tagProvenance(c, "wifi_quality")).toMatchObject({ source: "text", from: "website" });
+  });
+
+  it("credits Yelp's free-WiFi category for a Wi-Fi tag with no quote", () => {
+    const c = { ...base, wifi_quality_llm: "moderate",
+      tagging_confidence: { wifi_quality: { confidence: 0.55, evidence: [], source: "yelp" } } } as Cafe;
+    expect(tagProvenance(c, "wifi_quality")).toEqual({ source: "yelp" });
   });
 
   it("returns the photo reason for a vision tag", () => {

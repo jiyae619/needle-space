@@ -20,6 +20,18 @@
  *   returns at least one Yelp "free wifi" listing page that mentions this
  *   cafe by name. Yelp snippets are NOT stored as prose evidence.
  *
+ * v3 (2026-10-05): evidence must be about THIS cafe.
+ *   - A Reddit snippet is kept only if it names the cafe (and, for a chain,
+ *     the branch's neighborhood) — see mentionsCafe in _shared.mjs. Before,
+ *     every post from an allowed subreddit was kept; 619 of 859 were about
+ *     other places and fed wrong tags to 90 cafes.
+ *   - Tavily's `answer` is no longer stored: it is AI-written and summarised
+ *     those same off-topic posts.
+ *   - The cafe's own website is read: sentences about Wi-Fi, outlets, seating
+ *     or working there are stored as quotable evidence.
+ *   --recheck-stored re-applies these rules to what is already stored and
+ *   reads the websites, without calling Tavily (use once after this change).
+ *
  * Note on date filtering: Tavily snippets don't include post timestamps,
  * so a "2021+" filter would require a second fetch per URL to read post
  * metadata. We instead trust Tavily's relevance ranking to bias toward
@@ -35,11 +47,10 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.mjs";
-import { researchFingerprint } from "./_shared.mjs";
+import { researchFingerprint, resultsAboutCafe, chainBrands, websiteSentences } from "./_shared.mjs";
 
 const TAVILY_KEY = env.TAVILY_API_KEY;
 const supabase   = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-if (!TAVILY_KEY) { console.error("❌ TAVILY_API_KEY missing"); process.exit(1); }
 
 const argv = process.argv.slice(2);
 const flag = (name) => {
@@ -52,6 +63,8 @@ const DRY_RUN     = !!flag("--dry-run");
 const FORCE       = !!flag("--force");
 const FILTER_CAFE = typeof flag("--cafe") === "string" ? flag("--cafe") : null;
 const LIMIT       = typeof flag("--limit") === "string" ? parseInt(flag("--limit"), 10) : null;
+const RECHECK     = !!flag("--recheck-stored");
+if (!TAVILY_KEY && !RECHECK) { console.error("❌ TAVILY_API_KEY missing"); process.exit(1); }
 
 // Target subreddits — cafe/working-from-home-adjacent communities. We extract
 // the subreddit slug from the Reddit URL and filter in code.
@@ -119,7 +132,7 @@ function distinctiveTokens(name) {
 // Partition a Tavily response into:
 //   - reddit: prose snippets from one of our target subreddits
 //   - yelpFreeWifi: true if any Yelp "free wifi" listing mentions the cafe
-function partitionResults(result, cafe) {
+function partitionResults(result, cafe, chains) {
   const reddit = [];
   let yelpFreeWifi = false;
   const cafeTokens = distinctiveTokens(cafe.name);
@@ -153,7 +166,83 @@ function partitionResults(result, cafe) {
     }
     // Everything else (off-topic subs, Yelp business pages, etc.) gets dropped.
   }
-  return { reddit, yelpFreeWifi };
+  return { reddit: resultsAboutCafe(reddit, cafe, chains), yelpFreeWifi };
+}
+
+// Pages that aren't the cafe's own site: social profiles and ordering apps.
+const NOT_OWN_SITE = /(^|\.)(instagram|facebook|linktr|toasttab|doordash|ubereats|grubhub|yelp|google|tiktok|x|twitter)\.(com|ee)$/i;
+
+/** Workspace sentences from the cafe's own homepage; [] when there is none or it can't be read. */
+async function readWebsite(url) {
+  let host;
+  try { host = new URL(url).hostname; } catch { return []; }
+  if (NOT_OWN_SITE.test(host)) return [];
+  try {
+    const res = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; NeedleSpaceBot/1.0; +https://needle-space.netlify.app)" },
+    });
+    if (!res.ok || !/text\/html/i.test(res.headers.get("content-type") ?? "")) return [];
+    return websiteSentences((await res.text()).slice(0, 1_500_000));
+  } catch {
+    return [];
+  }
+}
+
+// explicit null = "researched, nothing usable about this cafe"
+function researchPayload(query, reddit, website, site) {
+  if (!reddit.length && !site.length) return null;
+  return { query, results: reddit, ...(site.length ? { website: { url: website, sentences: site } } : {}) };
+}
+
+// --recheck-stored: apply the "about this cafe" rules to the stored research
+// and read each cafe's website, without a Tavily call. Only NEW evidence (website
+// sentences we didn't have) moves web_research_at and earns an LLM re-tag; a
+// cafe that only lost off-topic posts is handled by the tagger's
+// --recheck-quotes, which needs no Gemini calls.
+async function recheckStored(cafes, chains) {
+  let targets = cafes;
+  if (LIMIT) targets = targets.slice(0, LIMIT);
+  console.log(`📋 Re-checking stored research for ${targets.length} cafe${targets.length === 1 ? "" : "s"} (no Tavily calls)\n`);
+  const totals = { changed: 0, retag: 0, unchanged: 0, failed: 0, droppedReddit: 0, keptReddit: 0, withSite: 0 };
+  for (const cafe of targets) {
+    const stored = cafe.web_research_snippets;
+    const before = stored?.results ?? [];
+    const reddit = resultsAboutCafe(before, cafe, chains);
+    const site = cafe.website ? await readWebsite(cafe.website) : [];
+    totals.droppedReddit += before.length - reddit.length;
+    totals.keptReddit += reddit.length;
+    if (site.length) totals.withSite++;
+    const hash = researchFingerprint(reddit, cafe.yelp_free_wifi, site);
+    const previous = cafe.web_research_hash ?? (cafe.web_research_at
+      ? researchFingerprint(before, cafe.yelp_free_wifi, stored?.website?.sentences) : null);
+    // A stored Tavily answer goes too, even when nothing else changed.
+    const changed = hash !== previous || !!stored?.answer;
+    if (!changed) { totals.unchanged++; continue; }
+    console.log(`━━━ ${cafe.name}`);
+    const newSite = site.length > 0 && JSON.stringify(site) !== JSON.stringify(stored?.website?.sentences ?? []);
+    if (newSite) totals.retag++;
+    console.log(`    Reddit: kept ${reddit.length} of ${before.length}  ·  Website sentences: ${site.length}${newSite ? " (new → re-tag)" : ""}${stored?.answer ? "  ·  drops the search tool's summary" : ""}`);
+    for (const r of before.filter(r => !reddit.includes(r)).slice(0, 2)) console.log(`    ✂️  [r/${r.subreddit}] "${(r.snippet ?? "").slice(0, 110)}…"`);
+    for (const t of site.slice(0, 2)) console.log(`    🌐 "${t.slice(0, 140)}"`);
+    totals.changed++;
+    if (DRY_RUN) continue;
+    const stamp = new Date().toISOString();
+    const { error } = await supabase.from("cafes").update({
+      web_research_snippets: researchPayload(stored?.query ?? buildQuery(cafe), reddit, cafe.website, site),
+      web_research_checked_at: stamp, web_research_hash: hash,
+      ...(newSite ? { web_research_at: stamp } : {}),
+    }).eq("id", cafe.id);
+    if (error) { console.log(`    ❌ write failed: ${error.message}`); totals.failed++; totals.changed--; }
+  }
+  console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log(`${DRY_RUN ? "Would change" : "Changed"}:  ${totals.changed} cafes`);
+  console.log(`New website evidence (LLM re-tag): ${totals.retag}`);
+  console.log(`Unchanged:     ${totals.unchanged}`);
+  console.log(`Reddit snippets kept / dropped: ${totals.keptReddit} / ${totals.droppedReddit}`);
+  console.log(`Cafes with website sentences:   ${totals.withSite}`);
+  if (totals.failed) { console.log(`Failed:        ${totals.failed}`); process.exitCode = 1; }
 }
 
 async function main() {
@@ -177,7 +266,7 @@ async function main() {
   // drop the fresh ones — so `--limit 5` could research 0 cafes and always the
   // same alphabetical head.
 
-  let { data: cafes, error } = await load("id, name, neighborhood, web_research_at, web_research_checked_at, web_research_hash, web_research_snippets, yelp_free_wifi");
+  let { data: cafes, error } = await load("id, name, neighborhood, website, web_research_at, web_research_checked_at, web_research_hash, web_research_snippets, yelp_free_wifi");
   const CHANGE_AWARE = !error;
   if (!CHANGE_AWARE) {
     console.warn("   ⚠️  web_research_checked_at/web_research_hash missing — apply 20260929010000_research_fingerprint.sql. Every re-check will trigger a re-tag.\n");
@@ -185,6 +274,13 @@ async function main() {
   }
   if (error) { console.error("❌", error.message); process.exit(1); }
   if (!cafes?.length) { console.log("No cafes match."); return; }
+
+  // Chains are judged across the whole catalog, not just the cafes this run picked.
+  const { data: everyName, error: namesErr } = await supabase.from("cafes").select("name").eq("hidden", false);
+  if (namesErr) { console.error("❌", namesErr.message); process.exit(1); }
+  const chains = chainBrands(everyName);
+
+  if (RECHECK) return recheckStored(cafes, chains);
 
   const now = Date.now();
   let targets = FORCE
@@ -214,11 +310,12 @@ async function main() {
       continue;
     }
 
-    const { reddit, yelpFreeWifi } = partitionResults(result, cafe);
+    const { reddit, yelpFreeWifi } = partitionResults(result, cafe, chains);
+    const site = cafe.website ? await readWebsite(cafe.website) : [];
     if (yelpFreeWifi) yelpHits++;
     if (reddit.length === 0) noReddit++;
 
-    console.log(`    Reddit (target subs): ${reddit.length}  ·  Yelp free-wifi listed: ${yelpFreeWifi}`);
+    console.log(`    Reddit (names this cafe): ${reddit.length}  ·  Yelp free-wifi listed: ${yelpFreeWifi}  ·  Website sentences: ${site.length}`);
 
     if (DRY_RUN) {
       reddit.slice(0, 2).forEach((r) => {
@@ -226,27 +323,23 @@ async function main() {
         console.log(`      ${r.url}`);
         console.log(`      "${r.snippet.slice(0, 220)}${r.snippet.length > 220 ? "…" : ""}"`);
       });
-      if (result.answer) {
-        console.log(`    Tavily answer: "${result.answer.slice(0, 200)}${result.answer.length > 200 ? "…" : ""}"`);
-      }
+      site.slice(0, 2).forEach(t => console.log(`    [website] "${t.slice(0, 160)}"`));
       console.log(`    ✏️  (dry-run: not written)\n`);
       continue;
     }
 
-    const payload = reddit.length > 0
-      ? { query, answer: result.answer || null, results: reddit }
-      : null;  // explicit null = "researched, no usable reddit signal"
+    const payload = researchPayload(query, reddit, cafe.website, site);
 
     // Only new evidence moves web_research_at, which is what makes the tagger
     // re-read this cafe. A re-check that found the same thing just records
     // that it looked.
     const stamp = new Date().toISOString();
-    const hash = researchFingerprint(reddit, yelpFreeWifi);
+    const hash = researchFingerprint(reddit, yelpFreeWifi, site);
     // A cafe researched before fingerprints existed has no stored hash; derive
     // one from the evidence it holds, or the first re-check after the upgrade
     // counts every cafe as changed (2026-10-01: all 464, and 336 needless re-tags).
     const previous = cafe.web_research_hash ?? (cafe.web_research_at
-      ? researchFingerprint(cafe.web_research_snippets?.results, cafe.yelp_free_wifi)
+      ? researchFingerprint(cafe.web_research_snippets?.results, cafe.yelp_free_wifi, cafe.web_research_snippets?.website?.sentences)
       : null);
     const changed = !CHANGE_AWARE || hash !== previous;
     const update = changed

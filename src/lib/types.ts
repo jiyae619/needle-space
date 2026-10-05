@@ -87,7 +87,8 @@ export type HumanLabels = Partial<{
 export interface AttributeConfidence {
   confidence: number; // 0..1
   evidence: string[]; // 1-2 short quotes, checked against their source
-  source?: "text" | "vision";
+  source?: "text" | "vision" | "yelp"; // yelp: Wi-Fi from Yelp's free-WiFi category, no quote
+  from?: "reviews" | "website" | "reddit"; // text only: where the first quote was found
   reason?: string | null; // vision only: what the photo showed
 }
 

@@ -23,7 +23,11 @@ function Why({ p }: { p: TagProvenance }) {
   let text: string | null = null;
   let quote: string | null = null;
   if (p.source === "human") text = "Checked in person by Needle Space";
-  else if (p.source === "text") { text = `From reviews${pct(p.confidence)}`; quote = p.quote; }
+  else if (p.source === "text") {
+    const where = p.from === "website" ? "From the cafe’s website" : p.from === "reddit" ? "From Reddit" : "From reviews";
+    text = `${where}${pct(p.confidence)}`; quote = p.quote;
+  }
+  else if (p.source === "yelp") text = "Listed under Free Wi‑Fi on Yelp";
   else if (p.source === "vision") { text = `From a photo${pct(p.confidence)}`; quote = p.reason; }
   else if (p.source === "keyword") text = "Keyword match in reviews · lower confidence";
   if (!text) return null;
