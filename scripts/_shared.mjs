@@ -315,8 +315,7 @@ export function aboutCafeExcerpt(text, cafe, { chain = false, reach = 200 } = {}
   if (!brand) return "";
   const t = fold(src);
   if (chain && !(cafe.neighborhood && t.includes(fold(cafe.neighborhood)))) return "";
-  const words = brand.split(" ").map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const re = new RegExp(`(?<![a-z0-9])${words.join("(?:'?s)?[^a-z0-9]+")}(?:'?s)?(?![a-z0-9])`, "g");
+  const re = brandRegex(brand, "g");
   const spans = [];
   for (const m of t.matchAll(re)) {
     const a = Math.max(0, m.index - reach), b = Math.min(src.length, m.index + m[0].length + reach);
@@ -324,6 +323,48 @@ export function aboutCafeExcerpt(text, cafe, { chain = false, reach = 200 } = {}
     else spans.push([a, b]);
   }
   return spans.map(([a, b]) => src.slice(a, b).trim()).join(" … ");
+}
+
+// A brand phrase as a whole-word pattern ("bob java jive" also matches "Bob's Java Jive").
+function brandRegex(brand, flags = "") {
+  const words = brand.split(" ").map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(`(?<![a-z0-9])${words.join("(?:'?s)?[^a-z0-9]+")}(?:'?s)?(?![a-z0-9])`, flags);
+}
+const namesBrand = (text, brand) => !!brand && brandRegex(brand).test(fold(text));
+
+/**
+ * Keep the quotes that are about this cafe:
+ *   - found in its own reviews or on its own website, or
+ *   - found in a Reddit passage (one sentence, or a sentence and the next)
+ *     that names this cafe and no other cafe in the catalog, or
+ *   - found in Reddit and naming this cafe itself (and no other).
+ * Being near the cafe's name isn't enough: in "TruLe Yours has nice pastries.
+ * Cafe Allegro has super fast wifi" the Wi-Fi claim is Allegro's.
+ * `otherBrands`: brandPhrase of every other cafe. Returns { kept, dropped }.
+ */
+export function attributedQuotes(quotesByAttr, { reviews = [], website = [], reddit = [], cafe, otherBrands = [] } = {}) {
+  const brand = brandPhrase(cafe?.name);
+  const own = normalizeForMatch([...reviews, ...website].join(" \n "));
+  const others = (text) => otherBrands.some(b => b !== brand && namesBrand(text, b));
+  // Passages of one or two consecutive sentences, within each Reddit text.
+  const passages = reddit.flatMap(t => {
+    const ss = String(t ?? "").split(/(?<=[.!?])\s+|\n+|\s[•…]\s/).map(x => x.trim()).filter(Boolean);
+    return ss.flatMap((x, i) => (i + 1 < ss.length ? [x, `${x} ${ss[i + 1]}`] : [x]));
+  }).map(p => ({ norm: normalizeForMatch(p), aboutCafe: namesBrand(p, brand) && !others(p) }));
+  const kept = {};
+  const dropped = [];
+  for (const [attr, quotes] of Object.entries(quotesByAttr ?? {})) {
+    kept[attr] = [];
+    for (const q of Array.isArray(quotes) ? quotes : []) {
+      const fragments = String(q).split(/\.\.\.|…/).map(normalizeForMatch).filter(f => f.length >= 8);
+      const namesItself = namesBrand(q, brand) && !others(q);
+      const ok = fragments.length > 0 && fragments.every(f =>
+        own.includes(f) || passages.some(p => p.norm.includes(f) && (p.aboutCafe || namesItself)));
+      if (ok) kept[attr].push(q);
+      else dropped.push({ attr, quote: q });
+    }
+  }
+  return { kept, dropped };
 }
 
 /** Brand phrases shared by two or more cafes, i.e. chains. */
@@ -357,6 +398,15 @@ export const CATEGORY_WORDS = {
 export function explicitQuotes(quotesByAttr) {
   return Object.fromEntries(Object.entries(quotesByAttr ?? {}).map(([attr, qs]) =>
     [attr, (Array.isArray(qs) ? qs : []).filter(q => CATEGORY_WORDS[attr]?.test(String(q)))]));
+}
+
+/**
+ * The website sentences to store after trying to read a cafe's site:
+ * `read` is { ok: true, sentences } or { ok: false }. A failed read keeps what
+ * was stored; only a page that was actually read can replace (or empty) it.
+ */
+export function websiteToStore(read, prior) {
+  return read?.ok ? (read.sentences ?? []) : (prior ?? []);
 }
 
 // A cafe website sentence is kept as evidence when it says something about

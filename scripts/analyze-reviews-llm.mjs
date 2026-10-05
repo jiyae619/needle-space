@@ -39,6 +39,8 @@
  *     Tavily's AI-written `answer` is never read. Old research rows that still
  *     hold off-topic posts are filtered here too.
  *   - The cafe's own website sentences are a quotable source.
+ *   - A Reddit quote must sit in a sentence that names this cafe and no other
+ *     (attributedQuotes); being within reach of the name isn't enough.
  *   - A text tag stands only with a grounded quote that names its category
  *     (explicitQuotes, e.g. a Wi-Fi quote must say "wifi"/"internet"). A tag
  *     the model can't back that way is stored as "unknown". The one exception
@@ -99,7 +101,7 @@ import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
 import { z } from "zod";
 import { GoogleGenAI, FunctionCallingConfigMode } from "@google/genai";
 import { env } from "./_env.mjs";
-import { groundQuotes, createRunTrace, taggingReason, reviewSummaryBlock, resultsAboutCafe, chainBrands, explicitQuotes } from "./_shared.mjs";
+import { groundQuotes, createRunTrace, taggingReason, reviewSummaryBlock, resultsAboutCafe, chainBrands, explicitQuotes, attributedQuotes, brandPhrase } from "./_shared.mjs";
 import { mkdirSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
@@ -311,10 +313,17 @@ function buildReviewBlock(reviews) {
 // cafe row) into a prompt block. Returns an explicit "none yet" note when a
 // cafe hasn't been researched, so the model reads absence as missing data —
 // not as a negative signal.
-// Reddit results that name this cafe (`chains` from the whole catalog).
+// Reddit results that name this cafe (`chains` from the whole catalog), and
+// every catalog brand, to spot a sentence that is about some other cafe.
 let CHAINS = new Set();
+let BRANDS = [];
 const redditAbout = (cafe) => resultsAboutCafe(cafe?.web_research_snippets?.results, cafe, CHAINS);
 const websiteOf = (cafe) => cafe?.web_research_snippets?.website?.sentences ?? [];
+// Everything a quote for this cafe may come from, for attributedQuotes.
+const quoteSources = (cafe, reviews) => ({
+  reviews: reviews ?? [], website: websiteOf(cafe), cafe, otherBrands: BRANDS,
+  reddit: redditAbout(cafe).map(r => r?.snippet ?? ""),
+});
 
 function buildWebBlock(cafe) {
   const lines = [];
@@ -446,9 +455,9 @@ async function extractEvidenceQuotes(state) {
   // its quotes if they still check out against the sources (quotes stored
   // before grounding existed may not). Google's summary is never quoted.
   // A re-tag that changes nothing skips this Gemini call entirely.
-  const sources = [...(reviews ?? []), ...websiteOf(cafe), ...redditAbout(cafe).map(r => r?.snippet ?? "")];
+  const sources = quoteSources(cafe, reviews);
   const prior = cafe.tagging_confidence ?? {};
-  const oldGrounded = explicitQuotes(groundQuotes(Object.fromEntries(ATTR_KEYS.map(a =>
+  const oldGrounded = explicitQuotes(attributedQuotes(Object.fromEntries(ATTR_KEYS.map(a =>
     [a, prior[a]?.source === "text" ? (prior[a].evidence ?? []) : []])), sources).kept);
   const kept = {};
   const wanted = [];
@@ -496,9 +505,9 @@ async function extractEvidenceQuotes(state) {
     // Picking verbatim quotes is lookup, not judgement, and every quote is
     // checked against the sources below, so this call runs without thinking.
     const { input } = await callGeminiWithTool(SYSTEM_PROMPT_QUOTES, userText, QUOTES_TOOL, { thinkingBudget: 0 });
-    const { kept: grounded, dropped } = groundQuotes(input, sources);
+    const { kept: grounded, dropped } = attributedQuotes(input, sources);
     if (dropped.length) {
-      console.log(`     ✂️  dropped ${dropped.length} quote(s) not found in the sources: ` +
+      console.log(`     ✂️  dropped ${dropped.length} quote(s) not found in the sources or not about this cafe: ` +
         dropped.map(d => `${d.attr}: "${String(d.quote).slice(0, 60)}"`).join("; "));
     }
     const explicit = explicitQuotes(grounded);
@@ -680,7 +689,7 @@ async function recheckQuotes(rows) {
   let changed = 0, failed = 0, toYelp = 0, trimmed = 0;
   for (const cafe of rows) {
     const reviews = reviewsBy.get(cafe.google_place_id) ?? [];
-    const sources = [...reviews, ...websiteOf(cafe), ...redditAbout(cafe).map(r => r?.snippet ?? "")];
+    const sources = quoteSources(cafe, reviews);
     const tc = { ...(cafe.tagging_confidence ?? {}) };
     const update = {};
     const notes = [];
@@ -690,7 +699,7 @@ async function recheckQuotes(rows) {
       if (!value || value === "unknown" || entry?.source === "yelp") continue;
       if (entry?.source !== "text" && visionEntryFor(tc, attr)) continue;
       const evidence = entry?.evidence ?? [];
-      const quotes = explicitQuotes(groundQuotes({ [attr]: evidence }, sources).kept)[attr];
+      const quotes = explicitQuotes(attributedQuotes({ [attr]: evidence }, sources).kept)[attr];
       if (quotes.length) {
         if (quotes.length !== evidence.length || !entry.from) {
           if (quotes.length !== evidence.length) { trimmed++; notes.push(`${attr}: kept ${quotes.length} of ${evidence.length} quotes`); }
@@ -778,6 +787,7 @@ async function main() {
   const { data: everyName, error: namesErr } = await supabase.from("cafes").select("name").eq("hidden", false);
   if (namesErr) { console.error("❌", namesErr.message); process.exit(1); }
   CHAINS = chainBrands(everyName);
+  BRANDS = [...new Set((everyName ?? []).map(c => brandPhrase(c.name)).filter(Boolean))];
   if (RECHECK_QUOTES) {
     console.log("   --recheck-quotes: applying the evidence rules to stored tags (no Gemini calls)\n");
     return recheckQuotes(LIMIT ? (rows ?? []).slice(0, LIMIT) : (rows ?? []));
