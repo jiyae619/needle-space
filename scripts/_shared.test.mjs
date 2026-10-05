@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey, brandPhrase, mentionsCafe, chainBrands, resultsAboutCafe, explicitQuotes, websiteSentences } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey, brandPhrase, mentionsCafe, chainBrands, resultsAboutCafe, explicitQuotes, websiteSentences, attributedQuotes, websiteToStore } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -416,5 +416,47 @@ describe("websiteSentences", () => {
     const r = [{ url: "u", snippet: "Fast wifi." }];
     expect(researchFingerprint(r, false, [])).toBe(researchFingerprint(r, false));
     expect(researchFingerprint(r, false, ["Free WiFi."])).not.toBe(researchFingerprint(r, false));
+  });
+});
+
+describe("a Reddit quote has to be about this cafe, not just near its name", () => {
+  // Codex review, 2026-10-05: the ±200-character window kept this Wi-Fi claim for TruLe Yours.
+  const cafe = { name: "TruLe Yours Cafe" };
+  const otherBrands = ["trule yours", "allegro", "zoka"];
+  const reddit = ["TruLe Yours has nice pastries. Cafe Allegro has super fast wifi and outlets everywhere.",
+    "I worked at TruLe Yours all day. The wifi is fast."];
+
+  it("drops a claim made in a sentence about another cafe", () => {
+    const { kept } = attributedQuotes({ wifi_quality: ["super fast wifi"], outlet_availability: ["outlets everywhere"] }, { reddit, cafe, otherBrands });
+    expect(kept).toEqual({ wifi_quality: [], outlet_availability: [] });
+  });
+
+  it("keeps the sentence after the cafe's name when no other cafe is named", () => {
+    const { kept } = attributedQuotes({ wifi_quality: ["The wifi is fast."] }, { reddit, cafe, otherBrands });
+    expect(kept.wifi_quality).toEqual(["The wifi is fast."]);
+  });
+
+  it("drops a sentence that names this cafe alongside another one, unless the quote names this cafe itself", () => {
+    const mixed = ["Zoka and TruLe Yours both have outlets, but TruLe Yours has the faster wifi."];
+    expect(attributedQuotes({ outlet_availability: ["both have outlets"] }, { reddit: mixed, cafe, otherBrands }).kept.outlet_availability).toEqual([]);
+    expect(attributedQuotes({ wifi_quality: ["TruLe Yours has the faster wifi"] }, { reddit: mixed, cafe, otherBrands }).kept.wifi_quality)
+      .toEqual(["TruLe Yours has the faster wifi"]);
+  });
+
+  it("trusts the cafe's own reviews and website without naming it", () => {
+    const { kept } = attributedQuotes({ wifi_quality: ["fast wifi everywhere"] }, { reviews: ["Fast wifi everywhere, love it"], cafe, otherBrands });
+    expect(kept.wifi_quality).toEqual(["fast wifi everywhere"]);
+  });
+});
+
+describe("a website that can't be read keeps its stored evidence", () => {
+  // Codex review, 2026-10-05: a timeout returned [], which overwrote stored sentences and re-tagged the cafe without them.
+  const prior = ["Free WiFi and plenty of outlets."];
+  it("keeps the stored sentences when the read failed", () => {
+    expect(websiteToStore({ ok: false, error: "timed out" }, prior)).toEqual(prior);
+  });
+  it("replaces them only after the page was actually read", () => {
+    expect(websiteToStore({ ok: true, sentences: [] }, prior)).toEqual([]);
+    expect(websiteToStore({ ok: true, sentences: ["Quiet upstairs."] }, prior)).toEqual(["Quiet upstairs."]);
   });
 });

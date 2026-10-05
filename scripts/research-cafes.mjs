@@ -47,7 +47,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.mjs";
-import { researchFingerprint, resultsAboutCafe, chainBrands, websiteSentences } from "./_shared.mjs";
+import { researchFingerprint, resultsAboutCafe, chainBrands, websiteSentences, websiteToStore } from "./_shared.mjs";
 
 const TAVILY_KEY = env.TAVILY_API_KEY;
 const supabase   = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -172,22 +172,48 @@ function partitionResults(result, cafe, chains) {
 // Pages that aren't the cafe's own site: social profiles and ordering apps.
 const NOT_OWN_SITE = /(^|\.)(instagram|facebook|linktr|toasttab|doordash|ubereats|grubhub|yelp|google|tiktok|x|twitter)\.(com|ee)$/i;
 
-/** Workspace sentences from the cafe's own homepage; [] when there is none or it can't be read. */
+/**
+ * Workspace sentences from the cafe's own homepage.
+ * { ok: true, sentences } — the page was read (sentences may be []), or the
+ *   link isn't the cafe's own site (social profile, ordering app);
+ * { ok: false, error } — it couldn't be read (timeout, HTTP error, not HTML).
+ * A failure must not look like "the site says nothing": see websiteEvidence.
+ */
 async function readWebsite(url) {
   let host;
-  try { host = new URL(url).hostname; } catch { return []; }
-  if (NOT_OWN_SITE.test(host)) return [];
+  try { host = new URL(url).hostname; } catch { return { ok: true, sentences: [] }; }
+  if (NOT_OWN_SITE.test(host)) return { ok: true, sentences: [] };
   try {
     const res = await fetch(url, {
       redirect: "follow",
       signal: AbortSignal.timeout(10000),
       headers: { "User-Agent": "Mozilla/5.0 (compatible; NeedleSpaceBot/1.0; +https://needle-space.netlify.app)" },
     });
-    if (!res.ok || !/text\/html/i.test(res.headers.get("content-type") ?? "")) return [];
-    return websiteSentences((await res.text()).slice(0, 1_500_000));
-  } catch {
-    return [];
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const type = res.headers.get("content-type") ?? "";
+    if (!/text\/html/i.test(type)) return { ok: false, error: `not a web page (${type || "no content type"})` };
+    return { ok: true, sentences: websiteSentences((await res.text()).slice(0, 1_500_000)) };
+  } catch (e) {
+    return { ok: false, error: e?.name === "TimeoutError" ? "timed out" : (e?.message ?? "fetch failed") };
   }
+}
+
+/**
+ * The website sentences to store for a cafe. When the site can't be read this
+ * time, keep what was stored: a site that is down for an hour isn't evidence
+ * that it stopped mentioning Wi-Fi, and replacing the sentences with [] would
+ * change the fingerprint and re-tag the cafe without them. The next research
+ * run (30 days, or the next --recheck-stored) tries again.
+ */
+async function websiteEvidence(cafe, totals) {
+  if (!cafe.website) return [];
+  const prior = cafe.web_research_snippets?.website?.sentences ?? [];
+  const read = await readWebsite(cafe.website);
+  if (!read.ok) {
+    totals.siteFailed++;
+    console.log(`    ⚠️  website not read (${read.error}) — keeping ${prior.length} stored sentence${prior.length === 1 ? "" : "s"}`);
+  }
+  return websiteToStore(read, prior);
 }
 
 // explicit null = "researched, nothing usable about this cafe"
@@ -205,12 +231,12 @@ async function recheckStored(cafes, chains) {
   let targets = cafes;
   if (LIMIT) targets = targets.slice(0, LIMIT);
   console.log(`📋 Re-checking stored research for ${targets.length} cafe${targets.length === 1 ? "" : "s"} (no Tavily calls)\n`);
-  const totals = { changed: 0, retag: 0, unchanged: 0, failed: 0, droppedReddit: 0, keptReddit: 0, withSite: 0 };
+  const totals = { changed: 0, retag: 0, unchanged: 0, failed: 0, droppedReddit: 0, keptReddit: 0, withSite: 0, siteFailed: 0 };
   for (const cafe of targets) {
     const stored = cafe.web_research_snippets;
     const before = stored?.results ?? [];
     const reddit = resultsAboutCafe(before, cafe, chains);
-    const site = cafe.website ? await readWebsite(cafe.website) : [];
+    const site = await websiteEvidence(cafe, totals);
     totals.droppedReddit += before.length - reddit.length;
     totals.keptReddit += reddit.length;
     if (site.length) totals.withSite++;
@@ -242,6 +268,7 @@ async function recheckStored(cafes, chains) {
   console.log(`Unchanged:     ${totals.unchanged}`);
   console.log(`Reddit snippets kept / dropped: ${totals.keptReddit} / ${totals.droppedReddit}`);
   console.log(`Cafes with website sentences:   ${totals.withSite}`);
+  if (totals.siteFailed) console.log(`Websites not read (stored sentences kept; re-run to retry): ${totals.siteFailed}`);
   if (totals.failed) { console.log(`Failed:        ${totals.failed}`); process.exitCode = 1; }
 }
 
@@ -296,6 +323,7 @@ async function main() {
               "\n");
 
   let written = 0, unchanged = 0, noReddit = 0, failed = 0, yelpHits = 0;
+  const siteTotals = { siteFailed: 0 };
 
   for (const cafe of targets) {
     const query = buildQuery(cafe);
@@ -311,7 +339,7 @@ async function main() {
     }
 
     const { reddit, yelpFreeWifi } = partitionResults(result, cafe, chains);
-    const site = cafe.website ? await readWebsite(cafe.website) : [];
+    const site = await websiteEvidence(cafe, siteTotals);
     if (yelpFreeWifi) yelpHits++;
     if (reddit.length === 0) noReddit++;
 
@@ -366,6 +394,7 @@ async function main() {
   console.log(`Unchanged:  ${unchanged}  (checked, same evidence — no re-tag)`);
   console.log(`Yelp free-wifi hits:  ${yelpHits}`);
   console.log(`No reddit signal:     ${noReddit}`);
+  if (siteTotals.siteFailed) console.log(`Websites not read:    ${siteTotals.siteFailed} (stored sentences kept; retried next run)`);
   if (failed > 0) console.log(`Failed:               ${failed}`);
 }
 
