@@ -86,7 +86,7 @@ function tagsOf(cafe: Cafe, withEvidence: boolean) {
     out[short] = {
       value,
       source: p.source,
-      ...(p.source === "text" ? { confidence: p.confidence, quote: p.quote } : {}),
+      ...(p.source === "text" ? { confidence: p.confidence, quote: p.quote, quote_from: p.from } : {}),
       ...(p.source === "vision" ? { confidence: p.confidence, photo_note: p.reason } : {}),
     };
   }

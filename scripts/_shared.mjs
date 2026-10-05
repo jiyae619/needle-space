@@ -223,16 +223,160 @@ export function groundQuotes(quotesByAttr, sourceTexts) {
 
 /**
  * Fingerprint of a cafe's web research, for change detection. Built from the
- * Reddit results (url + snippet, order-independent) and the Yelp flag only.
+ * Reddit results (url + snippet, order-independent), the Yelp flag and the
+ * website sentences.
  * Tavily's `answer` is left out on purpose: it is AI-written and worded
  * differently on every call, so including it would make every re-check look
  * like new evidence.
  */
-export function researchFingerprint(results, yelpFreeWifi) {
+export function researchFingerprint(results, yelpFreeWifi, websiteSentences = []) {
   const items = (results ?? [])
     .map(r => `${(r?.url ?? "").trim()}\n${normalizeForMatch(r?.snippet ?? "")}`)
     .sort();
-  return createHash("sha256").update(JSON.stringify({ items, yelp: yelpFreeWifi === true })).digest("hex").slice(0, 32);
+  // Website text joins the hash only when there is some, so cafes without it
+  // keep the fingerprint they had before websites were read (no mass re-tag).
+  const site = (websiteSentences ?? []).map(normalizeForMatch).sort();
+  const input = { items, yelp: yelpFreeWifi === true, ...(site.length ? { site } : {}) };
+  return createHash("sha256").update(JSON.stringify(input)).digest("hex").slice(0, 32);
+}
+
+// ---------------------------------------------------------------------------
+// Evidence has to be about THIS cafe and has to name what it supports.
+//
+// 2026-10-05: 196 quotes on 90 cafes came from Reddit posts about other cafes.
+// The web search ranks any "wifi outlets seattle" thread as relevant, and we
+// kept every post from an allowed subreddit. TruLe Yours was tagged "fast
+// Wi-Fi, most outlets" from a 2017 r/Coffee reply about someone's favourite
+// shop. Allowed evidence now:
+//   - the cafe's own Google reviews,
+//   - its own website,
+//   - Reddit text that names the cafe (and, for a chain, the branch's area),
+//   - Yelp's free-WiFi category (already matched to the cafe by name),
+// and a text tag stands only with a verbatim quote that names its category.
+// ---------------------------------------------------------------------------
+
+// Words that don't identify a cafe: the business type, filler, and our areas.
+const GENERIC_NAME_WORDS = new Set([
+  "the", "and", "of", "at", "on", "in", "a", "by", "n",
+  "cafe", "caffe", "coffee", "coffeehouse", "co", "company", "shop", "shops", "house",
+  "roasters", "roastery", "roasting", "roaster", "espresso", "bar", "bakery", "tea",
+  "kitchen", "eatery", "bistro", "records", "room", "lounge", "market", "ave", "avenue",
+]);
+const AREA_WORDS = new Set([
+  "downtown", "seattle", "capitol", "hill", "ballard", "fremont", "south", "lake", "union",
+  "bellevue", "belltown", "university", "district", "pioneer", "square", "queen", "anne",
+  "columbia", "city", "central", "greenwood", "west", "wallingford", "redmond", "kirkland",
+  "greenlake", "green", "junction", "slu", "eastlake", "north", "east",
+]);
+
+const plain = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/**
+ * The words that name a cafe: the first run of non-generic words, e.g.
+ * "TruLe Yours Cafe" → "trule yours", "Caffe Appassionato Coffee Roastery and
+ * Tasting Bar" → "appassionato". "" when the name is all generic.
+ */
+export function brandPhrase(name) {
+  const run = [];
+  for (const w of plain(name).replace(/'s\b/g, "").replace(/'/g, "").split(/[^a-z0-9]+/).filter(Boolean)) {
+    // Words under 3 letters ("co-op" → "op") match too much text to name anything.
+    if (GENERIC_NAME_WORDS.has(w) || AREA_WORDS.has(w) || w.length < 3) { if (run.length) break; continue; }
+    run.push(w);
+  }
+  return run.join(" ");
+}
+
+/**
+ * Does this text name the cafe? The brand words must appear together, as whole
+ * words. For a chain (`chain`: the brand has several branches in the catalog)
+ * the text must also name the branch's neighborhood, or it could be about any
+ * branch.
+ */
+export function mentionsCafe(text, cafe, { chain = false } = {}) {
+  return aboutCafeExcerpt(text, cafe, { chain }) !== "";
+}
+
+// Lowercase and strip accents one character at a time, so indexes still line
+// up with the original text.
+const fold = (s) => String(s ?? "").split("").map(ch => {
+  const f = ch.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return ch === "’" ? "'" : f.length === 1 ? f : ch;
+}).join("");
+
+/**
+ * The parts of a text around each mention of the cafe (±`reach` characters),
+ * joined with " … "; "" when it doesn't name the cafe. A Reddit comment often
+ * lists several cafes, so only the words near this cafe's name are evidence
+ * for it.
+ */
+export function aboutCafeExcerpt(text, cafe, { chain = false, reach = 200 } = {}) {
+  const brand = brandPhrase(cafe?.name);
+  const src = String(text ?? "");
+  if (!brand) return "";
+  const t = fold(src);
+  if (chain && !(cafe.neighborhood && t.includes(fold(cafe.neighborhood)))) return "";
+  const words = brand.split(" ").map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const re = new RegExp(`(?<![a-z0-9])${words.join("(?:'?s)?[^a-z0-9]+")}(?:'?s)?(?![a-z0-9])`, "g");
+  const spans = [];
+  for (const m of t.matchAll(re)) {
+    const a = Math.max(0, m.index - reach), b = Math.min(src.length, m.index + m[0].length + reach);
+    if (spans.length && a <= spans[spans.length - 1][1]) spans[spans.length - 1][1] = b;
+    else spans.push([a, b]);
+  }
+  return spans.map(([a, b]) => src.slice(a, b).trim()).join(" … ");
+}
+
+/** Brand phrases shared by two or more cafes, i.e. chains. */
+export function chainBrands(cafes) {
+  const n = new Map();
+  for (const c of cafes ?? []) { const b = brandPhrase(c.name); if (b) n.set(b, (n.get(b) ?? 0) + 1); }
+  return new Set([...n].filter(([, k]) => k > 1).map(([b]) => b));
+}
+
+/**
+ * The research results (Reddit) that name this cafe, each cut down to the text
+ * around the name; everything else is about some other place.
+ */
+export function resultsAboutCafe(results, cafe, chains = new Set()) {
+  const chain = chains.has(brandPhrase(cafe?.name));
+  return (results ?? [])
+    .map(r => ({ ...r, snippet: aboutCafeExcerpt(r?.snippet ?? "", cafe, { chain }) }))
+    .filter(r => r.snippet);
+}
+
+// What a quote must say, per attribute, to count as an explicit mention.
+export const CATEGORY_WORDS = {
+  wifi_quality:         /\b(wi-?fi|wifi|internet|wireless|bandwidth|connection)\b/i,
+  outlet_availability:  /\b(outlets?|plugs?|plug-?ins?|power|sockets?|charg\w*|electrical)\b/i,
+  seating_availability: /\b(seats?|seated|seating|sit|sits|sat|sitting|tables?|chairs?|couch(es)?|sofas?|booths?|benches|stools?|spacious|roomy|cramped|space|room)\b/i,
+  noise_level:          /\b(quiet\w*|loud\w*|noise|noisy|calm|peaceful|music|sounds?|chatter|busy|crowded|packed|silent|hushed|bustling|lively|buzz\w*|volume|conversations?)\b/i,
+  laptop_policy:        /\b(laptops?|computers?|work(s|ing|ed)?|study(ing)?|studied|remote|wfh|homework|students?|zoom|meetings?|office|limit(s|ed)?|linger\w*|camp(ing|ers?)?|\d+\s*(min|mins|minutes|hours?|hrs?))\b/i,
+};
+
+/** Keep only quotes that name their own attribute's category. */
+export function explicitQuotes(quotesByAttr) {
+  return Object.fromEntries(Object.entries(quotesByAttr ?? {}).map(([attr, qs]) =>
+    [attr, (Array.isArray(qs) ? qs : []).filter(q => CATEGORY_WORDS[attr]?.test(String(q)))]));
+}
+
+// A cafe website sentence is kept as evidence when it says something about
+// working there. Narrower than CATEGORY_WORDS: a site's "our team works hard",
+// "space for events" or "a taste of tradition at your table" isn't a workspace claim.
+const WEBSITE_SIGNAL = /\b(wi-?fi|wifi|internet|outlets?|charging|seating|laptops?|study(ing)?|remote work|work from|quiet)\b/i;
+
+/** Sentences from a page's HTML that mention a workspace category (at most 8). */
+export function websiteSentences(html) {
+  const text = String(html ?? "")
+    .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<br\s*\/?>|<\/(p|div|li|h[1-6]|section|span)>/gi, ". ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&rsquo;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&[a-z]+;|&#\d+;/g, " ")
+    .replace(/\s+/g, " ");
+  const seen = new Set();
+  return text.split(/(?<=[.!?])\s+/).map(s => s.replace(/^[.\s]+/, "").replace(/([.!?])\s*\.$/, "$1").trim())
+    .filter(s => s.length >= 12 && s.length <= 300 && WEBSITE_SIGNAL.test(s))
+    .filter(s => { const k = normalizeForMatch(s); if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 8);
 }
 
 // ---------------------------------------------------------------------------
