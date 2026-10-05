@@ -44,6 +44,7 @@ export const TOOLS = [
       properties: {
         query: { type: "string", maxLength: 200, description: "What the person is looking for. Optional if filters are given." },
         neighborhoods: { type: "array", items: { type: "string", enum: [...NEIGHBORHOODS] }, description: "Only these areas." },
+        wifi: { type: "string", enum: ["fast", "fast_or_moderate"] },
         noise: { type: "string", enum: ["quiet", "quiet_or_moderate"] },
         outlets: { type: "string", enum: ["every_table", "any_outlets"] },
         laptop: { type: "string", enum: ["welcome", "welcome_or_limited"] },
@@ -85,7 +86,7 @@ function tagsOf(cafe: Cafe, withEvidence: boolean) {
     out[short] = {
       value,
       source: p.source,
-      ...(p.source === "text" ? { confidence: p.confidence, quote: p.quote } : {}),
+      ...(p.source === "text" ? { confidence: p.confidence, quote: p.quote, quote_from: p.from } : {}),
       ...(p.source === "vision" ? { confidence: p.confidence, photo_note: p.reason } : {}),
     };
   }
@@ -122,6 +123,7 @@ function toFilters(args: Json): Partial<Filters> {
     }
     f.location = args.neighborhoods as string[];
   }
+  f.wifi = pick(args.wifi, ["fast", "fast_or_moderate"] as const, "wifi");
   f.noise = pick(args.noise, ["quiet", "quiet_or_moderate"] as const, "noise");
   f.outlets = pick(args.outlets, ["every_table", "any_outlets"] as const, "outlets");
   f.laptop = pick(args.laptop, ["welcome", "welcome_or_limited"] as const, "laptop");

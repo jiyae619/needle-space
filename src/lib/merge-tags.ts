@@ -45,7 +45,8 @@ export function mergeTag(cafe: Cafe, key: AttrKey): string {
 
 export type TagProvenance =
   | { source: "human" }
-  | { source: "text"; confidence: number | null; quote: string | null }
+  | { source: "text"; confidence: number | null; quote: string | null; from: "reviews" | "website" | "reddit" | null }
+  | { source: "yelp" }
   | { source: "vision"; confidence: number | null; reason: string | null }
   | { source: "keyword" }
   | { source: "none" };
@@ -62,7 +63,8 @@ export function tagProvenance(cafe: Cafe, key: AttrKey): TagProvenance {
     const tc = cafe.tagging_confidence?.[key];
     const confidence = typeof tc?.confidence === "number" ? tc.confidence : null;
     if (tc?.source === "vision") return { source: "vision", confidence, reason: tc.reason ?? null };
-    return { source: "text", confidence, quote: tc?.evidence?.[0]?.trim() || null };
+    if (tc?.source === "yelp") return { source: "yelp" };
+    return { source: "text", confidence, quote: tc?.evidence?.[0]?.trim() || null, from: tc?.from ?? null };
   }
   if (mergeTag(cafe, key) !== "unknown") return { source: "keyword" };
   return { source: "none" };

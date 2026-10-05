@@ -1,7 +1,9 @@
-name: Monthly data pipeline
+name: Daily data pipeline
+run-name: ${{ inputs.dry_run && format('Pipeline dry run ({0})', github.ref_name) || 'Daily data pipeline' }}
 
-# Runs a lightweight eligibility check daily, but the Places refresh only calls
-# Google for records approaching 28 days old. This keeps Google-derived
+# Runs every day (the file is still called monthly-pipeline.yml so its run
+# history stays in one place). The Places refresh only calls Google for
+# records approaching 28 days old. This keeps Google-derived
 # information fresh while avoiding daily full-catalog charges.
 #
 # The pipeline gates itself on tagging quality BEFORE its finalize stage, so a
@@ -18,6 +20,22 @@ on:
         description: 'Extra pipeline args, e.g. "--force" for a full re-tag, or "--limit 5" to smoke-test'
         required: false
         default: ""
+      # Test a branch (for example a PR's) without touching the live data:
+      # every step runs and calls Google / Gemini / Voyage as usual, but
+      # nothing is written to Supabase and the quality gate records nothing.
+      # Each step handles at most 5 cafes, so it stays quick and cheap.
+      dry_run:
+        description: "Dry run: write nothing, 5 cafes per step"
+        type: boolean
+        default: false
+      # scripts/clean-cafe-list.mjs: hide non-cafes (7-Eleven, McDonald's,
+      # ampm, Circle K) and dead duplicates, and correct every cafe's neighborhood.
+      # About 470 cheap Google calls (Essentials tier, 10,000 free a month).
+      # Runs on its own: the data pipeline is skipped on that run.
+      clean_cafe_list:
+        description: "Only clean the cafe list (skips the pipeline): hide non-cafes, fix neighborhoods"
+        type: boolean
+        default: false
 
 # Never let two pipeline runs write to the DB at once.
 concurrency:
@@ -28,9 +46,33 @@ permissions:
   contents: read
 
 jobs:
+  # Only when "Clean the cafe list" is ticked; with "Dry run" it reports and
+  # writes nothing.
+  clean:
+    if: ${{ inputs.clean_cafe_list }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Clean the cafe list
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
+        run: node scripts/clean-cafe-list.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
+
   pipeline:
+    if: ${{ !inputs.clean_cafe_list }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    env:
+      # Empty on scheduled runs; "--dry-run --limit 5" when the checkbox is ticked.
+      DRY: ${{ inputs.dry_run && '--dry-run --limit 5' || '' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -49,7 +91,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
-        run: node scripts/refresh-cafe-information.mjs --delay-ms 500
+        run: node scripts/refresh-cafe-information.mjs --delay-ms 500 $DRY
 
       # New cafes arrive with a raw Places photo URL (stored without the key).
       # Copy it into Supabase Storage now, so the site can show it and the
@@ -62,7 +104,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
-        run: node scripts/cache-photos.mjs
+        run: node scripts/cache-photos.mjs $DRY
 
       # Newly discovered cafes have no review corpus yet. Existing places are
       # skipped, so this is inexpensive on non-discovery weeks.
@@ -72,7 +114,19 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
-        run: node scripts/analyze-reviews.mjs --new-only
+        run: node scripts/analyze-reviews.mjs --new-only $DRY
+
+      # Google's summary of all of a cafe's reviews, for cafes that have none
+      # yet. The tagger reads it, and a new summary queues the cafe for
+      # re-tagging (up to 100 cafes a run). After the first run this only
+      # touches newly discovered cafes.
+      - name: Fetch Google review summaries
+        if: ${{ !cancelled() }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
+        run: node scripts/analyze-reviews.mjs --summaries-only $DRY
 
       - name: Run pipeline
         if: ${{ !cancelled() }}
@@ -92,7 +146,7 @@ jobs:
           LANGSMITH_TRACING: ${{ vars.LANGSMITH_TRACING || 'false' }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
           LANGSMITH_PROJECT: needle-space
-        run: npm run pipeline -- $EXTRA_ARGS
+        run: npm run pipeline -- $EXTRA_ARGS $DRY
 
       # Per-cafe node timings, retries, errors and Gemini tokens from the
       # tagging run (scripts/analyze-reviews-llm.mjs), kept for 30 days.

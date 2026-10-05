@@ -82,7 +82,7 @@ describe("get_cafe", () => {
     });
     const r = await call("get_cafe", { id: detail.id }, ctx({ getCafe: vi.fn(async () => detail) }));
     const tags = (r?.result as { structuredContent: { tags: Record<string, unknown> } }).structuredContent.tags;
-    expect(tags.noise).toEqual({ value: "quiet", source: "text", confidence: 0.8, quote: "so quiet" });
+    expect(tags.noise).toEqual({ value: "quiet", source: "text", confidence: 0.8, quote: "so quiet", quote_from: null });
     expect(tags.wifi).toEqual({ value: "fast", source: "human" });
   });
 

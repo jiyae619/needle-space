@@ -11,7 +11,7 @@
  * kappa against it cannot gate anything. (scripts/evaluate-tagging.mjs still
  * reports it — it is a useful migration-divergence view, just not a quality bar.)
  *
- * What this measures instead, per attribute:
+ * What this measures instead, per attribute (scripts/_shared.mjs tagQuality):
  *
  *   unknown_rate          the tagger gave up, or landed under the 0.5 floor in
  *                         analyze-reviews-llm.mjs that rewrites weak tags to
@@ -23,37 +23,40 @@
  *                         asks for. A second read on coverage.
  *   mean_confidence       self-reported, across all cafes.
  *
- * Neither axis needs ground truth, so both work today. An accuracy number does
- * need it, and cannot be computed yet: only 4 cafes are verified = true.
+ * THE PIPELINE'S GATE (--since-last-pass) compares the same cafes before and
+ * after. Its cohort is every cafe changed since the last PASSING gate (so small
+ * daily runs accumulate, and a failed run's tags stay in the cohort until they
+ * are fixed or approved). Each passing gate stores a snapshot of every cafe's
+ * tags in pipeline_gate_runs; the next gate compares the cohort's tags now with
+ * the same cafes' tags in that snapshot. The question is "did the changes since
+ * the last approved run make these cafes worse?"
  *
- * Gating is by REGRESSION, not by an absolute floor. The absolute numbers are
- * low on wifi/outlets (16-18% evidence-backed), so any fixed bar would either
- * block every run or mean nothing. What is actionable is a run coming back
- * worse than the last known-good one.
+ * It used to compare the cohort with the corpus-wide averages in
+ * docs/quality-baseline.json instead. That failed every other day without any
+ * tagger change: the cafes a run re-tags are picked BECAUSE their tags were
+ * unknown (thin reviews, a new review summary), so they always look worse than
+ * the catalog average. Pass or fail depended on which cafes landed in the batch.
  *
- * SCOPE: --since restricts the measurement to cafes re-tagged at or after a
- * timestamp, i.e. only the ones a given run actually touched. Without it the
- * whole corpus is measured, and a run that botches 20 of ~480 cafes moves the
- * corpus-wide rates by too little to trip any sane tolerance. The baseline it
- * compares against stays corpus-wide on purpose — the question being asked is
- * "are the cafes this run just tagged as good as the corpus we already trust?"
+ * Cafes tagged for the first time have no "before" and are reported, not gated.
+ * The first gate after this change has no stored snapshot to compare with: it
+ * passes, says so, and stores one.
  *
  * Cohorts below --min-sample are reported and passed rather than gated: a
  * handful of cafes cannot distinguish a real regression from one thin-review
- * cafe, and failing the run on that noise would train you to ignore the gate.
- *
- * --since-last-pass (what run-pipeline.mjs uses) closes the hole that rule
- * opened. It measures every cafe changed since the last PASSING gate recorded
- * in pipeline_gate_runs, so small daily runs accumulate into one cohort that
- * does get gated, instead of each passing unchecked. "Changed" includes
- * vision-only changes (visual_tagged_at), which --since used to miss.
- * --record writes the outcome (pass / fail / deferred) to that table.
+ * cafe. They stay in the next run's cohort.
  *
  * ACCURACY: once at least --min-labels cafes carry human labels from /admin,
- * the report adds per-attribute accuracy of the automated tags against them,
- * and the gate fails if it drops more than --accuracy-tolerance below the
- * baseline's. That is the only metric here that can catch a confident wrong
- * tag; coverage and evidence cannot.
+ * the gate also scores the labeled cafes' tags before (snapshot) and after
+ * (now) against the same labels, and fails if an attribute's accuracy drops
+ * more than --accuracy-tolerance. That is the only metric here that can catch
+ * a confident wrong tag; coverage and evidence cannot.
+ *
+ * APPROVING A DROP: when a drop is expected (a deliberate prompt change, say),
+ * --approve records a pass with the current tags as the new "before". From the
+ * workflow: Run workflow with args "--approve-gate" (run-pipeline.mjs passes it on).
+ *
+ * --baseline without --since-last-pass is the manual, corpus-wide check: every
+ * tagged cafe (or those changed --since a timestamp) against the stored averages.
  *
  * Usage:
  *   node scripts/quality-metrics.mjs                         ← human table
@@ -63,16 +66,18 @@
  *       ← exits 1 if any attribute regressed beyond --tolerance (default 0.02)
  *   node scripts/quality-metrics.mjs --baseline docs/quality-baseline.json \
  *       --since 2026-09-01T09:00:00Z --min-sample 25
- *       ← gate only the cafes touched at or after that timestamp
+ *       ← corpus check of only the cafes touched at or after that timestamp
  *   node scripts/quality-metrics.mjs --baseline docs/quality-baseline.json \
  *       --since-last-pass --record
- *       ← what the pipeline runs: accumulate since the last pass, record outcome
+ *       ← what the pipeline runs: before/after since the last pass, record outcome
+ *   ... --since-last-pass --record --approve   ← accept the current tags as good
  */
 
 import { createClient } from "@supabase/supabase-js";
 import { writeFileSync, readFileSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { env } from "./_env.mjs";
+import { tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, runNote } from "./_shared.mjs";
 
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -91,6 +96,7 @@ const TOLERANCE      = Number(flag("--tolerance") ?? 0.02);
 let   SINCE          = flag("--since");
 const SINCE_LAST_PASS = argv.includes("--since-last-pass");
 const RECORD         = argv.includes("--record");
+const APPROVE        = argv.includes("--approve");
 const MIN_SAMPLE     = Number(flag("--min-sample") ?? 25);
 const MIN_LABELS     = Number(flag("--min-labels") ?? 20);
 const ACC_TOLERANCE  = Number(flag("--accuracy-tolerance") ?? 0.05);
@@ -113,14 +119,21 @@ if (SINCE_LAST_PASS && !BASELINE) {
   console.error("--since-last-pass needs --baseline (its date anchors the first window).");
   process.exit(2);
 }
+if (APPROVE && !(SINCE_LAST_PASS && RECORD)) {
+  console.error("--approve records a pass, so it needs --since-last-pass and --record.");
+  process.exit(2);
+}
+// The last passing gate: where the cohort starts, and the tags it approved.
+let lastPass = null;
 if (SINCE_LAST_PASS) {
   const { data, error } = await supabase.from("pipeline_gate_runs")
-    .select("ran_at").eq("outcome", "pass").order("ran_at", { ascending: false }).limit(1);
+    .select("ran_at, detail").eq("outcome", "pass").order("ran_at", { ascending: false }).limit(1);
   if (error) {
     console.error(`Cannot read pipeline_gate_runs (${error.message}). Apply supabase/migrations/20260928000000_architecture_upgrade.sql.`);
     process.exit(2);
   }
-  SINCE = data?.[0]?.ran_at
+  lastPass = data?.[0] ?? null;
+  SINCE = lastPass?.ran_at
     ?? JSON.parse(readFileSync(resolve(BASELINE), "utf-8")).measured_at;
 }
 
@@ -143,109 +156,74 @@ const ATTRIBUTES = [
   "seating_availability",
 ];
 
-// Attributes where a HIGHER number is worse. Everything else: higher is better.
-const LOWER_IS_BETTER = new Set(["unknown_rate", "silent_rate"]);
-
 // ---------------------------------------------------------------------------
-// Measure
+// Read
 // ---------------------------------------------------------------------------
 async function fetchTaggedCafes() {
-  const cols = ["id", "llm_tagged_at", "tagging_confidence", ...ATTRIBUTES.map(a => `${a}_llm`)].join(",");
+  const cols = ["id", "llm_tagged_at", "visual_tagged_at", "tagging_confidence", ...ATTRIBUTES.map(a => `${a}_llm`)].join(",");
   const rows = [];
   for (let from = 0; ; from += 1000) {
-    let q = supabase.from("cafes").select(cols).not("llm_tagged_at", "is", null);
-    // Vision-only changes count too: they rewrite *_llm without touching llm_tagged_at.
-    if (SINCE) q = q.or(`llm_tagged_at.gte."${SINCE}",visual_tagged_at.gte."${SINCE}"`);
-    const { data, error } = await q.range(from, from + 999);
+    const { data, error } = await supabase.from("cafes").select(cols)
+      .not("llm_tagged_at", "is", null).eq("hidden", false).order("id").range(from, from + 999);
     if (error) throw new Error(`Supabase read failed: ${error.message}`);
     rows.push(...data);
     if (data.length < 1000) return rows;
   }
 }
 
-// Accuracy of the automated tags against human labels. Counted only where the
-// tagger committed; how often it commits is reported separately as coverage.
-async function measureAccuracy() {
+async function fetchLabeledCafes() {
   const cols = ["id", "human_labels", ...ATTRIBUTES.map(a => `${a}_llm`)].join(",");
   const { data, error } = await supabase.from("cafes").select(cols).not("human_labels", "is", null);
-  if (error) return null;   // column missing before the migration: no accuracy yet
-  const out = { labeled_cafes: data.length, attributes: {} };
-  for (const attr of ATTRIBUTES) {
-    const pairs = data.map(r => [r.human_labels?.[attr], r[`${attr}_llm`] ?? "unknown"]).filter(([h]) => h);
-    const committed = pairs.filter(([, m]) => m !== "unknown");
-    const correct = committed.filter(([h, m]) => h === m).length;
-    out.attributes[attr] = {
-      labeled: pairs.length,
-      coverage: pairs.length ? round(committed.length / pairs.length) : null,
-      accuracy: committed.length ? round(correct / committed.length) : null,
-    };
-  }
-  return out;
+  return error ? null : data;   // column missing before the migration: no accuracy yet
 }
 
-function measure(rows) {
-  const n = rows.length;
-  const out = {
-    measured_at: new Date().toISOString(),
-    scope: SINCE ? { since: SINCE } : "all LLM-tagged cafes",
-    sample_size: n,
-    attributes: {},
+// Vision-only changes count too: they rewrite *_llm without touching llm_tagged_at.
+const changedSince = (r, since) =>
+  [r.llm_tagged_at, r.visual_tagged_at].some(t => t && Date.parse(t) >= Date.parse(since));
+
+// ---------------------------------------------------------------------------
+// Gates
+// ---------------------------------------------------------------------------
+
+// Pipeline gate: the cohort's tags now against the same cafes at the last pass.
+function beforeAfterGate(cohort, labeled, snapshot) {
+  const compared = cohort.filter(r => snapshot[r.id]);
+  const before = tagQuality(compared.map(r => rowFromSnapshot(snapshot[r.id])));
+  const after = tagQuality(compared);
+  const result = {
+    mode: "before_after",
+    compared: compared.length,
+    first_tagged: cohort.length - compared.length,
+    tolerance: TOLERANCE,
+    before,
+    after,
+    regressions: compared.length >= MIN_SAMPLE ? qualityRegressions(before, after, TOLERANCE) : [],
   };
+  if (compared.length < MIN_SAMPLE) result.deferred = `${compared.length} re-tagged cafes is below --min-sample ${MIN_SAMPLE}`;
 
-  for (const attr of ATTRIBUTES) {
-    const conf = rows.map(r => r.tagging_confidence?.[attr]);
-    const scores = conf.map(c => c?.confidence).filter(v => typeof v === "number");
-
-    const unknown  = rows.filter(r => (r[`${attr}_llm`] ?? "unknown") === "unknown").length;
-    const evidence = conf.filter(c => c?.evidence?.length > 0).length;
-    // The tagger's documented "reviews are silent" signal — see the prompt rule
-    // in analyze-reviews-llm.mjs: unknown at ~0.3 confidence with nothing to cite.
-    const silent   = conf.filter(c => c && c.confidence <= 0.3 && !(c.evidence?.length > 0)).length;
-
-    const rate = (x) => n ? round(x / n) : null;   // an empty cohort has no rate, not a zero
-    out.attributes[attr] = {
-      unknown_rate:         rate(unknown),
-      evidence_backed_rate: rate(evidence),
-      silent_rate:          rate(silent),
-      mean_confidence:      scores.length ? round(scores.reduce((s, x) => s + x, 0) / scores.length) : null,
-    };
+  // Accuracy on the same labels, before and after. Measured on every labeled
+  // cafe, not the cohort, so it runs even when coverage is deferred.
+  const lab = (labeled ?? []).filter(r => snapshot[r.id]);
+  if (lab.length >= MIN_LABELS) {
+    const accBefore = tagAccuracy(lab.map(r => ({ ...rowFromSnapshot(snapshot[r.id]), human_labels: r.human_labels })));
+    const accAfter = tagAccuracy(lab);
+    result.accuracy = { before: accBefore, after: accAfter };
+    result.regressions.push(...accuracyRegressions(accBefore, accAfter, ACC_TOLERANCE));
   }
-  return out;
+  return result;
 }
 
-const round = (x) => Math.round(x * 1000) / 1000;
-
-// ---------------------------------------------------------------------------
-// Gate — compare against a stored baseline
-// ---------------------------------------------------------------------------
-function gate(current, baselinePath) {
+// Manual corpus check: the cafes measured against docs/quality-baseline.json.
+function corpusGate(metrics, baselinePath) {
   const baseline = JSON.parse(readFileSync(resolve(baselinePath), "utf-8"));
-  const regressions = [];
-
-  for (const attr of ATTRIBUTES) {
-    const now = current.attributes[attr];
-    const was = baseline.attributes?.[attr];
-    if (!was || !now) continue;                       // new attribute — nothing to compare against
-    for (const metric of ["unknown_rate", "evidence_backed_rate", "silent_rate"]) {
-      if (now[metric] === null || was[metric] === null) continue;
-      const delta = now[metric] - was[metric];
-      const worse = LOWER_IS_BETTER.has(metric) ? delta > TOLERANCE : -delta > TOLERANCE;
-      if (worse) regressions.push({ attribute: attr, metric, was: was[metric], now: now[metric], delta: round(delta) });
-    }
-  }
-  // Accuracy: only once enough cafes are labeled, and only against a baseline
-  // that recorded accuracy itself.
-  const acc = current.accuracy;
+  const result = { mode: "corpus", baseline_measured_at: baseline.measured_at, tolerance: TOLERANCE, regressions: [] };
+  if (metrics.sample_size < MIN_SAMPLE) result.deferred = `sample of ${metrics.sample_size} is below --min-sample ${MIN_SAMPLE}`;
+  else result.regressions.push(...qualityRegressions(baseline.attributes, metrics.attributes, TOLERANCE));
+  const acc = metrics.accuracy;
   if (acc && acc.labeled_cafes >= MIN_LABELS && baseline.accuracy) {
-    for (const attr of ATTRIBUTES) {
-      const now = acc.attributes[attr]?.accuracy, was = baseline.accuracy.attributes?.[attr]?.accuracy;
-      if (now == null || was == null) continue;
-      if (was - now > ACC_TOLERANCE) {
-        regressions.push({ attribute: attr, metric: "accuracy", was, now, delta: round(now - was) });
-      }
-    }
+    result.regressions.push(...accuracyRegressions(baseline.accuracy, acc, ACC_TOLERANCE));
   }
-  return { baseline_measured_at: baseline.measured_at, tolerance: TOLERANCE, regressions };
+  return result;
 }
 
 async function record(outcome, detail) {
@@ -253,14 +231,19 @@ async function record(outcome, detail) {
   const { error } = await supabase.from("pipeline_gate_runs").insert({
     outcome, cohort_since: SINCE ?? null, sample_size: metrics.sample_size, detail,
   });
-  if (error) console.error(`⚠️  could not record gate outcome: ${error.message}`);
+  if (error) {
+    console.error(`⚠️  could not record gate outcome: ${error.message}`);
+    // A pass that isn't recorded leaves the next gate without its snapshot.
+    if (outcome === "pass") process.exit(1);
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
+const pct = (v) => v == null ? "  n/a" : `${(v * 100).toFixed(0).padStart(3)}%`;
+
 function renderTable(m) {
-  const pct = (v) => v === null ? "  n/a" : `${(v * 100).toFixed(0).padStart(3)}%`;
   console.log(SINCE
     ? `Tagging quality — ${m.sample_size} cafes re-tagged since ${SINCE}\n`
     : `Tagging quality — ${m.sample_size} LLM-tagged cafes\n`);
@@ -280,11 +263,48 @@ function renderTable(m) {
   }
 }
 
+function renderBeforeAfter(g) {
+  console.log(`\nSame cafes before (last passing gate) → after (now): ${g.compared} re-tagged` +
+    (g.first_tagged ? `, plus ${g.first_tagged} tagged for the first time (not compared)` : ""));
+  console.log(`${"attribute".padEnd(22)} ${"unknown".padStart(13)} ${"evidence".padStart(13)} ${"silent".padStart(13)}`);
+  console.log("-".repeat(64));
+  for (const attr of ATTRIBUTES) {
+    const b = g.before[attr], a = g.after[attr];
+    const cell = (k) => `${pct(b[k])} →${pct(a[k])}`.padStart(13);
+    console.log(`${attr.padEnd(22)} ${cell("unknown_rate")} ${cell("evidence_backed_rate")} ${cell("silent_rate")}`);
+  }
+  if (g.accuracy) {
+    console.log("\nAccuracy vs human labels, before → after:");
+    for (const attr of ATTRIBUTES) {
+      const b = g.accuracy.before.attributes[attr], a = g.accuracy.after.attributes[attr];
+      console.log(`${attr.padEnd(22)} ${pct(b.accuracy)} →${pct(a.accuracy)}  n=${a.labeled}`);
+    }
+  }
+}
+
+function renderVerdict(g, title) {
+  console.log(`\n${title}, tolerance ${g.tolerance}:`);
+  if (g.deferred) console.log(`  ⏭  Coverage gate deferred — ${g.deferred}.` +
+    (SINCE_LAST_PASS ? " These cafes stay in the next run's cohort." : ""));
+  for (const r of g.regressions) {
+    console.log(`  ❌ ${r.attribute}.${r.metric}: ${r.was} → ${r.now} (${r.delta > 0 ? "+" : ""}${r.delta})`);
+  }
+  if (!g.regressions.length && !g.deferred) console.log("  ✅ no regressions");
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
-const metrics = measure(await fetchTaggedCafes());
-metrics.accuracy = await measureAccuracy();
+const all = await fetchTaggedCafes();
+const cohort = SINCE ? all.filter(r => changedSince(r, SINCE)) : all;
+const labeled = await fetchLabeledCafes();
+const metrics = {
+  measured_at: new Date().toISOString(),
+  scope: SINCE ? { since: SINCE } : "all LLM-tagged cafes",
+  sample_size: cohort.length,
+  attributes: tagQuality(cohort),
+  accuracy: labeled ? tagAccuracy(labeled) : null,
+};
 
 if (WRITE_BASELINE) {
   const path = resolve(WRITE_BASELINE);
@@ -294,46 +314,44 @@ if (WRITE_BASELINE) {
   process.exit(0);
 }
 
-if (BASELINE) {
-  // Too few cafes to tell a regression from one thin-review cafe. Say so and
-  // pass — a gate that cries wolf on noise is a gate you learn to ignore.
-  // Accuracy is still checked: it is measured on the labeled set, not the cohort.
-  if (metrics.sample_size < MIN_SAMPLE) {
-    const accOnly = gate({ ...metrics, attributes: {} }, BASELINE);
-    const note = {
-      skipped: true,
-      reason: `sample of ${metrics.sample_size} is below --min-sample ${MIN_SAMPLE}`,
-      scope: metrics.scope,
-      regressions: accOnly.regressions,
-    };
-    if (JSON_OUT) console.log(JSON.stringify({ ...metrics, gate: note }, null, 2));
-    else {
-      renderTable(metrics);
-      console.log(`\n⏭  Coverage gate deferred — ${note.reason}.` +
-        (SINCE_LAST_PASS ? " These cafes stay in the next run's cohort." : ""));
-      for (const r of accOnly.regressions) console.log(`  ❌ ${r.attribute}.${r.metric}: ${r.was} → ${r.now}`);
-    }
-    await record(accOnly.regressions.length ? "fail" : "deferred", note);
-    process.exit(accOnly.regressions.length ? 1 : 0);
-  }
-
-  const result = gate(metrics, BASELINE);
-  await record(result.regressions.length === 0 ? "pass" : "fail", result);
-  if (JSON_OUT) {
-    console.log(JSON.stringify({ ...metrics, gate: result }, null, 2));
-  } else {
-    renderTable(metrics);
-    console.log(`\nGate vs baseline (${result.baseline_measured_at}), tolerance ${TOLERANCE}:`);
-    if (result.regressions.length === 0) {
-      console.log("  ✅ no regressions");
-    } else {
-      for (const r of result.regressions) {
-        console.log(`  ❌ ${r.attribute}.${r.metric}: ${r.was} → ${r.now} (${r.delta > 0 ? "+" : ""}${r.delta})`);
-      }
-    }
-  }
-  process.exit(result.regressions.length === 0 ? 0 : 1);
+if (!BASELINE) {
+  if (JSON_OUT) console.log(JSON.stringify(metrics, null, 2));
+  else renderTable(metrics);
+  process.exit(0);
 }
 
-if (JSON_OUT) console.log(JSON.stringify(metrics, null, 2));
-else renderTable(metrics);
+const snapshot = lastPass?.detail?.snapshot ?? null;
+let result;
+if (!SINCE_LAST_PASS) {
+  result = corpusGate(metrics, BASELINE);
+} else if (snapshot) {
+  result = beforeAfterGate(cohort, labeled, snapshot);
+} else {
+  result = { mode: "first_snapshot", tolerance: TOLERANCE, regressions: [],
+    note: "The last passing gate stored no snapshot of the tags, so there is no 'before' to compare with. Passing and storing one; the next gate compares before and after." };
+}
+
+const failed = result.regressions.length > 0;
+const outcome = APPROVE || !failed ? (result.deferred && !APPROVE ? "deferred" : "pass") : "fail";
+if (APPROVE && failed) result.approved = "regressions accepted with --approve";
+// A pass stores every tagged cafe's tags: the next gate's "before".
+await record(outcome, outcome === "pass" ? { ...result, snapshot: Object.fromEntries(all.map(r => [r.id, tagSnapshot(r)])) } : result);
+
+if (JSON_OUT) {
+  console.log(JSON.stringify({ ...metrics, gate: { ...result, outcome } }, null, 2));
+} else {
+  renderTable(metrics);
+  if (result.mode === "before_after") renderBeforeAfter(result);
+  if (result.note) console.log(`\nℹ️  ${result.note}`);
+  renderVerdict(result, result.mode === "corpus"
+    ? `Gate vs corpus baseline (${result.baseline_measured_at})`
+    : "Gate: same cafes before vs after");
+  if (result.approved) console.log(`  ✅ ${result.approved}; these tags are the new "before".`);
+}
+runNote(`Quality gate: ${outcome}`, [
+  result.mode === "before_after" ? `${result.compared} re-tagged cafes compared with their tags at the last pass` + (result.first_tagged ? `, ${result.first_tagged} new` : "")
+    : result.mode === "first_snapshot" ? result.note : `${metrics.sample_size} cafes vs the corpus baseline`,
+  result.deferred ? `Deferred: ${result.deferred}` : "",
+  ...result.regressions.map(r => `${r.attribute}.${r.metric}: ${r.was} → ${r.now}`),
+].filter(Boolean).join("\n"));
+process.exit(outcome === "fail" ? 1 : 0);

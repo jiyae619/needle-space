@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey, brandPhrase, mentionsCafe, chainBrands, resultsAboutCafe, explicitQuotes, websiteSentences, attributedQuotes, websiteToStore } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -145,6 +145,13 @@ describe("researchFingerprint", () => {
     expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([a], true));
     expect(researchFingerprint([a], false)).not.toBe(researchFingerprint([{ ...a, snippet: "Laptops banned now." }], false));
   });
+
+  it("can be rebuilt from the evidence a cafe already stores", () => {
+    // research-cafes.mjs derives a missing hash from web_research_snippets.
+    const stored = JSON.parse(JSON.stringify({ query: "q", answer: "worded differently each time", results: [a, b] }));
+    expect(researchFingerprint(stored.results, false)).toBe(researchFingerprint([b, a], false));
+    expect(researchFingerprint(undefined, false)).toBe(researchFingerprint([], false));
+  });
 });
 
 describe("createRunTrace", () => {
@@ -169,5 +176,287 @@ describe("createRunTrace", () => {
     await expect(t.node("boom", async () => { throw new Error("crash"); })({})).rejects.toThrow("crash");
     t.endCafe("crashed");
     expect(t.toJSON().cafes[0].nodes[0]).toMatchObject({ node: "boom", error: "crash" });
+  });
+});
+
+describe("taggingReason (which cafes the tagger picks up)", () => {
+  const tagged = { llm_tagged_at: "2026-09-01T00:00:00Z" };
+  const later = "2026-09-20T00:00:00Z", earlier = "2026-08-01T00:00:00Z";
+
+  it("tags a cafe that was never tagged", () => {
+    expect(taggingReason({})).toBe("untagged");
+  });
+
+  it("re-tags on web research newer than the tag, only if it found something", () => {
+    expect(taggingReason({ ...tagged, web_research_at: later, web_research_snippets: { results: [{ snippet: "fast wifi" }] } })).toBe("new_research");
+    expect(taggingReason({ ...tagged, web_research_at: later, yelp_free_wifi: true })).toBe("new_research");
+    expect(taggingReason({ ...tagged, web_research_at: later, web_research_snippets: {} })).toBeNull();
+    expect(taggingReason({ ...tagged, web_research_at: earlier, yelp_free_wifi: true })).toBeNull();
+  });
+
+  it("re-tags when reviews or a review summary were fetched after the tag", () => {
+    expect(taggingReason({ ...tagged, reviews_checked_at: later, google_review_summary: "Calm, with plenty of outlets." })).toBe("new_reviews");
+  });
+
+  it("does not re-tag for a review check that found no summary, or one older than the tag", () => {
+    expect(taggingReason({ ...tagged, reviews_checked_at: later, google_review_summary: "" })).toBeNull();
+    expect(taggingReason({ ...tagged, reviews_checked_at: later, google_review_summary: null })).toBeNull();
+    expect(taggingReason({ ...tagged, reviews_checked_at: earlier, google_review_summary: "Calm." })).toBeNull();
+  });
+});
+
+describe("reviewSummaryBlock", () => {
+  it("labels Google's summary and leaves it out when there is none", () => {
+    expect(reviewSummaryBlock("Quiet mornings, busy weekends.")).toMatch(/^GOOGLE'S SUMMARY OF ALL REVIEWS.*\nQuiet mornings, busy weekends\.$/s);
+    expect(reviewSummaryBlock("")).toBeNull();
+    expect(reviewSummaryBlock(null)).toBeNull();
+  });
+
+  it("caps a long summary", () => {
+    expect(reviewSummaryBlock("x".repeat(5000)).length).toBeLessThan(1400);
+  });
+});
+
+describe("cost guards", () => {
+  it("re-tags on a new summary only if it says something about working there", () => {
+    expect(summaryHasWorkSignal("Cozy spot with fast Wi-Fi and plenty of outlets.")).toBe(true);
+    expect(summaryHasWorkSignal("Popular for studying; gets crowded on weekends.")).toBe(true);
+    expect(summaryHasWorkSignal("Beloved for its croissants and seasonal lattes.")).toBe(false);
+    const c = { llm_tagged_at: "2026-09-01T00:00:00Z", reviews_checked_at: "2026-09-20T00:00:00Z" };
+    expect(taggingReason({ ...c, google_review_summary: "Known for croissants and friendly baristas." })).toBeNull();
+    expect(taggingReason({ ...c, google_review_summary: "Quiet, good for laptop work." })).toBe("new_reviews");
+  });
+
+  it("counts unknown merged tags, with a human label filling a gap", () => {
+    const cafe = { wifi_quality_llm: "fast", outlet_availability_llm: "unknown", noise_level_llm: "quiet",
+      laptop_policy_llm: "welcome", seating_availability_llm: null, seating_availability: "unknown" };
+    expect(unknownCount(cafe)).toBe(2);
+    expect(unknownCount({ ...cafe, human_labels: { outlet_availability: "most" } })).toBe(1);
+  });
+});
+
+describe("quality gate: before/after", () => {
+  const KEYS = Object.keys(VALUES);
+  // A cafe whose five tags are all `value` (or "unknown"), with or without evidence.
+  const cafe = (id, value, { conf = 0.8, evidence = true } = {}) => {
+    const row = { id, tagging_confidence: {} };
+    for (const k of KEYS) {
+      row[`${k}_llm`] = value ?? "unknown";
+      row.tagging_confidence[k] = value
+        ? { confidence: conf, evidence: evidence ? ["a quote"] : [] }
+        : { confidence: 0.3, evidence: [] };
+    }
+    return row;
+  };
+
+  it("survives a round trip through the stored snapshot", () => {
+    let seed = 3;
+    const pick = (a) => a[(seed = (seed * 1103515245 + 12345) % 2 ** 31) % a.length];
+    const rows = Array.from({ length: 200 }, (_, i) => {
+      const r = { id: String(i), tagging_confidence: {} };
+      for (const [k, vals] of Object.entries(VALUES)) {
+        r[`${k}_llm`] = pick(vals);
+        const c = pick([undefined, null, 0.3, 0.55, 0.9]);
+        if (c !== undefined) r.tagging_confidence[k] = { confidence: c, evidence: pick([[], ["q"], undefined]) };
+      }
+      return r;
+    });
+    const back = rows.map(r => rowFromSnapshot(JSON.parse(JSON.stringify(tagSnapshot(r)))));
+    expect(tagQuality(back)).toEqual(tagQuality(rows));
+  });
+
+  it("passes hard cafes that stayed as they were (the 2026-10-02 false alarm)", () => {
+    // 73 of 100 re-tagged cafes have unknown tags; they were unknown before too.
+    const rows = Array.from({ length: 100 }, (_, i) => cafe(String(i), i < 73 ? null : "limited"));
+    const before = tagQuality(rows.map(r => rowFromSnapshot(tagSnapshot(r))));
+    expect(qualityRegressions(before, tagQuality(rows), 0.05)).toEqual([]);
+  });
+
+  it("fails when re-tagging loses tags", () => {
+    const before = Array.from({ length: 100 }, (_, i) => cafe(String(i), "limited"));
+    const after = before.map((r, i) => (i < 10 ? cafe(r.id, null) : r));
+    const regs = qualityRegressions(tagQuality(before), tagQuality(after), 0.05);
+    expect(regs.map(r => `${r.attribute}.${r.metric}`)).toContain("outlet_availability.unknown_rate");
+    expect(regs.find(r => r.metric === "unknown_rate").delta).toBe(0.1);
+  });
+
+  it("ignores changes inside the tolerance and improvements", () => {
+    const before = Array.from({ length: 100 }, (_, i) => cafe(String(i), i < 50 ? null : "most"));
+    const slightlyWorse = before.map((r, i) => (i === 50 ? cafe(r.id, null) : r));
+    const better = before.map((r, i) => (i < 30 ? cafe(r.id, "most") : r));
+    expect(qualityRegressions(tagQuality(before), tagQuality(slightlyWorse), 0.05)).toEqual([]);
+    expect(qualityRegressions(tagQuality(before), tagQuality(better), 0.05)).toEqual([]);
+  });
+
+  it("scores accuracy on committed answers and flags a drop", () => {
+    const label = (r, v) => ({ ...r, human_labels: { outlet_availability: v } });
+    const before = Array.from({ length: 20 }, (_, i) => label(cafe(String(i), "most"), "most"));
+    const after = before.map((r, i) => (i < 4 ? label(cafe(r.id, "limited"), "most") : r));
+    const accBefore = tagAccuracy(before), accAfter = tagAccuracy(after);
+    expect(accBefore.attributes.outlet_availability).toEqual({ labeled: 20, coverage: 1, accuracy: 1 });
+    expect(accAfter.attributes.outlet_availability.accuracy).toBe(0.8);
+    expect(accuracyRegressions(accBefore, accAfter, 0.05)).toEqual([
+      { attribute: "outlet_availability", metric: "accuracy", was: 1, now: 0.8, delta: -0.2 },
+    ]);
+  });
+});
+
+describe("cafe list rules", () => {
+  const comp = (neighborhood, city = "Seattle") => [
+    ...(neighborhood ? [{ longText: neighborhood, types: ["neighborhood", "political"] }] : []),
+    { longText: city, types: ["locality", "political"] },
+  ];
+
+  it("uses Google's neighborhood when it is one of our areas", () => {
+    // Ba Bar on Terry Ave N was labelled Capitol Hill by the search grid.
+    expect(neighborhoodFor({ addressComponents: comp("South Lake Union"), lat: 47.6233, lng: -122.3374 })).toBe("South Lake Union");
+    expect(neighborhoodFor({ addressComponents: comp("Lower Queen Anne"), lat: 47.62, lng: -122.35 })).toBe("Queen Anne");
+    expect(neighborhoodFor({ addressComponents: comp("Belltown"), lat: 47.614, lng: -122.346 })).toBe("Belltown");
+    expect(neighborhoodFor({ addressComponents: comp("Minor"), lat: 47.606, lng: -122.318 })).toBe("Central District");
+  });
+
+  it("keeps a Belltown label when Google only says Downtown", () => {
+    const at = { addressComponents: comp("Downtown Seattle"), lat: 47.6135, lng: -122.345 };
+    expect(neighborhoodFor({ ...at, current: "Belltown" })).toBe("Belltown");
+    expect(neighborhoodFor({ ...at, current: "Capitol Hill" })).toBe("Downtown Seattle");
+    expect(neighborhoodFor({ ...at, addressComponents: comp("South Lake Union"), current: "Belltown" })).toBe("South Lake Union");
+  });
+
+  it("falls back to the nearest area, never across the lake", () => {
+    // Google says "Eastlake", not one of ours: nearest Seattle center.
+    expect(neighborhoodFor({ addressComponents: comp("Eastlake"), lat: 47.6255, lng: -122.3375 })).toBe("South Lake Union");
+    expect(neighborhoodFor({ addressComponents: comp(null), lat: 47.661, lng: -122.334 })).toBe("Wallingford");
+    expect(neighborhoodFor({ addressComponents: comp("Downtown", "Bellevue"), lat: 47.61, lng: -122.2 })).toBe("Bellevue");
+    // A Seattle address on the east edge still gets a Seattle area.
+    expect(neighborhoodFor({ addressComponents: comp(null), lat: 47.62, lng: -122.25 })).not.toMatch(/Bellevue|Kirkland|Redmond/);
+    expect(neighborhoodFor({ addressComponents: [], lat: null, lng: null })).toBeNull();
+  });
+
+  it("knows which chains are not cafes", () => {
+    for (const n of ["7-Eleven", "7 Eleven", "McDonald's", "McDonald’s", "ampm", "AM/PM", "Circle K"]) expect(isNotACafe(n), n).toBe(true);
+    for (const n of ["Starbucks", "Moment Coffee", "Ample Coffee", "Seven Coffee Roasters", "Ampersand Cafe"]) expect(isNotACafe(n), n).toBe(false);
+  });
+
+  it("spots duplicate names", () => {
+    expect(nameKey("Moment Coffee")).toBe(nameKey("MOMENT coffee"));
+    expect(nameKey("Moment Coffee")).not.toBe(nameKey("Momento Coffee"));
+  });
+});
+
+describe("evidence has to be about this cafe", () => {
+  // 2026-10-05: TruLe Yours was tagged "fast Wi-Fi, most outlets" from a 2017
+  // r/Coffee reply about somebody else's favourite shop.
+  const trule = { name: "TruLe Yours Cafe", neighborhood: "Queen Anne" };
+  const offTopic = { url: "https://reddit.com/r/Coffee/6bah01", snippet: "They have a ton of tables, super fast wifi, lots of outlets, large outdoor area." };
+  const onTopic = { url: "https://reddit.com/r/Seattle/x", snippet: "TruLe Yours on Aurora has fast wifi and outlets by the window." };
+
+  it("drops a Reddit post that never names the cafe", () => {
+    expect(resultsAboutCafe([offTopic, onTopic], trule)).toEqual([onTopic]);
+  });
+
+  it("names a cafe by its distinctive words, not 'coffee' or its area", () => {
+    expect(brandPhrase("TruLe Yours Cafe")).toBe("trule yours");
+    expect(brandPhrase("Espresso Vivace South Lake Union")).toBe("vivace");
+    expect(brandPhrase("Caffe Appassionato Coffee Roastery and Tasting Bar")).toBe("appassionato");
+    expect(brandPhrase("Coffee Shop")).toBe("");
+    // a generic name can't be matched to any post, so it gets no Reddit evidence
+    expect(mentionsCafe("Best coffee shop in Seattle", { name: "Coffee Shop" })).toBe(false);
+  });
+
+  it("matches whole words, accents and possessives", () => {
+    expect(mentionsCafe("I love Bob's Java Jive", { name: "Bob's Java Jive" })).toBe(true);
+    expect(mentionsCafe("cafe allegro is great", { name: "Café Allegro" })).toBe(true);
+    expect(mentionsCafe("an allegrotto band", { name: "Café Allegro" })).toBe(false);
+  });
+
+  it("keeps only the words near the cafe's name when a post lists several cafes", () => {
+    const post = "Cherry Street Coffee House is great for sitting inside and doing work. " + "x ".repeat(150) +
+      "Some other place has super fast wifi and outlets everywhere.";
+    const [kept] = resultsAboutCafe([{ snippet: post }], { name: "Cherry Street Coffee House" });
+    expect(kept.snippet).toContain("great for sitting inside");
+    expect(kept.snippet).not.toContain("super fast wifi");
+  });
+
+  it("needs the branch's area for a chain, or the post could be about any branch", () => {
+    const cafes = [{ name: "Zoka Coffee Company / Greenlake" }, { name: "Zoka Coffee - Kirkland" }, trule];
+    const chains = chainBrands(cafes);
+    expect([...chains]).toEqual(["zoka"]);
+    const greenlake = { name: "Zoka Coffee Company / Greenlake", neighborhood: "Wallingford" };
+    expect(resultsAboutCafe([{ snippet: "Zoka has good wifi" }], greenlake, chains)).toEqual([]);
+    expect(resultsAboutCafe([{ snippet: "The Zoka in Wallingford has good wifi" }], greenlake, chains)).toHaveLength(1);
+  });
+});
+
+describe("a tag needs a quote that names its category", () => {
+  it("keeps 'fast wifi' for Wi-Fi but not a vibe line", () => {
+    expect(explicitQuotes({
+      wifi_quality: ["super fast wifi", "great place to hang out"],
+      noise_level: ["very calm and not loud at all", "Great little coffee shop, super chill, nice vibe"],
+      seating_availability: ["The place has plenty of room to sit"],
+      outlet_availability: ["has a decent number of armchairs"],
+      laptop_policy: ["Limited to 45 min", "Super cute drive-up or walk-up spot!"],
+    })).toEqual({
+      wifi_quality: ["super fast wifi"],
+      noise_level: ["very calm and not loud at all"],
+      seating_availability: ["The place has plenty of room to sit"],
+      outlet_availability: [],
+      laptop_policy: ["Limited to 45 min"],
+    });
+  });
+});
+
+describe("websiteSentences", () => {
+  it("keeps what a cafe's own page says about working there, not menu copy or scripts", () => {
+    const html = `<p>Come in for free WiFi and cozy seating!</p><script>var wifi = 1;</script>
+      <p>Bring a slice of Albania to your Seattle table.</p><div>Outlets along the window bar</div>`;
+    expect(websiteSentences(html)).toEqual(["Come in for free WiFi and cozy seating!", "Outlets along the window bar."]);
+  });
+
+  it("doesn't change the research fingerprint of a cafe with no website text", () => {
+    const r = [{ url: "u", snippet: "Fast wifi." }];
+    expect(researchFingerprint(r, false, [])).toBe(researchFingerprint(r, false));
+    expect(researchFingerprint(r, false, ["Free WiFi."])).not.toBe(researchFingerprint(r, false));
+  });
+});
+
+describe("a Reddit quote has to be about this cafe, not just near its name", () => {
+  // Codex review, 2026-10-05: the ±200-character window kept this Wi-Fi claim for TruLe Yours.
+  const cafe = { name: "TruLe Yours Cafe" };
+  const otherBrands = ["trule yours", "allegro", "zoka"];
+  const reddit = ["TruLe Yours has nice pastries. Cafe Allegro has super fast wifi and outlets everywhere.",
+    "I worked at TruLe Yours all day. The wifi is fast."];
+
+  it("drops a claim made in a sentence about another cafe", () => {
+    const { kept } = attributedQuotes({ wifi_quality: ["super fast wifi"], outlet_availability: ["outlets everywhere"] }, { reddit, cafe, otherBrands });
+    expect(kept).toEqual({ wifi_quality: [], outlet_availability: [] });
+  });
+
+  it("keeps the sentence after the cafe's name when no other cafe is named", () => {
+    const { kept } = attributedQuotes({ wifi_quality: ["The wifi is fast."] }, { reddit, cafe, otherBrands });
+    expect(kept.wifi_quality).toEqual(["The wifi is fast."]);
+  });
+
+  it("drops a sentence that names this cafe alongside another one, unless the quote names this cafe itself", () => {
+    const mixed = ["Zoka and TruLe Yours both have outlets, but TruLe Yours has the faster wifi."];
+    expect(attributedQuotes({ outlet_availability: ["both have outlets"] }, { reddit: mixed, cafe, otherBrands }).kept.outlet_availability).toEqual([]);
+    expect(attributedQuotes({ wifi_quality: ["TruLe Yours has the faster wifi"] }, { reddit: mixed, cafe, otherBrands }).kept.wifi_quality)
+      .toEqual(["TruLe Yours has the faster wifi"]);
+  });
+
+  it("trusts the cafe's own reviews and website without naming it", () => {
+    const { kept } = attributedQuotes({ wifi_quality: ["fast wifi everywhere"] }, { reviews: ["Fast wifi everywhere, love it"], cafe, otherBrands });
+    expect(kept.wifi_quality).toEqual(["fast wifi everywhere"]);
+  });
+});
+
+describe("a website that can't be read keeps its stored evidence", () => {
+  // Codex review, 2026-10-05: a timeout returned [], which overwrote stored sentences and re-tagged the cafe without them.
+  const prior = ["Free WiFi and plenty of outlets."];
+  it("keeps the stored sentences when the read failed", () => {
+    expect(websiteToStore({ ok: false, error: "timed out" }, prior)).toEqual(prior);
+  });
+  it("replaces them only after the page was actually read", () => {
+    expect(websiteToStore({ ok: true, sentences: [] }, prior)).toEqual([]);
+    expect(websiteToStore({ ok: true, sentences: ["Quiet upstairs."] }, prior)).toEqual(["Quiet upstairs."]);
   });
 });

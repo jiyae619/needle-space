@@ -8,7 +8,8 @@ This directory contains three scripts for building and maintaining Needle Space'
 
 | Script | Purpose | Writes to DB? |
 |---|---|---|
-| `fetch-cafes.mjs` | Pulls cafe listings from Google Places API | Yes |
+| `fetch-cafes.mjs` | Pulls cafe listings from Google Places API (skips 7-Eleven, McDonald's, ampm, Circle K) | Yes |
+| `clean-cafe-list.mjs` | Hides non-cafes and dead duplicates, corrects neighborhoods. Run from Actions → Daily data pipeline → Run workflow → "Clean the cafe list" | Yes (unless `--dry-run`) |
 | `analyze-reviews.mjs` | Tags each cafe with workspace attributes | Yes (unless `--dry-run`) |
 | `discover-keywords.mjs` | Surfaces new phrases to improve the tagger | Never — read-only |
 | `evaluate-retrieval.mjs` | Scores NL search quality against `golden-queries.json` (Recall@k, MRR) | Never — read-only |
@@ -87,5 +88,5 @@ Any phrase appearing **2+ times** across cafes is worth considering for SIGNALS.
 - **Label cafes** at `/admin` (needs `ADMIN_PASSWORD` outside `npm run dev`). Labels go to `cafes.human_labels`, win over the model on the site, and are the answer key for the evals. The model's answer stays hidden until you pick yours.
 - `node scripts/evaluate-accuracy.mjs [--matrices]` — accuracy and coverage of the model, the keyword tagger, and what shipped, against your labels. Quote nothing below 20 labels per attribute.
 - `node scripts/evaluate-retrieval.mjs [--via-api]` — Hit@k, Recall@k, nDCG@k and MRR on `golden-queries.json`. `--via-api` measures the real `/api/search` path. Prefer `expected_ids` for new labels.
-- `node scripts/quality-metrics.mjs --baseline docs/quality-baseline.json --since-last-pass --record` — the pipeline's gate. Measures every cafe changed since the last passing gate, adds accuracy once 20+ cafes are labeled, and records the outcome in `pipeline_gate_runs`.
-- `.github/workflows/nightly-eval.yml` runs the first two every night and posts the numbers to the run summary.
+- `node scripts/quality-metrics.mjs --baseline docs/quality-baseline.json --since-last-pass --record` — the pipeline's gate. Compares every cafe changed since the last passing gate with the same cafes' tags at that pass (stored with each pass in `pipeline_gate_runs`), adds accuracy before/after once 20+ cafes are labeled, and records the outcome. Add `--approve` to accept an expected drop; from Actions, run the pipeline with args `--approve-gate`.
+- `.github/workflows/nightly-eval.yml` ("Weekly eval") runs the first two every Monday and posts the numbers to the run summary.

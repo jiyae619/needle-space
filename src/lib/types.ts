@@ -87,7 +87,8 @@ export type HumanLabels = Partial<{
 export interface AttributeConfidence {
   confidence: number; // 0..1
   evidence: string[]; // 1-2 short quotes, checked against their source
-  source?: "text" | "vision";
+  source?: "text" | "vision" | "yelp"; // yelp: Wi-Fi from Yelp's free-WiFi category, no quote
+  from?: "reviews" | "website" | "reddit"; // text only: where the first quote was found
   reason?: string | null; // vision only: what the photo showed
 }
 
@@ -105,10 +106,11 @@ export interface TaggingConfidence {
 // strings whose default is "any".
 export interface Filters {
   location:     string[]; // [] = any. Multi-select neighborhoods.
+  wifi:         "fast" | "fast_or_moderate" | "any";
   noise:        "quiet" | "quiet_or_moderate" | "any";
   outlets:      "every_table" | "any_outlets" | "any";
   laptop:       "welcome" | "welcome_or_limited" | "any";
-  productivity: "above_4" | "under_4" | "any";
+  productivity: "above_4" | "any";
   open_now:     "open_now" | "any";
 }
 
@@ -116,6 +118,7 @@ export type FilterKey = keyof Filters;
 
 export const EMPTY_FILTERS: Filters = {
   location:     [],
+  wifi:         "any",
   noise:        "any",
   outlets:      "any",
   laptop:       "any",
@@ -134,6 +137,7 @@ export function isFilterEmpty<K extends FilterKey>(key: K, value: Filters[K]): b
 export const NEIGHBORHOODS = [
   "Ballard",
   "Bellevue",
+  "Belltown",
   "Capitol Hill",
   "Central District",
   "Columbia City",
@@ -144,7 +148,9 @@ export const NEIGHBORHOODS = [
   "Pioneer Square",
   "Queen Anne",
   "Redmond",
+  "South Lake Union",
   "University District",
+  "Wallingford",
   "West Seattle",
 ] as const;
 
@@ -164,6 +170,15 @@ export interface FilterDef<K extends FilterKey = FilterKey> {
 // Location is handled by a separate multi-select chip (LocationFilterChip).
 // FILTER_DEFS only covers the single-select chips.
 export const FILTER_DEFS: FilterDef[] = [
+  {
+    key: "wifi",
+    label: "Wi‑Fi",
+    options: [
+      { value: "fast",                label: "Fast only" },
+      { value: "fast_or_moderate",    label: "Fast or moderate" },
+      { value: "any",                 label: "Any" },
+    ],
+  },
   {
     key: "noise",
     label: "Noise",
@@ -193,10 +208,9 @@ export const FILTER_DEFS: FilterDef[] = [
   },
   {
     key: "productivity",
-    label: "Productivity",
+    label: "Work score",
     options: [
       { value: "above_4",             label: "4 or above" },
-      { value: "under_4",             label: "Under 4" },
       { value: "any",                 label: "Any" },
     ],
   },

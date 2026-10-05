@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // Surprise me (/treasure) was retired in Oct 2026; old links land on the
+  // landing page, whose "Barista's choice" plays the same role.
+  async redirects() {
+    return [{ source: "/treasure", destination: "/", permanent: true }];
+  },
 };
 
 export default nextConfig;
