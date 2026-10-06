@@ -81,7 +81,11 @@ export const ORDER_SLOTS = {
 export type OrderSlot = keyof typeof ORDER_SLOTS;
 export type Order = Record<OrderSlot, number>;
 export const ORDER_KEYS = Object.keys(ORDER_SLOTS) as OrderSlot[];
-export const DEFAULT_ORDER: Order = { noise: 0, outlets: 0, wifi: 0, hours: 0, area: 0 };
+// "Quiet or a low buzz" and nothing else. Since tags need an explicit quote
+// (Oct 2026), only ~45 cafes have outlet info and ~70 have Wi-Fi info, so a
+// default that asked for both matched 7 cafes; this one matches ~170, still
+// leaves out loud places, and the tickets are ranked by work score.
+export const DEFAULT_ORDER: Order = { noise: 1, outlets: 2, wifi: 2, hours: 0, area: 0 };
 
 export function orderToFilters(order: Order): Filters {
   return Object.assign(

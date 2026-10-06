@@ -3,10 +3,12 @@ import { encodeRow, decodeRow } from "./counter-rows";
 import { matchesFilters } from "./search-filters";
 import { orderToFilters, ORDER_SLOTS, ORDER_KEYS, type Order } from "./filter-url";
 import { computeMergedScore } from "./score";
-import type { Cafe } from "./types";
+import { EMPTY_FILTERS, type Cafe, type Filters } from "./types";
 
 const BASE = "https://proj.supabase.co/storage/v1/object/public/cafe-photos/";
 const monday10am = new Date(2026, 8, 28, 10, 0);
+const tuesday10am = new Date(2026, 8, 29, 10, 0);
+const roundTrip = (c: Cafe) => decodeRow(encodeRow(c, BASE), BASE);
 
 function cafe(over: Partial<Cafe>): Cafe {
   return {
@@ -37,30 +39,47 @@ const cases: Record<string, Cafe> = {
   }),
 };
 
-describe("landing page rows", () => {
-  // The Counter's counts come from decoded rows; /explore filters full rows on
-  // the server. If a round trip changed any answer, the two pages would disagree.
+// Every chip setting See all offers beyond the landing page's order.
+const exploreFilters: Partial<Filters>[] = [
+  { laptop: "welcome" }, { laptop: "welcome_or_limited" }, { productivity: "above_4" },
+  { location: ["Kirkland"] }, { location: ["Ballard", "Fremont"] }, { open_now: "open_now" },
+  { wifi: "fast" }, { outlets: "every_table" },
+];
+
+describe("compact cafe rows", () => {
+  // The home page counts and See all filters run on decoded rows in the
+  // browser; text search filters full rows on the server. If a round trip
+  // changed any answer, the pages would disagree.
   for (const [name, original] of Object.entries(cases)) {
-    it(`match the full row for every order: ${name}`, () => {
-      const decoded = decodeRow(encodeRow(original, "monday", BASE), "monday", BASE);
-      for (const order of allOrders()) {
-        const f = orderToFilters(order);
-        expect(matchesFilters(decoded, f, monday10am), JSON.stringify(order))
-          .toBe(matchesFilters(original, f, monday10am));
+    it(`match the full row for every order and chip, any day: ${name}`, () => {
+      const decoded = roundTrip(original);
+      for (const now of [monday10am, tuesday10am]) {
+        for (const f of [...allOrders().map(orderToFilters), ...exploreFilters.map(x => ({ ...EMPTY_FILTERS, ...x }))]) {
+          expect(matchesFilters(decoded, f, now), JSON.stringify(f))
+            .toBe(matchesFilters(original, f, now));
+        }
       }
     });
   }
 
   it("keeps the score the card shows and rebuilds the photo URL", () => {
     const c = cases["a quiet, outlet-rich Seattle cafe"];
-    const d = decodeRow(encodeRow(c, "monday", BASE), "monday", BASE);
+    const d = roundTrip(c);
     expect(d.productivity_score).toBe(computeMergedScore(c));
     expect(d.photo_url).toBe(c.photo_url);
+    expect([d.lat, d.lng]).toEqual([c.lat, c.lng]);
   });
 
-  it("ships only today's hours", () => {
-    const row = encodeRow(cases["keyword noise is never trusted"], "monday", BASE);
-    expect(row[6]).toBe("7:00 AM – 6:00 PM");
-    expect(JSON.stringify(row)).not.toContain("Closed");
+  it("carries the whole week, so a page cached yesterday shows today's hours", () => {
+    const week = {
+      sunday: "8:00 AM – 5:00 PM", monday: "7:00 AM – 3:00 PM", tuesday: "7:00 AM – 3:00 PM",
+      wednesday: "7:00 AM – 3:00 PM", thursday: "7:00 AM – 3:00 PM", friday: "7:00 AM – 3:00 PM", saturday: "Closed",
+    };
+    const row = encodeRow(cafe({ hours_json: week }), BASE);
+    expect(decodeRow(row, BASE).hours_json).toEqual(week);
+    // repeated days are stored once
+    expect(row[6]!.match(/7:00 AM/g)).toHaveLength(1);
+    expect(decodeRow(encodeRow(cafe({ hours_json: { monday: "7:00 AM – 6:00 PM", tuesday: "Closed" } }), BASE), BASE).hours_json)
+      .toEqual({ monday: "7:00 AM – 6:00 PM", tuesday: "Closed" });
   });
 });

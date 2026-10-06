@@ -15,6 +15,7 @@ import {
 import { matchesFilters } from "@/lib/search-filters";
 import type { Cafe } from "@/lib/types";
 import { decodeRow, type CounterRow } from "@/lib/counter-rows";
+import { seattleNow } from "@/lib/open-now";
 
 const TICKETS = 12;
 const TITLES: Record<OrderSlot, string> = { noise: "Noise", outlets: "Outlets", wifi: "Wi‑Fi", hours: "Hours", area: "Where" };
@@ -22,15 +23,14 @@ const opts = (k: OrderSlot) => ORDER_SLOTS[k] as OrderOption[];
 
 interface CounterProps {
   rows: CounterRow[];     // every visible cafe, best score first, compacted by encodeRow
-  day: string;
   photoBase: string;
-  nowIso: string;         // server's Seattle clock, so the first render matches
+  nowIso: string;         // Seattle clock when the page was built, so hydration matches
   neighborhoods: number;
   fonts: { display: string; mono: string; marker: string };
 }
 
-export default function Counter({ rows, day, photoBase, nowIso, neighborhoods, fonts }: CounterProps) {
-  const cafes = useMemo(() => rows.map(r => decodeRow(r, day, photoBase)), [rows, day, photoBase]);
+export default function Counter({ rows, photoBase, nowIso, neighborhoods, fonts }: CounterProps) {
+  const cafes = useMemo(() => rows.map(r => decodeRow(r, photoBase)), [rows, photoBase]);
   const [order, setOrder] = useState<Order>(DEFAULT_ORDER);
   const [now, setNow] = useState(() => new Date(nowIso));
   const [openSlot, setOpenSlot] = useState<OrderSlot | null>(null);
@@ -47,9 +47,11 @@ export default function Counter({ rows, day, photoBase, nowIso, neighborhoods, f
   const hintDone = useRef(false);
   const hovered = useRef("");
 
-  // Keep "open now" honest while the page stays open.
+  // The page may have been built minutes ago (it's cached), so read the clock
+  // now, then keep "open now" honest while the page stays open.
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }))), 60_000);
+    setNow(seattleNow());
+    const id = setInterval(() => setNow(seattleNow()), 60_000);
     return () => clearInterval(id);
   }, []);
 
