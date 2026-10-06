@@ -17,11 +17,13 @@ function NavLinks({ view }: { view?: string | null }) {
     { href: "/explore", label: "See all", active: onExplore && view !== undefined && view !== "map" },
     { href: "/explore?view=map", label: "Map", active: onExplore && view === "map" },
   ];
-  return links.map(l => (
-    <Link key={l.label} href={l.href} className="ns-chip" aria-current={l.active ? "page" : undefined}>
-      {l.label}
-    </Link>
-  ));
+  // On /explore itself these are plain links: the page is cached, and Next's
+  // in-app navigation between its own query strings there either did nothing
+  // or restored the filters you came in with. A full load of the cached page
+  // is quick and always lands on exactly the link.
+  return links.map(l => onExplore
+    ? <a key={l.label} href={l.href} className="ns-chip" aria-current={l.active ? "page" : undefined}>{l.label}</a>
+    : <Link key={l.label} href={l.href} className="ns-chip" aria-current={l.active ? "page" : undefined}>{l.label}</Link>);
 }
 
 function LiveNavLinks() {

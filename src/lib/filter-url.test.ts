@@ -27,10 +27,10 @@ describe("the landing page order", () => {
     const order = { noise: 1, outlets: 1, wifi: 1, hours: 1, area: 2 };
     expect(parse(orderHref(order))).toEqual(orderToFilters(order));
   });
-  it("reads the default order as quiet, some outlets, fast-or-moderate Wi-Fi", () => {
+  it("reads the default order as quiet-or-low-buzz only, so first-time visitors see plenty of matches", () => {
     const f = orderToFilters(DEFAULT_ORDER);
     expect([f.noise, f.outlets, f.wifi, f.open_now, f.location]).toEqual(
-      ["quiet", "any_outlets", "fast_or_moderate", "any", []],
+      ["quiet_or_moderate", "any", "any", "any", []],
     );
   });
   it("links to plain /explore when every slot says 'any'", () => {

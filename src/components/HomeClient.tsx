@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useSearchParams, usePathname } from "next/navigation";
 import { ArrowUp } from "@phosphor-icons/react";
 import FilterChips from "@/components/FilterChips";
 import Ticket, { checksForFilters } from "@/components/Ticket";
@@ -11,6 +11,8 @@ import SearchBar from "@/components/SearchBar";
 import { Cafe, Filters, FilterKey, EMPTY_FILTERS, isFilterEmpty } from "@/lib/types";
 import { areaName, filtersFromUrl, filtersToParams } from "@/lib/filter-url";
 import { searchCafes } from "@/lib/cafes";
+import { matchesFilters } from "@/lib/search-filters";
+import { decodeRow, type CounterRow } from "@/lib/counter-rows";
 
 const PAGE_SIZE = 16;
 
@@ -25,12 +27,14 @@ function exploreStateQuery(searchQuery: string, filters: Filters, visibleCount: 
 }
 
 interface HomeClientProps {
-  initialCafes: Cafe[];
+  rows: CounterRow[];      // every visible cafe, best score first (encodeRow)
+  photoBase: string;
+  nowIso: string;          // Seattle clock when the page was built
   featuredCafeId?: string | null;
 }
 
-export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientProps) {
-  const router = useRouter();
+export default function HomeClient({ rows, photoBase, nowIso, featuredCafeId }: HomeClientProps) {
+  const initialCafes = useMemo(() => rows.map(r => decodeRow(r, photoBase)), [rows, photoBase]);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   // Persist search, filters, visible count, and view in the URL. A café detail
@@ -39,9 +43,14 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
   const urlShow = Math.max(PAGE_SIZE, parseInt(searchParams.get("show") || String(PAGE_SIZE), 10) || PAGE_SIZE);
 
   const [filters, setFilters] = useState<Filters>(() => filtersFromUrl(searchParams));
-  // Seattle wall-clock time for the tickets' "Today" hours and Open now.
-  const [now, setNow] = useState(() => seattleNow());
-  useEffect(() => { const id = setInterval(() => setNow(seattleNow()), 60_000); return () => clearInterval(id); }, []);
+  // Seattle wall-clock time for the tickets' "Today" hours and Open now. The
+  // page is cached, so start from its build time and read the clock on load.
+  const [now, setNow] = useState(() => new Date(nowIso));
+  useEffect(() => {
+    setNow(seattleNow());
+    const id = setInterval(() => setNow(seattleNow()), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const clock = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   const [viewMode, setViewMode] = useState<ViewMode>(() => searchParams.get("view") === "map" ? "map" : "list");
   const [selectedCafeId, setSelectedCafeId] = useState<string | null>(null);
@@ -68,15 +77,18 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
 
   // replaceState prevents a history entry for every typed character or scroll
   // batch while still keeping a complete return destination for café details.
+  // The browser's own history.replaceState, which Next keeps useSearchParams in
+  // step with: router.replace on this cached page updated Next's state but left
+  // the address bar unchanged, and asked the server for nothing anyway.
   // `written` holds the URLs we replaced to that Next hasn't reported back yet,
   // so an echo of our own write is never mistaken for a new link.
   const written = useRef<string[]>([]);
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.pathname + window.location.search !== returnHref) {
       written.current.push(returnHref);
-      router.replace(returnHref, { scroll: false });
+      window.history.replaceState(null, "", returnHref);
     }
-  }, [returnHref, router]);
+  }, [returnHref]);
 
   // Any other URL change on this page (the header's "See all" or "Map", the
   // browser's back button) is a new destination: take its filters and view.
@@ -133,18 +145,14 @@ export default function HomeClient({ initialCafes, featuredCafeId }: HomeClientP
     if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [hoveredCafeId, viewMode]);
 
-  // Hit /api/search whenever the query or filters change. The debounce inside
-  // SearchBar caps how often the user can trigger this from typing.
+  // Chips alone filter the cafes already in the page, with the same rules the
+  // server uses (matchesFilters) — instant, no request. Only typed text goes
+  // to /api/search; the debounce inside SearchBar caps how often.
   useEffect(() => {
-    const filtersAreEmpty = (Object.keys(filters) as FilterKey[]).every(
-      k => isFilterEmpty(k, filters[k]),
-    );
-    // No query AND no filter constraints → keep the SSR-rendered list. Avoids
-    // a needless API hit on first paint.
-    if (!searchQuery.trim() && filtersAreEmpty) {
+    if (!searchQuery.trim()) {
       // Also clear the in-flight state: clearing the box while a search is
       // pending cancels that request, so its own reset never runs.
-      setResults(initialCafes);
+      setResults(initialCafes.filter(c => matchesFilters(c, filters, seattleNow())));
       setSearchError(null);
       setSemanticFallback(null);
       setIsSearching(false);
