@@ -31,3 +31,6 @@ docs/backups/
 
 # LangGraph run traces (uploaded as workflow artifacts, not committed)
 traces/
+
+# Local Netlify folder
+.netlify

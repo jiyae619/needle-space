@@ -2,5 +2,12 @@
   command = "npm run build"
   publish = ".next"
 
+[build.environment]
+  # NEXT_PUBLIC_SUPABASE_URL is public by design: it is inlined into the
+  # browser JS and is part of every cafe photo URL. Since / and /explore became
+  # cached pages (Oct 2026), those photo URLs sit in the build output, and the
+  # secrets scan failed the build on them. Every other secret is still scanned.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
