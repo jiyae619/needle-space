@@ -588,12 +588,17 @@ export function tagQuality(rows) {
 }
 
 /** Metrics that got worse by more than `tolerance` from `before` to `after` (both from tagQuality). */
+// silent_rate is reported, not gated. It only splits unknown tags by the
+// confidence the model attached to "unknown", which nothing downstream reads.
+// Older prompts stored unknown at 0.6–0.85; re-tagging rewrites those to 0.3,
+// so it "regressed" with no tag lost (the 2026-11-04 false alarm).
+// unknown_rate already catches lost tags.
 export function qualityRegressions(before, after, tolerance) {
   const out = [];
   for (const attr of TAG_KEYS) {
     const was = before?.[attr], now = after?.[attr];
     if (!was || !now) continue;
-    for (const metric of ["unknown_rate", "evidence_backed_rate", "silent_rate"]) {
+    for (const metric of ["unknown_rate", "evidence_backed_rate"]) {
       if (now[metric] == null || was[metric] == null) continue;
       const delta = round3(now[metric] - was[metric]);
       const worse = metric === "evidence_backed_rate" ? -delta > tolerance : delta > tolerance;
