@@ -64,6 +64,8 @@ export interface Cafe {
   // What the room looks like, read from the cafe's own photos offline
   // (scripts/mood-tag-cafes.mjs). Descriptive only: not part of the score.
   mood?: CafeMood | null;
+  // Extra photos the mood pass read, copied to Storage (shown at the top of the cafe page).
+  mood_photos?: string[];
   // The 1024-dim embedding stays server-side; we don't normally ship it to the browser.
   cafe_embedding?: number[] | null;
 }
@@ -85,7 +87,7 @@ export const CAFE_COLUMNS = [
 ].join(", ");
 
 // The cafe page also shows what was recorded on an in-person visit.
-export const CAFE_DETAIL_COLUMNS = `${CAFE_COLUMNS}, visit_note, visited_at, visit_photos, mood`;
+export const CAFE_DETAIL_COLUMNS = `${CAFE_COLUMNS}, visit_note, visited_at, visit_photos, mood, mood_photos`;
 
 // A direct Places media URL carries the server API key (scripts/fetch-cafes.mjs
 // writes one for every newly discovered cafe until cache-photos replaces it).

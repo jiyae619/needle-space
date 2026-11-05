@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import ScoreBreakdown from "@/components/ScoreBreakdown";
 import BackLink from "@/components/BackLink";
+import PhotoCarousel from "@/components/PhotoCarousel";
 import { seattleNow } from "@/lib/open-now";
 import type { CafeMood } from "@/lib/types";
 
@@ -21,8 +22,8 @@ function safePhotoUrl(url: string | null | undefined): string | null {
 
 const FOCUS_WORDS: Record<string, string> = { focus: "good for focus", social: "good for meeting up" };
 
-// Mood labels grouped by the photo each was read from, so the page can show
-// "cozy, good for focus" next to the picture that shows it. Unknown is left out.
+// Mood labels grouped by the photo each was read from, so each photo at the top
+// can say "cozy, good for focus". Unknown is left out.
 function moodByPhoto(mood: CafeMood | null | undefined) {
   const labels = [...(mood?.style ?? []), ...(mood?.focus && "photo" in mood.focus ? [mood.focus] : [])]
     .filter(l => l.photo && l.value !== "unknown");
@@ -47,6 +48,12 @@ export default async function CafeDetailPage({
   // The main photo is already the hero; don't show it twice. Newest first.
   const visitPhotos = [...(cafe.visit_photos ?? [])].reverse().filter(url => url !== photo);
   const mood = moodByPhoto(cafe.mood);
+  // The top photo, then the extra photos the mood pass stored, then any other
+  // photo a mood word came from; each captioned with the words read from it.
+  const captions = new Map(mood.map(g => [g.photo, g.words.join(" · ")]));
+  const slides = [...new Set([photo, ...(cafe.mood_photos ?? []), ...mood.map(g => g.photo)])]
+    .filter((url): url is string => !!url)
+    .map(url => ({ url, caption: captions.get(url) }));
 
   const now = seattleNow();
   const today = DAYS[now.getDay()];
@@ -60,11 +67,7 @@ export default async function CafeDetailPage({
       <article className="rc">
         <div className="rc-meta"><span>Dine-in · 1 laptop</span><span>{printed}</span></div>
 
-        {photo && (
-          <div className="rc-photo">
-            <Image src={photo} alt={`Inside ${cafe.name}`} fill sizes="(max-width: 768px) 100vw, 640px" className="object-cover" unoptimized priority />
-          </div>
-        )}
+        {slides.length > 0 && <PhotoCarousel slides={slides} name={cafe.name} />}
 
         <header className="rc-head">
           <p className="rc-where">{cafe.neighborhood}</p>
@@ -87,23 +90,7 @@ export default async function CafeDetailPage({
           <section className="rc-section" aria-labelledby="rc-mood-h">
             <h2 className="rc-h" id="rc-mood-h">The room</h2>
             <p className="rc-note">{mood.flatMap(g => g.words).join(" · ")}</p>
-            <div className="flex gap-3 overflow-x-auto mt-3 pb-2">
-              {mood.map(g => (
-                <figure key={g.photo} className="m-0 shrink-0 w-28">
-                  {g.photo === photo ? (
-                    <div className="w-28 aspect-[4/3] grid place-items-center rounded-sm bg-[var(--gs-paper)] px-1 text-center">
-                      <span className="rc-fine" style={{ margin: 0 }}>the photo at the top</span>
-                    </div>
-                  ) : (
-                    <div className="relative w-28 aspect-[4/3] overflow-hidden rounded-sm bg-[var(--gs-paper)]">
-                      <Image src={g.photo} alt={`${g.words.join(", ")} at ${cafe.name}`} fill sizes="112px" className="object-cover" unoptimized />
-                    </div>
-                  )}
-                  <figcaption className="rc-fine">{g.words.join(", ")}</figcaption>
-                </figure>
-              ))}
-            </div>
-            <p className="rc-fine">Read from the cafe&apos;s photos by AI, so it can be wrong.</p>
+            <p className="rc-fine">Read from the cafe&apos;s photos by AI, so it can be wrong. Each photo above says what was read from it.</p>
           </section>
         )}
 
