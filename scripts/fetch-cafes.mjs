@@ -9,14 +9,21 @@
  * — you cannot ask for 50). To get past 20 per neighborhood we tile each area
  * into a grid of smaller searches and dedupe by place id. Each area carries a
  * tier (dense=3×3, medium=2×2, light=single search) so searches concentrate
- * where cafes are actually dense — see SEARCH_AREAS / GRID_BY_TIER.
+ * where cafes are actually dense — see SEARCH_AREAS / GRID_BY_TIER. A search
+ * that still comes back full (20) is split once into 4 smaller circles that
+ * cover it: in Nov 2026, 33 of the 48 grid searches were full. EXTRA_SPOTS adds
+ * Eastside districts the city-center searches miss. Only places whose main
+ * Google category is cafe-like are kept (isCafeType in _shared.mjs).
  *
- * ⚠️ Uses the PAID Google Places API. The script prints an estimated cost;
- * run --plan first to see the plan and spend nothing.
+ * ⚠️ Uses the PAID Google Places API. A live run bills as "Nearby Search
+ * Enterprise + Atmosphere" (1,000 free a month) because it asks for reviews and
+ * hours, and stops at MAX_CALLS. --dry-run asks only for name, place and
+ * category, which bills as "Nearby Search Pro" (5,000 free a month), so a dry
+ * run doesn't eat into the live run's allowance. --plan spends nothing.
  *
  * Usage:
  *   node scripts/fetch-cafes.mjs --plan       # print search count + cost estimate, NO API calls
- *   node scripts/fetch-cafes.mjs --dry-run    # run the searches, list NEW cafes, no DB writes
+ *   node scripts/fetch-cafes.mjs --dry-run    # run the searches (cheap fields), list NEW cafes, no DB writes
  *   node scripts/fetch-cafes.mjs              # insert new cafes
  *
  * New cafes start untagged (score null). To tag + score them afterwards:
@@ -29,7 +36,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.mjs";
-import { AREAS, neighborhoodFor, isNotACafe } from "./_shared.mjs";
+import { AREAS, neighborhoodFor, isNotACafe, isCafeType, splitCircle } from "./_shared.mjs";
 
 const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY;
 const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
@@ -47,8 +54,22 @@ const argv = process.argv.slice(2);
 const DRY_RUN = argv.includes("--dry-run");
 const PLAN    = argv.includes("--plan");
 
-// Search areas covering Seattle + Eastside: AREAS in scripts/_shared.mjs.
-const SEARCH_AREAS = AREAS;
+// Eastside districts outside the Bellevue/Redmond/Kirkland city-center
+// searches. Search spots, not new neighborhoods: `name` is the city a cafe
+// there is filed under (neighborhoodFor reads the city from Google's address).
+const EXTRA_SPOTS = [
+  { name: "Bellevue", spot: "Crossroads",              lat: 47.6180, lng: -122.1300, tier: "light" },
+  { name: "Bellevue", spot: "Factoria/Eastgate",       lat: 47.5770, lng: -122.1700, tier: "light" },
+  { name: "Bellevue", spot: "Bel-Red/Spring District", lat: 47.6230, lng: -122.1800, tier: "light" },
+  { name: "Redmond",  spot: "Overlake",                lat: 47.6330, lng: -122.1400, tier: "light" },
+  { name: "Redmond",  spot: "Microsoft campus",        lat: 47.6440, lng: -122.1290, tier: "light" },
+  { name: "Kirkland", spot: "Totem Lake",              lat: 47.7160, lng: -122.1820, tier: "light" },
+  { name: "Kirkland", spot: "Juanita",                 lat: 47.7070, lng: -122.2120, tier: "light" },
+  { name: "Kirkland", spot: "Rose Hill",               lat: 47.6790, lng: -122.1780, tier: "light" },
+];
+
+// Search areas covering Seattle + Eastside: AREAS in scripts/_shared.mjs, plus the spots above.
+const SEARCH_AREAS = [...AREAS, ...EXTRA_SPOTS];
 
 // Google's searchNearby returns AT MOST 20 results per call. To cover a dense
 // neighborhood we tile it into a grid of smaller searches and dedupe by place
@@ -61,6 +82,11 @@ const GRID_BY_TIER = {
   medium: [-0.006, 0.006],     // 2×2 = 4 searches
   light:  [0],                 // 1 search
 };
+// Safety stop for the paid search. The grid is 56 calls and splitting the full
+// ones added about 130 more in Nov 2026: about 190 a run, once a month, of
+// the 1,000 free.
+const MAX_CALLS = 300;
+let calls = 0;
 
 function offsetsFor(area) {
   return GRID_BY_TIER[area.tier] ?? GRID_BY_TIER.medium;
@@ -86,7 +112,32 @@ function guessLaptopFriendly(name, reviews = []) {
   return matches.length >= 2; // needs 2+ signals to be tagged
 }
 
-async function searchNearby(lat, lng, areaName) {
+// Google bills a search by the priciest field asked for: reviews make it
+// Enterprise + Atmosphere. A dry run only lists what would be added, so it
+// asks for the Pro fields alone.
+const PRO_FIELDS = [
+  "places.id",
+  "places.displayName",
+  "places.formattedAddress",
+  "places.addressComponents",
+  "places.location",
+  "places.primaryType",
+];
+const FULL_FIELDS = [
+  ...PRO_FIELDS,
+  "places.rating",
+  "places.userRatingCount",
+  "places.priceLevel",
+  "places.businessStatus",
+  "places.currentOpeningHours",
+  "places.nationalPhoneNumber",
+  "places.websiteUri",
+  "places.photos",
+  "places.reviews",
+];
+
+async function searchNearby(lat, lng, areaName, radius) {
+  calls++;
   const url = new URL("https://places.googleapis.com/v1/places:searchNearby");
 
   const body = {
@@ -95,7 +146,7 @@ async function searchNearby(lat, lng, areaName) {
     locationRestriction: {
       circle: {
         center: { latitude: lat, longitude: lng },
-        radius: SEARCH_RADIUS_M,
+        radius,
       },
     },
   };
@@ -105,22 +156,7 @@ async function searchNearby(lat, lng, areaName) {
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": GOOGLE_KEY,
-      "X-Goog-FieldMask": [
-        "places.id",
-        "places.displayName",
-        "places.formattedAddress",
-        "places.addressComponents",
-        "places.location",
-        "places.rating",
-        "places.userRatingCount",
-        "places.priceLevel",
-        "places.businessStatus",
-        "places.currentOpeningHours",
-        "places.nationalPhoneNumber",
-        "places.websiteUri",
-        "places.photos",
-        "places.reviews",
-      ].join(","),
+      "X-Goog-FieldMask": (DRY_RUN ? PRO_FIELDS : FULL_FIELDS).join(","),
     },
     body: JSON.stringify(body),
   });
@@ -197,28 +233,54 @@ async function main() {
   const tierCount = { dense: 0, medium: 0, light: 0 };
   for (const a of SEARCH_AREAS) tierCount[a.tier ?? "medium"]++;
   const totalSearches = SEARCH_AREAS.reduce((n, a) => n + offsetsFor(a).length ** 2, 0);
-  const estCost = (totalSearches * 0.04).toFixed(2); // ~$0.04/searchNearby (rough)
-  console.log(`📍 ${SEARCH_AREAS.length} areas (${tierCount.dense} dense·9 + ${tierCount.medium} medium·4 + ${tierCount.light} light·1) = ${totalSearches} Places calls @ ${SEARCH_RADIUS_M}m radius`);
-  console.log(`   Est. Google Places cost ~$${estCost} (rough)`);
+  console.log(`📍 ${SEARCH_AREAS.length} areas (${tierCount.dense} dense·9 + ${tierCount.medium} medium·4 + ${tierCount.light} light·1) = ${totalSearches} Places calls @ ${SEARCH_RADIUS_M}m radius,`);
+  console.log(`   plus 4 smaller searches for each one that comes back full (at most ${MAX_CALLS} calls in all)`);
+  console.log(DRY_RUN
+    ? "   Bills as Nearby Search Pro (5,000 free a month)"
+    : "   Bills as Nearby Search Enterprise + Atmosphere (1,000 free a month, then $0.04 a call)");
   console.log(`   Mode: ${PLAN ? "PLAN — no API calls" : DRY_RUN ? "DRY RUN — searches, no DB writes" : "LIVE — insert new cafes"}\n`);
   if (PLAN) { console.log("(--plan: nothing was searched or written.)"); return; }
 
   // --- search every sub-point, dedupe by place id ---
-  const allCafes = new Map(); // key: google_place_id
+  const allCafes = new Map();     // key: google_place_id
+  const categoryOf = new Map();   // google_place_id -> Google's primaryType, for the dry-run list
+  const skipped = new Map();      // primaryType -> places dropped as not cafe-like
+  let full = 0, capped = false;
+  const collect = async (pt, radius, areaName) => {
+    const places = await searchNearby(pt.lat, pt.lng, areaName, radius);
+    for (const place of places) {
+      if (allCafes.has(place.id) || isNotACafe(place.displayName?.text)) continue;   // 7-Eleven, McDonald's, ampm, Circle K
+      if (!isCafeType(place.primaryType)) {   // a clothing store, a golf center, a pho restaurant
+        skipped.set(place.primaryType, (skipped.get(place.primaryType) ?? new Set()).add(place.id));
+        continue;
+      }
+      categoryOf.set(place.id, place.primaryType);
+      allCafes.set(place.id, await processCafe(place, areaName));
+    }
+    await new Promise((r) => setTimeout(r, 100)); // pace the paid API
+    return places.length;
+  };
   for (const area of SEARCH_AREAS) {
     const before = allCafes.size;
-    process.stdout.write(`  ${area.name} [${area.tier ?? "medium"}]... `);
+    process.stdout.write(`  ${area.name}${area.spot ? ` – ${area.spot}` : ""} [${area.tier ?? "medium"}]... `);
     for (const pt of subPoints(area)) {
-      const places = await searchNearby(pt.lat, pt.lng, area.name);
-      for (const place of places) {
-        if (isNotACafe(place.displayName?.text)) continue;   // 7-Eleven, McDonald's, ampm, Circle K
-        if (!allCafes.has(place.id)) allCafes.set(place.id, await processCafe(place, area.name));
+      if (calls >= MAX_CALLS) { capped = true; break; }
+      // Full means Google left some out: search the same circle again in 4 smaller pieces.
+      if (await collect(pt, SEARCH_RADIUS_M, area.name) < 20) continue;
+      full++;
+      for (const piece of splitCircle(pt, SEARCH_RADIUS_M)) {
+        if (calls >= MAX_CALLS) { capped = true; break; }
+        await collect(piece, piece.radius, area.name);
       }
-      await new Promise((r) => setTimeout(r, 100)); // pace the paid API
     }
     console.log(`${allCafes.size - before} new unique (running total ${allCafes.size})`);
   }
-  console.log(`\n✅ ${allCafes.size} unique cafes found across all areas`);
+  console.log(`\n✅ ${allCafes.size} unique cafes found across all areas (${calls} Places calls, ${full} full searches split)`);
+  if (capped) console.log(`⚠️  Stopped at the ${MAX_CALLS}-call safety limit; some areas were not searched.`);
+  if (skipped.size) {
+    const list = [...skipped].map(([t, ids]) => [t ?? "no category", ids.size]).sort((a, b) => b[1] - a[1]);
+    console.log(`   Skipped as not cafe-like: ${list.map(([t, n]) => `${t} ${n}`).join(", ")}`);
+  }
 
   // --- insert-only: drop anything already in the DB; never update existing ---
   const existing = new Set();
@@ -233,7 +295,7 @@ async function main() {
 
   if (DRY_RUN) {
     console.log("New cafes that WOULD be inserted (dry-run):");
-    newCafes.forEach((c) => console.log(`   + ${c.name} — ${c.neighborhood}`));
+    newCafes.forEach((c) => console.log(`   + ${c.name} — ${c.neighborhood} (${categoryOf.get(c.google_place_id)})`));
     console.log(`\n(dry-run: ${newCafes.length} not written)`);
     return;
   }
