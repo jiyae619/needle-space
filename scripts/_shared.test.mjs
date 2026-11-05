@@ -272,6 +272,20 @@ describe("quality gate: before/after", () => {
     expect(qualityRegressions(before, tagQuality(rows), 0.05)).toEqual([]);
   });
 
+  it("passes unknown tags that only moved to the prompt's 0.3 confidence (the 2026-11-04 false alarm)", () => {
+    // Older prompts stored unknown at 0.6–0.85; re-tagging rewrites them to 0.3.
+    // No tag was lost, so nothing a visitor sees got worse.
+    const unknownAt = (id, conf) => {
+      const r = cafe(id, null);
+      for (const k of KEYS) r.tagging_confidence[k] = { confidence: conf, evidence: [] };
+      return r;
+    };
+    const before = Array.from({ length: 100 }, (_, i) => (i < 60 ? unknownAt(String(i), 0.7) : cafe(String(i), "limited")));
+    const after = before.map((r, i) => (i < 60 ? unknownAt(r.id, 0.3) : r));
+    expect(tagQuality(after).outlet_availability.silent_rate).toBeGreaterThan(tagQuality(before).outlet_availability.silent_rate);
+    expect(qualityRegressions(tagQuality(before), tagQuality(after), 0.05)).toEqual([]);
+  });
+
   it("fails when re-tagging loses tags", () => {
     const before = Array.from({ length: 100 }, (_, i) => cafe(String(i), "limited"));
     const after = before.map((r, i) => (i < 10 ? cafe(r.id, null) : r));
