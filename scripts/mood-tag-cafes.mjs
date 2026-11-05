@@ -278,7 +278,8 @@ async function main() {
         for (const [n, ref] of refs.entries()) {
           budget--; counts.downloads++;   // count the attempt: Google may bill a failed one
           const img = await download(`https://places.googleapis.com/v1/${ref}/media?maxHeightPx=${PHOTO_PX}&key=${encodeURIComponent(GOOGLE_KEY)}`);
-          const url = DRY_RUN ? `google-photo-${n + 1}` : await uploadMoodPhoto(cafe.google_place_id, n + 1, img);
+          // Dry run: no upload, so name the photo by its Google reference (no key in it).
+          const url = DRY_RUN ? `google-photo-${n + 1}:${ref}` : await uploadMoodPhoto(cafe.google_place_id, n + 1, img);
           fetched[url] = img;
           extras.push(url);
         }

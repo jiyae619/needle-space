@@ -147,13 +147,17 @@ async function main() {
   // keep finalizing embeddings and scores rather than fail every update.
   const { error: stErr } = await supabase.from("cafes").select("search_text").limit(1);
   const HAS_SEARCH_TEXT = !stErr;
+  // cafes.mood arrives with 20261105000000_photo_mood.sql; same idea.
+  const { error: moodErr } = await supabase.from("cafes").select("mood_tagged_at").limit(1);
+  const HAS_MOOD = !moodErr;
 
   let q = supabase.from("cafes").select(
-    "id, google_place_id, name, neighborhood, address, vibe_keywords, mood, google_rating, productivity_score, " +
+    "id, google_place_id, name, neighborhood, address, vibe_keywords, google_rating, productivity_score, " +
     "wifi_quality, outlet_availability, noise_level, laptop_policy, seating_availability, " +
     "wifi_quality_llm, outlet_availability_llm, noise_level_llm, laptop_policy_llm, seating_availability_llm, " +
     "human_labels, google_review_summary, google_editorial_summary, " +
-    "llm_tagged_at, visual_tagged_at, mood_tagged_at, finalized_at" + (HAS_SEARCH_TEXT ? ", search_text" : "")
+    "llm_tagged_at, visual_tagged_at, finalized_at" + (HAS_SEARCH_TEXT ? ", search_text" : "") +
+    (HAS_MOOD ? ", mood, mood_tagged_at" : "")
   ).not("llm_tagged_at", "is", null).eq("hidden", false).order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
 
