@@ -1,3 +1,18 @@
+/** One mood label, with the photo it was read from. */
+export interface MoodLabel {
+  value: string;
+  confidence: number;
+  photo: string;
+  reason: string | null;
+}
+
+export interface CafeMood {
+  style: MoodLabel[];
+  focus: MoodLabel | { value: "unknown" };
+  model?: string;
+  version?: number;
+}
+
 export interface Cafe {
   id: string;
   google_place_id: string;
@@ -46,6 +61,9 @@ export interface Cafe {
   visit_note?: string | null;
   visited_at?: string | null;
   visit_photos?: string[];
+  // What the room looks like, read from the cafe's own photos offline
+  // (scripts/mood-tag-cafes.mjs). Descriptive only: not part of the score.
+  mood?: CafeMood | null;
   // The 1024-dim embedding stays server-side; we don't normally ship it to the browser.
   cafe_embedding?: number[] | null;
 }
@@ -67,7 +85,7 @@ export const CAFE_COLUMNS = [
 ].join(", ");
 
 // The cafe page also shows what was recorded on an in-person visit.
-export const CAFE_DETAIL_COLUMNS = `${CAFE_COLUMNS}, visit_note, visited_at, visit_photos`;
+export const CAFE_DETAIL_COLUMNS = `${CAFE_COLUMNS}, visit_note, visited_at, visit_photos, mood`;
 
 // A direct Places media URL carries the server API key (scripts/fetch-cafes.mjs
 // writes one for every newly discovered cafe until cache-photos replaces it).

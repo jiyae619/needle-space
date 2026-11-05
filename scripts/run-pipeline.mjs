@@ -2,7 +2,7 @@
 /**
  * Needle Space — data pipeline orchestrator (Phase B "conveyor belt").
  *
- * Runs the five offline stages in the correct order with ONE command, instead
+ * Runs the six offline stages in the correct order with ONE command, instead
  * of relying on remembering the sequence. Every stage is independently
  * idempotent and self-skips work that is already fresh (research skips cafes
  * researched < 30 days ago; tagging/vision skip already-tagged rows), so
@@ -12,15 +12,17 @@
  *   1. research-cafes      Reddit/Yelp evidence  → web_research_snippets, yelp_free_wifi
  *   2. analyze-reviews-llm  text tags + embedding → *_llm, tagging_confidence, cafe_embedding
  *   3. visual-tag-cafes     fill gaps from photos → *_llm (outlets/seating/laptop)
- *   4. quality-metrics      GATE — compares every cafe changed since the last passing
+ *   4. mood-tag-cafes       room mood from photos → mood (style words, focus vs social);
+ *                            descriptive only, never in the score or the gate
+ *   5. quality-metrics      GATE — compares every cafe changed since the last passing
  *                            gate (so small runs accumulate) with the same cafes'
  *                            tags at that pass, plus accuracy against human
  *                            labels once there are enough, and stops the
  *                            pipeline if either got worse. Records the outcome.
- *   5. finalize-cafes       re-embed + re-score from the MERGED tags
+ *   6. finalize-cafes       re-embed + re-score from the MERGED tags
  *                            → cafe_embedding, productivity_score, finalized_at
  *
- * Why the gate sits at 4 and not at the end: finalize is the synthesiser. It is
+ * Why the gate sits at 5 and not at the end: finalize is the synthesiser. It is
  * where a tag stops being a row in a table and becomes the search index and the
  * productivity score. A check that runs after it can only report the damage; a
  * check that runs before it prevents the damage. When the gate fails, the tags
@@ -28,7 +30,7 @@
  * is recoverable by fixing the tagger and re-running — every stage skips work it
  * has already done.
  *
- * Stage 5 (finalize) is the only stage that embeds: it builds the embedding +
+ * Stage 6 (finalize) is the only stage that embeds: it builds the embedding +
  * score from the final merged tags (human labels, text and vision) for cafes
  * that changed since their last finalize, in batches. (scripts/recompute-merged-scores.mjs
  * still exists standalone for the human-readable SCORE-UPDATE.md report.)
@@ -39,7 +41,7 @@
  *   --cafe "Name"          single-cafe run
  *   --force                re-do work even if freshness markers say to skip
  *                          (bumps llm_tagged_at, so finalize refreshes those too)
- *   --delay-ms N           pacing for stages 2 & 5 (defaults pace for the Gemini / Voyage free tiers)
+ *   --delay-ms N           pacing for stages 2, 4 & 6 (defaults pace for the Gemini / Voyage free tiers)
  *
  * Orchestrator-only flags (NOT forwarded to stages):
  *   --plan                 print the ordered plan and exit without running anything
@@ -73,14 +75,15 @@ const DRY_RUN   = forwarded.includes("--dry-run");
 // moving downstream. It is not paced and costs no API calls beyond one Supabase
 // read.
 const STAGES = [
-  { key: "research", label: "1/5  Web research (Reddit + Yelp)",    script: "scripts/research-cafes.mjs" },
-  { key: "tag",      label: "2/5  Review tagging + embedding",      script: "scripts/analyze-reviews-llm.mjs" },
-  { key: "vision",   label: "3/5  Vision gap-fill",                 script: "scripts/visual-tag-cafes.mjs" },
-  { key: "gate",     label: "4/5  Quality gate (before finalize)",  script: "scripts/quality-metrics.mjs",
+  { key: "research", label: "1/6  Web research (Reddit + Yelp)",    script: "scripts/research-cafes.mjs" },
+  { key: "tag",      label: "2/6  Review tagging + embedding",      script: "scripts/analyze-reviews-llm.mjs" },
+  { key: "vision",   label: "3/6  Vision gap-fill",                 script: "scripts/visual-tag-cafes.mjs" },
+  { key: "mood",     label: "4/6  Photo mood (descriptive)",        script: "scripts/mood-tag-cafes.mjs" },
+  { key: "gate",     label: "5/6  Quality gate (before finalize)",  script: "scripts/quality-metrics.mjs",
     gate: true,
     args: ["--baseline", "docs/quality-baseline.json", "--tolerance", "0.05",
            "--min-sample", "25", "--since-last-pass", "--record"] },
-  { key: "finalize", label: "5/5  Finalize (re-embed + re-score)",  script: "scripts/finalize-cafes.mjs" },
+  { key: "finalize", label: "6/6  Finalize (re-embed + re-score)",  script: "scripts/finalize-cafes.mjs" },
 ];
 
 // A dry run must leave no trace: the gate still measures, but doesn't record

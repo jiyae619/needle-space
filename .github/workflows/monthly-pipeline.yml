@@ -137,6 +137,9 @@ jobs:
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          # The photo-mood stage downloads 2 extra photos per cafe, once
+          # (capped at 600 a month inside mood-tag-cafes.mjs).
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
           # Which embedding text finalize builds (v1 or v2). Set the repository
           # variable EMBED_TEXT_VERSION only together with a full re-embed
           # (finalize-cafes.mjs --all --text v2), so the index never mixes both.

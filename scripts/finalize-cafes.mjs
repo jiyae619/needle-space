@@ -12,8 +12,8 @@
  * the tags. This stage re-embeds + re-scores the cafes that changed.
  *
  * Selection rule ("changed since last refresh"):
- *   refresh a tagged cafe when finalized_at IS NULL, OR a tag change
- *   (llm_tagged_at / visual_tagged_at) is newer than finalized_at, OR it has no
+ *   refresh a tagged cafe when finalized_at IS NULL, OR a tag or mood change
+ *   (llm_tagged_at / visual_tagged_at / mood_tagged_at) is newer than finalized_at, OR it has no
  *   search_text yet (the full-text index for hybrid search).
  *   An /admin attribute edit sets finalized_at back to NULL, so it's caught too.
  *   --all ignores the rule and refreshes every tagged cafe.
@@ -133,7 +133,8 @@ function needsFinalize(cafe, hasSearchText) {
   if (fin == null) return true;
   const llm = cafe.llm_tagged_at    ? new Date(cafe.llm_tagged_at).getTime()    : 0;
   const vis = cafe.visual_tagged_at ? new Date(cafe.visual_tagged_at).getTime() : 0;
-  return llm > fin || vis > fin;
+  const mood = cafe.mood_tagged_at  ? new Date(cafe.mood_tagged_at).getTime()   : 0;
+  return llm > fin || vis > fin || mood > fin;
 }
 
 async function main() {
@@ -148,11 +149,11 @@ async function main() {
   const HAS_SEARCH_TEXT = !stErr;
 
   let q = supabase.from("cafes").select(
-    "id, google_place_id, name, neighborhood, address, vibe_keywords, google_rating, productivity_score, " +
+    "id, google_place_id, name, neighborhood, address, vibe_keywords, mood, google_rating, productivity_score, " +
     "wifi_quality, outlet_availability, noise_level, laptop_policy, seating_availability, " +
     "wifi_quality_llm, outlet_availability_llm, noise_level_llm, laptop_policy_llm, seating_availability_llm, " +
     "human_labels, google_review_summary, google_editorial_summary, " +
-    "llm_tagged_at, visual_tagged_at, finalized_at" + (HAS_SEARCH_TEXT ? ", search_text" : "")
+    "llm_tagged_at, visual_tagged_at, mood_tagged_at, finalized_at" + (HAS_SEARCH_TEXT ? ", search_text" : "")
   ).not("llm_tagged_at", "is", null).eq("hidden", false).order("name");
   if (FILTER_CAFE) q = q.ilike("name", `%${FILTER_CAFE}%`);
 

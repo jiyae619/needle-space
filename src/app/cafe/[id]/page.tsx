@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import ScoreBreakdown from "@/components/ScoreBreakdown";
 import BackLink from "@/components/BackLink";
 import { seattleNow } from "@/lib/open-now";
+import type { CafeMood } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,18 @@ function safePhotoUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (url.includes("places.googleapis.com")) return null;
   return url;
+}
+
+const FOCUS_WORDS: Record<string, string> = { focus: "good for focus", social: "good for meeting up" };
+
+// Mood labels grouped by the photo each was read from, so the page can show
+// "cozy, good for focus" next to the picture that shows it. Unknown is left out.
+function moodByPhoto(mood: CafeMood | null | undefined) {
+  const labels = [...(mood?.style ?? []), ...(mood?.focus && "photo" in mood.focus ? [mood.focus] : [])]
+    .filter(l => l.photo && l.value !== "unknown");
+  const groups = new Map<string, string[]>();
+  for (const l of labels) groups.set(l.photo, [...(groups.get(l.photo) ?? []), FOCUS_WORDS[l.value] ?? l.value]);
+  return [...groups].map(([photo, words]) => ({ photo, words }));
 }
 
 export default async function CafeDetailPage({
@@ -33,6 +46,7 @@ export default async function CafeDetailPage({
   const photo = safePhotoUrl(cafe.photo_url);
   // The main photo is already the hero; don't show it twice. Newest first.
   const visitPhotos = [...(cafe.visit_photos ?? [])].reverse().filter(url => url !== photo);
+  const mood = moodByPhoto(cafe.mood);
 
   const now = seattleNow();
   const today = DAYS[now.getDay()];
@@ -67,6 +81,29 @@ export default async function CafeDetailPage({
           <h2 className="rc-h" id="rc-items-h">Your order, itemized</h2>
           <ScoreBreakdown cafe={cafe} />
         </section>
+
+        {/* Read offline from the cafe's own photos (scripts/mood-tag-cafes.mjs). */}
+        {mood.length > 0 && (
+          <section className="rc-section" aria-labelledby="rc-mood-h">
+            <h2 className="rc-h" id="rc-mood-h">The room</h2>
+            <p className="rc-note">{mood.flatMap(g => g.words).join(" · ")}</p>
+            <div className="flex gap-3 overflow-x-auto mt-3 pb-2">
+              {mood.map(g => (
+                <figure key={g.photo} className="m-0 shrink-0 w-28">
+                  {g.photo === photo ? (
+                    <div className="w-28 aspect-[4/3] grid place-items-center rounded-sm bg-[var(--gs-paper)] rc-fine text-center px-1">the photo at the top</div>
+                  ) : (
+                    <div className="relative w-28 aspect-[4/3] overflow-hidden rounded-sm bg-[var(--gs-paper)]">
+                      <Image src={g.photo} alt={`${g.words.join(", ")} at ${cafe.name}`} fill sizes="112px" className="object-cover" unoptimized />
+                    </div>
+                  )}
+                  <figcaption className="rc-fine">{g.words.join(", ")}</figcaption>
+                </figure>
+              ))}
+            </div>
+            <p className="rc-fine">Read from the cafe&apos;s photos by AI, so it can be wrong.</p>
+          </section>
+        )}
 
         {/* What was recorded in person via /admin/visit. */}
         {(cafe.visit_note || visitPhotos.length > 0) && (

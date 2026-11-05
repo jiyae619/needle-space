@@ -72,7 +72,7 @@ export function embedText(cafe, merged, reviews) {
     cafe.name,
     cafe.neighborhood,
     cafe.address,
-    (cafe.vibe_keywords ?? []).join(", "),
+    [...(cafe.vibe_keywords ?? []), ...moodWords(cafe.mood)].join(", "),
     tagSummary,
     corpusSnippet,
   ].filter(Boolean).join(" — ");
@@ -107,7 +107,76 @@ export function describeCafe(cafe, merged) {
   const place = [cafe.neighborhood, city && city !== cafe.neighborhood ? city : null].filter(Boolean).join(", ");
   const tags = ATTRS.map(([, k]) => TAG_SENTENCES[k][merged[k]]).filter(Boolean);
   const vibes = (cafe.vibe_keywords ?? []).length ? `Known for ${cafe.vibe_keywords.join(", ")}.` : null;
-  return [`${cafe.name} is a cafe${place ? ` in ${place}` : ""}.`, ...tags, vibes].filter(Boolean).join(" ");
+  return [`${cafe.name} is a cafe${place ? ` in ${place}` : ""}.`, ...tags, vibes, moodSentence(cafe.mood)]
+    .filter(Boolean).join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Photo mood (scripts/mood-tag-cafes.mjs). Descriptive only: it reaches search
+// text and the cafe page, never the productivity score.
+// ---------------------------------------------------------------------------
+export const MOOD_STYLES = ["cozy", "minimal", "plant-filled", "industrial", "artsy"];
+export const MOOD_FOCUS = ["focus", "social"];
+export const MOOD_CONF_FLOOR = 0.7;
+export const MOOD_MAX_STYLES = 2;
+
+/**
+ * Turn the model's answer into what is stored. A label stands only if the
+ * model was sure (>= 0.7) AND it names a photo it was shown that it called an
+ * interior shot; anything else is dropped (style) or "unknown" (focus). The
+ * photo number becomes that photo's URL, so the cafe page can show it.
+ */
+export function applyMood(raw, photoUrls) {
+  const interior = new Set((raw?.photos ?? []).filter(p => p.kind === "interior").map(p => p.index));
+  const grounded = (l) => l != null && l.confidence >= MOOD_CONF_FLOOR && Number.isInteger(l.photo)
+    && l.photo >= 1 && l.photo <= photoUrls.length && interior.has(l.photo);
+  const entry = (l) => ({ value: l.value, confidence: l.confidence, photo: photoUrls[l.photo - 1], reason: l.reason ?? null });
+  const seen = new Set();
+  const style = (raw?.style ?? [])
+    .filter(l => MOOD_STYLES.includes(l.value) && grounded(l))
+    .sort((a, b) => b.confidence - a.confidence)
+    .filter(l => !seen.has(l.value) && seen.add(l.value))
+    .slice(0, MOOD_MAX_STYLES)
+    .map(entry);
+  const f = raw?.focus;
+  const focus = f && MOOD_FOCUS.includes(f.value) && grounded(f) ? entry(f) : { value: "unknown" };
+  return { style, focus };
+}
+
+const FOCUS_WORDS = { focus: "good for focus", social: "lively, good for meeting up" };
+const FOCUS_SENTENCES = { focus: "Looks like a place for focused work.", social: "Looks like a place for meeting up." };
+
+/** Mood as search words: ["cozy", "plant-filled", "good for focus"]. */
+export function moodWords(mood) {
+  if (!mood) return [];
+  return [...(mood.style ?? []).map(s => s.value), FOCUS_WORDS[mood.focus?.value]].filter(Boolean);
+}
+
+/** Mood as a sentence for describeCafe, or null when nothing is known. */
+export function moodSentence(mood) {
+  const styles = (mood?.style ?? []).map(s => s.value);
+  return [styles.length ? `The room looks ${styles.join(" and ")}.` : null, FOCUS_SENTENCES[mood?.focus?.value]]
+    .filter(Boolean).join(" ") || null;
+}
+
+/**
+ * Start of the current Google billing month (Pacific time). Uses 07:00 UTC on
+ * the 1st, the earlier of PDT/PST midnight, so a download near the boundary is
+ * counted in the new month too: the cap errs toward spending less.
+ */
+export function billingMonthStart(now = new Date()) {
+  const [y, m] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit" })
+    .format(now).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1, 7));
+}
+
+/** Google photo downloads the mood pass may still make this billing month. */
+export function moodPhotoBudget(rows, cap, now = new Date()) {
+  const start = billingMonthStart(now).getTime();
+  const used = rows
+    .filter(r => r.mood_photos_at && new Date(r.mood_photos_at).getTime() >= start)
+    .reduce((n, r) => n + (r.mood_photos?.length ?? 0), 0);
+  return Math.max(0, cap - used);
 }
 
 export function embedTextV2(cafe, merged, reviews) {

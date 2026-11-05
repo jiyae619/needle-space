@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey, brandPhrase, mentionsCafe, chainBrands, resultsAboutCafe, explicitQuotes, websiteSentences, attributedQuotes, websiteToStore } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey, brandPhrase, mentionsCafe, chainBrands, resultsAboutCafe, explicitQuotes, websiteSentences, attributedQuotes, websiteToStore, applyMood, moodWords, moodSentence, moodPhotoBudget, billingMonthStart } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -472,5 +472,78 @@ describe("a website that can't be read keeps its stored evidence", () => {
   it("replaces them only after the page was actually read", () => {
     expect(websiteToStore({ ok: true, sentences: [] }, prior)).toEqual([]);
     expect(websiteToStore({ ok: true, sentences: ["Quiet upstairs."] }, prior)).toEqual(["Quiet upstairs."]);
+  });
+});
+
+describe("photo mood", () => {
+  const urls = ["https://x/hero.jpg", "https://x/mood-1.jpg", "https://x/mood-2.jpg"];
+  const photos = [{ index: 1, kind: "interior" }, { index: 2, kind: "food_drink" }, { index: 3, kind: "interior" }];
+
+  it("keeps a label only when the model is sure, so a guess is stored as unknown", () => {
+    const m = applyMood({ photos,
+      style: [{ value: "cozy", confidence: 0.85, photo: 1 }, { value: "minimal", confidence: 0.69, photo: 3 }],
+      focus: { value: "focus", confidence: 0.6, photo: 3 } }, urls);
+    expect(m.style.map(s => s.value)).toEqual(["cozy"]);
+    expect(m.focus).toEqual({ value: "unknown" });
+  });
+
+  it("keeps a label only if it came from an interior photo the model was shown", () => {
+    // A latte close-up can't tell you the room is cozy; photo 9 doesn't exist.
+    const m = applyMood({ photos,
+      style: [{ value: "cozy", confidence: 0.9, photo: 2 }, { value: "artsy", confidence: 0.9, photo: 9 }],
+      focus: { value: "social", confidence: 0.9, photo: null } }, urls);
+    expect(m.style).toEqual([]);
+    expect(m.focus.value).toBe("unknown");
+  });
+
+  it("records which photo each label came from, so the cafe page can show it", () => {
+    const m = applyMood({ photos, style: [{ value: "plant-filled", confidence: 0.8, photo: 3, reason: "plants on every shelf" }],
+      focus: { value: "focus", confidence: 0.75, photo: 1 } }, urls);
+    expect(m.style[0]).toEqual({ value: "plant-filled", confidence: 0.8, photo: "https://x/mood-2.jpg", reason: "plants on every shelf" });
+    expect(m.focus.photo).toBe("https://x/hero.jpg");
+  });
+
+  it("keeps at most 2 style words from the list, most confident first, no repeats", () => {
+    const m = applyMood({ photos, focus: { value: "not_visible", confidence: 0.9, photo: 1 }, style: [
+      { value: "minimal", confidence: 0.75, photo: 1 }, { value: "cozy", confidence: 0.95, photo: 3 },
+      { value: "cozy", confidence: 0.8, photo: 1 }, { value: "rustic", confidence: 0.99, photo: 1 },
+      { value: "industrial", confidence: 0.9, photo: 1 }] }, urls);
+    expect(m.style.map(s => s.value)).toEqual(["cozy", "industrial"]);
+    expect(m.focus.value).toBe("unknown");
+  });
+
+  it("puts mood words into both search texts, and leaves cafes without a mood unchanged", () => {
+    const merged = { wifi: "fast", outlets: "unknown", noise: "unknown", laptop: "unknown", seating: "unknown" };
+    const cafe = { name: "Elm Coffee", neighborhood: "Pioneer Square", address: "240 2nd Ave S, Seattle, WA 98104, USA", vibe_keywords: ["great pastries"] };
+    const mood = { style: [{ value: "cozy" }, { value: "plant-filled" }], focus: { value: "focus" } };
+    expect(moodWords(mood)).toEqual(["cozy", "plant-filled", "good for focus"]);
+    expect(embedText({ ...cafe, mood }, merged, [])).toContain("great pastries, cozy, plant-filled, good for focus");
+    expect(describeCafe({ ...cafe, mood }, merged)).toContain("The room looks cozy and plant-filled. Looks like a place for focused work.");
+    expect(embedText({ ...cafe, mood: null }, merged, [])).toBe(embedText(cafe, merged, []));
+    expect(moodSentence({ style: [], focus: { value: "unknown" } })).toBeNull();
+  });
+
+  it("never changes the productivity score", () => {
+    const cafe = { google_rating: 4.5, wifi_quality_llm: "fast", noise_level_llm: "quiet" };
+    const mood = { style: [{ value: "cozy" }], focus: { value: "social" } };
+    expect(scriptScore({ ...cafe, mood })).toBe(scriptScore(cafe));
+  });
+
+  it("stops Google photo downloads at the monthly cap, counting only this billing month", () => {
+    const now = new Date("2026-12-15T12:00:00Z");
+    const rows = [
+      { mood_photos: ["a", "b"], mood_photos_at: "2026-12-02T00:00:00Z" },
+      { mood_photos: ["c", "d"], mood_photos_at: "2026-12-10T00:00:00Z" },
+      { mood_photos: ["e", "f"], mood_photos_at: "2026-11-30T00:00:00Z" },   // last month
+      { mood_photos: [],         mood_photos_at: "2026-12-11T00:00:00Z" },   // cafe had no extra photos
+    ];
+    expect(moodPhotoBudget(rows, 600, now)).toBe(596);
+    expect(moodPhotoBudget(rows, 3, now)).toBe(0);
+  });
+
+  it("starts the billing month at Pacific midnight, erring early", () => {
+    // 11pm Nov 30 in Seattle is already Dec 1 in UTC, but still November's bill.
+    expect(billingMonthStart(new Date("2026-12-01T07:30:00Z")).toISOString()).toBe("2026-11-01T07:00:00.000Z");
+    expect(billingMonthStart(new Date("2026-12-01T08:30:00Z")).toISOString()).toBe("2026-12-01T07:00:00.000Z");
   });
 });
