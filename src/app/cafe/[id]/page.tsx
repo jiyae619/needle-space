@@ -91,7 +91,9 @@ export default async function CafeDetailPage({
               {mood.map(g => (
                 <figure key={g.photo} className="m-0 shrink-0 w-28">
                   {g.photo === photo ? (
-                    <div className="w-28 aspect-[4/3] grid place-items-center rounded-sm bg-[var(--gs-paper)] rc-fine text-center px-1">the photo at the top</div>
+                    <div className="w-28 aspect-[4/3] grid place-items-center rounded-sm bg-[var(--gs-paper)] px-1 text-center">
+                      <span className="rc-fine" style={{ margin: 0 }}>the photo at the top</span>
+                    </div>
                   ) : (
                     <div className="relative w-28 aspect-[4/3] overflow-hidden rounded-sm bg-[var(--gs-paper)]">
                       <Image src={g.photo} alt={`${g.words.join(", ")} at ${cafe.name}`} fill sizes="112px" className="object-cover" unoptimized />
