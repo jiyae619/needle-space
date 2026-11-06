@@ -14,7 +14,7 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
 ## Tech Stack
 - **Framework:** Next.js 16 (App Router). Middleware lives in `src/proxy.ts` (Next 16 naming).
 - **Database:** Supabase (PostgreSQL + pgvector), Supabase Storage bucket `cafe-photos`
-- **Auth:** None for visitors. `/admin` and `/api/admin/*` use HTTP Basic auth with `ADMIN_PASSWORD` (404 when unset outside dev).
+- **Auth:** None for visitors. `/admin` and `/api/admin/*` use HTTP Basic auth with `ADMIN_PASSWORD`, plus `ADMIN_USERNAME` when set (any username otherwise); 404 when the password is unset outside dev.
 - **Maps:** Google Maps JavaScript API (browser key)
 - **Cafe Data:** Google Places API, pulled only by pipeline scripts, never on user requests
 - **AI:** Voyage-3 embeddings (search), Gemini 2.5 Flash (tagging + vision), LangGraph.js (tagging graph)
