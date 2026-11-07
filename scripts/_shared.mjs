@@ -610,6 +610,47 @@ export function neighborhoodFor({ addressComponents, lat, lng, current }) {
 const NOT_A_CAFE = /^\s*(7[-\s]?eleven|mcdonald['’]?s|am\s?\/?\s?pm|circle k)\b/i;
 export const isNotACafe = (name) => NOT_A_CAFE.test(name ?? "");
 
+// Google's main category (primaryType) for places a person could sit and work
+// in. The cafe search also returns places that merely list "cafe" as a side
+// category: a clothing store with an espresso bar, a golf center, pho
+// restaurants. A place with no main category is kept.
+const CAFE_TYPES = new Set([
+  "cafe", "coffee_shop", "coffee_roastery", "coffee_stand", "tea_house",
+  "cat_cafe", "dog_cafe", "internet_cafe", "bakery", "bagel_shop",
+]);
+export const isCafeType = (primaryType) => !primaryType || CAFE_TYPES.has(primaryType);
+
+// The daily Google refresh (refresh-cafe-information.mjs) bills as "Place
+// Details Enterprise": 1,000 free a month. It used to refresh every due cafe
+// at once, so the whole catalog came due on one day every 27 days, and a month
+// with two of those days (Dec 2026: the 1st and the 28th) doubled the count.
+// 30 a day is at most 930 in a 31-day month, however big the catalog gets; up
+// to 810 cafes still refresh every 27 days.
+export const REFRESH_PER_DAY = 30;
+const REFRESH_AFTER_MS = 27 * 24 * 60 * 60 * 1000;
+
+/** Cafes last checked 27+ days ago (all, with force), oldest first, at most `limit` (0 = no cap). */
+export function refreshTargets(cafes, now, { force = false, limit = REFRESH_PER_DAY } = {}) {
+  const checked = (c) => (c.business_status_checked_at ? new Date(c.business_status_checked_at).getTime() : 0);
+  const due = cafes
+    .filter((c) => force || now - checked(c) >= REFRESH_AFTER_MS)
+    .sort((a, b) => checked(a) - checked(b));
+  return { due: due.length, targets: limit ? due.slice(0, limit) : due };
+}
+
+/**
+ * Four smaller circles that together cover a search circle: the circle's
+ * bounding square cut into quarters, each quarter inside a circle of radius
+ * r/√2. For re-searching a circle where Google stopped at 20 results.
+ */
+export function splitCircle({ lat, lng }, radiusM) {
+  const half = radiusM / 2;
+  const dLat = half / 111320;                                   // meters per degree of latitude
+  const dLng = half / (111320 * Math.cos((lat * Math.PI) / 180));
+  const radius = Math.ceil(radiusM / Math.SQRT2);
+  return [[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([a, b]) => ({ lat: lat + a * dLat, lng: lng + b * dLng, radius }));
+}
+
 /** In GitHub Actions, also show `text` as a note at the top of the run's page. */
 export function runNote(title, text) {
   if (!process.env.GITHUB_ACTIONS) return;

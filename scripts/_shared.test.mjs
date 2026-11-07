@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey, brandPhrase, mentionsCafe, chainBrands, resultsAboutCafe, explicitQuotes, websiteSentences, attributedQuotes, websiteToStore, applyMood, moodWords, moodSentence, moodPhotoBudget, billingMonthStart } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey, brandPhrase, mentionsCafe, chainBrands, resultsAboutCafe, explicitQuotes, websiteSentences, attributedQuotes, websiteToStore, applyMood, moodWords, moodSentence, moodPhotoBudget, billingMonthStart, isCafeType, splitCircle, refreshTargets, REFRESH_PER_DAY } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -545,5 +545,68 @@ describe("photo mood", () => {
     // 11pm Nov 30 in Seattle is already Dec 1 in UTC, but still November's bill.
     expect(billingMonthStart(new Date("2026-12-01T07:30:00Z")).toISOString()).toBe("2026-11-01T07:00:00.000Z");
     expect(billingMonthStart(new Date("2026-12-01T08:30:00Z")).toISOString()).toBe("2026-12-01T07:00:00.000Z");
+  });
+});
+
+describe("finding more cafes", () => {
+  const meters = (a, b) => {
+    const k = Math.cos((a.lat * Math.PI) / 180);
+    return Math.hypot((a.lat - b.lat) * 111320, (a.lng - b.lng) * 111320 * k);
+  };
+
+  it("re-searches a full circle with 4 smaller ones that leave no gap", () => {
+    // Google stops at 20 results; a cafe anywhere in the full circle must
+    // fall inside one of the smaller searches, or splitting can still miss it.
+    const center = { lat: 47.6062, lng: -122.3321 };
+    const pieces = splitCircle(center, 900);
+    expect(pieces).toHaveLength(4);
+    for (const p of pieces) expect(p.radius).toBeLessThan(900);
+    for (let dx = -900; dx <= 900; dx += 50) {
+      for (let dy = -900; dy <= 900; dy += 50) {
+        if (Math.hypot(dx, dy) > 900) continue;
+        const spot = { lat: center.lat + dy / 111320, lng: center.lng + dx / (111320 * Math.cos((center.lat * Math.PI) / 180)) };
+        expect(pieces.some((p) => meters(spot, p) <= p.radius + 1)).toBe(true);
+      }
+    }
+  });
+
+  it("keeps places you can sit and work in, and drops shops that only list a cafe", () => {
+    for (const t of ["coffee_shop", "cafe", "tea_house", "bakery", undefined]) expect(isCafeType(t)).toBe(true);
+    for (const t of ["clothing_store", "golf_course", "vietnamese_restaurant", "donut_shop", "bar"]) expect(isCafeType(t)).toBe(false);
+  });
+});
+
+describe("the daily Google refresh stays inside the free allowance", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it("refreshes the oldest due cafes first, and only due ones", () => {
+    const now = new Date("2026-12-01T09:00:00Z");
+    const at = (days) => new Date(now - days * DAY).toISOString();
+    const cafes = [
+      { id: "fresh", business_status_checked_at: at(3) },
+      { id: "old", business_status_checked_at: at(40) },
+      { id: "due", business_status_checked_at: at(27) },
+      { id: "never", business_status_checked_at: null },
+    ];
+    expect(refreshTargets(cafes, now).targets.map((c) => c.id)).toEqual(["never", "old", "due"]);
+    expect(refreshTargets(cafes, now, { limit: 2 })).toMatchObject({ due: 3, targets: [{ id: "never" }, { id: "old" }] });
+    expect(refreshTargets(cafes, now, { force: true, limit: 0 }).targets).toHaveLength(4);
+  });
+
+  it("stays under 1,000 calls in a month that used to have two full refresh days", () => {
+    // Place Details Enterprise: 1,000 free a month. Before the daily cap, ~700
+    // cafes all checked on Nov 4 came due again on Dec 1 and Dec 28: 1,400 calls.
+    const cafes = Array.from({ length: 700 }, (_, i) => ({ id: i, business_status_checked_at: "2026-11-04T09:00:00Z" }));
+    let calls = 0;
+    for (let d = 1; d <= 31; d++) {
+      const now = new Date(Date.UTC(2026, 11, d, 9));
+      const { targets } = refreshTargets(cafes, now);
+      calls += targets.length;
+      for (const c of targets) c.business_status_checked_at = now.toISOString();
+    }
+    expect(REFRESH_PER_DAY * 31).toBeLessThanOrEqual(1000);
+    expect(calls).toBeLessThanOrEqual(1000);
+    // ...and every cafe still got its refresh, just spread over the month.
+    expect(cafes.every((c) => c.business_status_checked_at.startsWith("2026-12"))).toBe(true);
   });
 });
