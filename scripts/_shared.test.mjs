@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey, brandPhrase, mentionsCafe, chainBrands, resultsAboutCafe, explicitQuotes, websiteSentences, attributedQuotes, websiteToStore } from "./_shared.mjs";
+import { computeMergedScore as scriptScore, mergeVal, embedText, mergedValues, groundQuotes, researchFingerprint, createRunTrace, GEMINI_PRICE_PER_M, embedTextV2, describeCafe, cityOf, scoreRanking, summarize, taggingReason, reviewSummaryBlock, summaryHasWorkSignal, unknownCount, tagQuality, qualityRegressions, tagAccuracy, accuracyRegressions, tagSnapshot, rowFromSnapshot, neighborhoodFor, isNotACafe, nameKey, brandPhrase, mentionsCafe, chainBrands, resultsAboutCafe, explicitQuotes, websiteSentences, attributedQuotes, websiteToStore, applyMood, moodWords, moodSentence, moodPhotoBudget, billingMonthStart, isCafeType, splitCircle, refreshTargets, REFRESH_PER_DAY } from "./_shared.mjs";
 import { computeMergedScore as appScore } from "../src/lib/score";
 import { mergeTag } from "../src/lib/merge-tags";
 
@@ -272,6 +272,20 @@ describe("quality gate: before/after", () => {
     expect(qualityRegressions(before, tagQuality(rows), 0.05)).toEqual([]);
   });
 
+  it("passes unknown tags that only moved to the prompt's 0.3 confidence (the 2026-11-04 false alarm)", () => {
+    // Older prompts stored unknown at 0.6–0.85; re-tagging rewrites them to 0.3.
+    // No tag was lost, so nothing a visitor sees got worse.
+    const unknownAt = (id, conf) => {
+      const r = cafe(id, null);
+      for (const k of KEYS) r.tagging_confidence[k] = { confidence: conf, evidence: [] };
+      return r;
+    };
+    const before = Array.from({ length: 100 }, (_, i) => (i < 60 ? unknownAt(String(i), 0.7) : cafe(String(i), "limited")));
+    const after = before.map((r, i) => (i < 60 ? unknownAt(r.id, 0.3) : r));
+    expect(tagQuality(after).outlet_availability.silent_rate).toBeGreaterThan(tagQuality(before).outlet_availability.silent_rate);
+    expect(qualityRegressions(tagQuality(before), tagQuality(after), 0.05)).toEqual([]);
+  });
+
   it("fails when re-tagging loses tags", () => {
     const before = Array.from({ length: 100 }, (_, i) => cafe(String(i), "limited"));
     const after = before.map((r, i) => (i < 10 ? cafe(r.id, null) : r));
@@ -458,5 +472,141 @@ describe("a website that can't be read keeps its stored evidence", () => {
   it("replaces them only after the page was actually read", () => {
     expect(websiteToStore({ ok: true, sentences: [] }, prior)).toEqual([]);
     expect(websiteToStore({ ok: true, sentences: ["Quiet upstairs."] }, prior)).toEqual(["Quiet upstairs."]);
+  });
+});
+
+describe("photo mood", () => {
+  const urls = ["https://x/hero.jpg", "https://x/mood-1.jpg", "https://x/mood-2.jpg"];
+  const photos = [{ index: 1, kind: "interior" }, { index: 2, kind: "food_drink" }, { index: 3, kind: "interior" }];
+
+  it("keeps a label only when the model is sure, so a guess is stored as unknown", () => {
+    const m = applyMood({ photos,
+      style: [{ value: "cozy", confidence: 0.85, photo: 1 }, { value: "minimal", confidence: 0.69, photo: 3 }],
+      focus: { value: "focus", confidence: 0.6, photo: 3 } }, urls);
+    expect(m.style.map(s => s.value)).toEqual(["cozy"]);
+    expect(m.focus).toEqual({ value: "unknown" });
+  });
+
+  it("keeps a label only if it came from an interior photo the model was shown", () => {
+    // A latte close-up can't tell you the room is cozy; photo 9 doesn't exist.
+    const m = applyMood({ photos,
+      style: [{ value: "cozy", confidence: 0.9, photo: 2 }, { value: "artsy", confidence: 0.9, photo: 9 }],
+      focus: { value: "social", confidence: 0.9, photo: null } }, urls);
+    expect(m.style).toEqual([]);
+    expect(m.focus.value).toBe("unknown");
+  });
+
+  it("records which photo each label came from, so the cafe page can show it", () => {
+    const m = applyMood({ photos, style: [{ value: "plant-filled", confidence: 0.8, photo: 3, reason: "plants on every shelf" }],
+      focus: { value: "focus", confidence: 0.75, photo: 1 } }, urls);
+    expect(m.style[0]).toEqual({ value: "plant-filled", confidence: 0.8, photo: "https://x/mood-2.jpg", reason: "plants on every shelf" });
+    expect(m.focus.photo).toBe("https://x/hero.jpg");
+  });
+
+  it("keeps at most 2 style words from the list, most confident first, no repeats", () => {
+    const m = applyMood({ photos, focus: { value: "not_visible", confidence: 0.9, photo: 1 }, style: [
+      { value: "minimal", confidence: 0.75, photo: 1 }, { value: "cozy", confidence: 0.95, photo: 3 },
+      { value: "cozy", confidence: 0.8, photo: 1 }, { value: "rustic", confidence: 0.99, photo: 1 },
+      { value: "industrial", confidence: 0.9, photo: 1 }] }, urls);
+    expect(m.style.map(s => s.value)).toEqual(["cozy", "industrial"]);
+    expect(m.focus.value).toBe("unknown");
+  });
+
+  it("puts mood words into both search texts, and leaves cafes without a mood unchanged", () => {
+    const merged = { wifi: "fast", outlets: "unknown", noise: "unknown", laptop: "unknown", seating: "unknown" };
+    const cafe = { name: "Elm Coffee", neighborhood: "Pioneer Square", address: "240 2nd Ave S, Seattle, WA 98104, USA", vibe_keywords: ["great pastries"] };
+    const mood = { style: [{ value: "cozy" }, { value: "plant-filled" }], focus: { value: "focus" } };
+    expect(moodWords(mood)).toEqual(["cozy", "plant-filled", "good for focus"]);
+    expect(embedText({ ...cafe, mood }, merged, [])).toContain("great pastries, cozy, plant-filled, good for focus");
+    expect(describeCafe({ ...cafe, mood }, merged)).toContain("The room looks cozy and plant-filled. Looks like a place for focused work.");
+    expect(embedText({ ...cafe, mood: null }, merged, [])).toBe(embedText(cafe, merged, []));
+    expect(moodSentence({ style: [], focus: { value: "unknown" } })).toBeNull();
+  });
+
+  it("never changes the productivity score", () => {
+    const cafe = { google_rating: 4.5, wifi_quality_llm: "fast", noise_level_llm: "quiet" };
+    const mood = { style: [{ value: "cozy" }], focus: { value: "social" } };
+    expect(scriptScore({ ...cafe, mood })).toBe(scriptScore(cafe));
+  });
+
+  it("stops Google photo downloads at the monthly cap, counting only this billing month", () => {
+    const now = new Date("2026-12-15T12:00:00Z");
+    const rows = [
+      { mood_photos: ["a", "b"], mood_photos_at: "2026-12-02T00:00:00Z" },
+      { mood_photos: ["c", "d"], mood_photos_at: "2026-12-10T00:00:00Z" },
+      { mood_photos: ["e", "f"], mood_photos_at: "2026-11-30T00:00:00Z" },   // last month
+      { mood_photos: [],         mood_photos_at: "2026-12-11T00:00:00Z" },   // cafe had no extra photos
+    ];
+    expect(moodPhotoBudget(rows, 600, now)).toBe(596);
+    expect(moodPhotoBudget(rows, 3, now)).toBe(0);
+  });
+
+  it("starts the billing month at Pacific midnight, erring early", () => {
+    // 11pm Nov 30 in Seattle is already Dec 1 in UTC, but still November's bill.
+    expect(billingMonthStart(new Date("2026-12-01T07:30:00Z")).toISOString()).toBe("2026-11-01T07:00:00.000Z");
+    expect(billingMonthStart(new Date("2026-12-01T08:30:00Z")).toISOString()).toBe("2026-12-01T07:00:00.000Z");
+  });
+});
+
+describe("finding more cafes", () => {
+  const meters = (a, b) => {
+    const k = Math.cos((a.lat * Math.PI) / 180);
+    return Math.hypot((a.lat - b.lat) * 111320, (a.lng - b.lng) * 111320 * k);
+  };
+
+  it("re-searches a full circle with 4 smaller ones that leave no gap", () => {
+    // Google stops at 20 results; a cafe anywhere in the full circle must
+    // fall inside one of the smaller searches, or splitting can still miss it.
+    const center = { lat: 47.6062, lng: -122.3321 };
+    const pieces = splitCircle(center, 900);
+    expect(pieces).toHaveLength(4);
+    for (const p of pieces) expect(p.radius).toBeLessThan(900);
+    for (let dx = -900; dx <= 900; dx += 50) {
+      for (let dy = -900; dy <= 900; dy += 50) {
+        if (Math.hypot(dx, dy) > 900) continue;
+        const spot = { lat: center.lat + dy / 111320, lng: center.lng + dx / (111320 * Math.cos((center.lat * Math.PI) / 180)) };
+        expect(pieces.some((p) => meters(spot, p) <= p.radius + 1)).toBe(true);
+      }
+    }
+  });
+
+  it("keeps places you can sit and work in, and drops shops that only list a cafe", () => {
+    for (const t of ["coffee_shop", "cafe", "tea_house", "bakery", undefined]) expect(isCafeType(t)).toBe(true);
+    for (const t of ["clothing_store", "golf_course", "vietnamese_restaurant", "donut_shop", "bar"]) expect(isCafeType(t)).toBe(false);
+  });
+});
+
+describe("the daily Google refresh stays inside the free allowance", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it("refreshes the oldest due cafes first, and only due ones", () => {
+    const now = new Date("2026-12-01T09:00:00Z");
+    const at = (days) => new Date(now - days * DAY).toISOString();
+    const cafes = [
+      { id: "fresh", business_status_checked_at: at(3) },
+      { id: "old", business_status_checked_at: at(40) },
+      { id: "due", business_status_checked_at: at(27) },
+      { id: "never", business_status_checked_at: null },
+    ];
+    expect(refreshTargets(cafes, now).targets.map((c) => c.id)).toEqual(["never", "old", "due"]);
+    expect(refreshTargets(cafes, now, { limit: 2 })).toMatchObject({ due: 3, targets: [{ id: "never" }, { id: "old" }] });
+    expect(refreshTargets(cafes, now, { force: true, limit: 0 }).targets).toHaveLength(4);
+  });
+
+  it("stays under 1,000 calls in a month that used to have two full refresh days", () => {
+    // Place Details Enterprise: 1,000 free a month. Before the daily cap, ~700
+    // cafes all checked on Nov 4 came due again on Dec 1 and Dec 28: 1,400 calls.
+    const cafes = Array.from({ length: 700 }, (_, i) => ({ id: i, business_status_checked_at: "2026-11-04T09:00:00Z" }));
+    let calls = 0;
+    for (let d = 1; d <= 31; d++) {
+      const now = new Date(Date.UTC(2026, 11, d, 9));
+      const { targets } = refreshTargets(cafes, now);
+      calls += targets.length;
+      for (const c of targets) c.business_status_checked_at = now.toISOString();
+    }
+    expect(REFRESH_PER_DAY * 31).toBeLessThanOrEqual(1000);
+    expect(calls).toBeLessThanOrEqual(1000);
+    // ...and every cafe still got its refresh, just spread over the month.
+    expect(cafes.every((c) => c.business_status_checked_at.startsWith("2026-12"))).toBe(true);
   });
 });

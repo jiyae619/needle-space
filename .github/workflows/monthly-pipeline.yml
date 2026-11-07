@@ -83,9 +83,10 @@ jobs:
 
       - run: npm ci
 
-      # This checks the 27-day freshness marker before making a Places call.
-      # When due, it discovers new cafes and refreshes existing status, address,
-      # hours, website, and phone with a narrow, explicit field mask.
+      # On the 1st of the month it discovers new cafes (about 190 searches).
+      # Every day it refreshes status, address, hours, website, and phone for
+      # cafes last checked 27+ days ago, oldest first, at most 30 a day, so the
+      # refresh stays under Google's 1,000 free a month.
       - name: Refresh cafe information and discover new cafes
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -137,6 +138,9 @@ jobs:
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          # The photo-mood stage downloads 2 extra photos per cafe, once
+          # (capped at 600 a month inside mood-tag-cafes.mjs).
+          GOOGLE_PLACES_SERVER_KEY: ${{ secrets.GOOGLE_PLACES_SERVER_KEY }}
           # Which embedding text finalize builds (v1 or v2). Set the repository
           # variable EMBED_TEXT_VERSION only together with a full re-embed
           # (finalize-cafes.mjs --all --text v2), so the index never mixes both.

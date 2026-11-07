@@ -150,7 +150,7 @@ It is stateless (one JSON reply per request), which suits serverless hosting. Ag
 
 ## Visit mode (admin)
 
-`/admin/visit` is a phone page for recording what you see while you're in a cafe. It uses the same `ADMIN_PASSWORD` as `/admin`.
+`/admin/visit` is a phone page for recording what you see while you're in a cafe. It uses the same login (`ADMIN_USERNAME` / `ADMIN_PASSWORD`) as `/admin`.
 
 1. Tap **Find cafes near me**, or search by name. **Needs a visit** lists unscored cafes first, then unverified ones.
 2. Tap what you see for WiFi, outlets, noise, laptop policy and seating. Each tap saves a human label. The current tag is shown as a hint, not pre-selected, so every tap is a real observation.
@@ -192,6 +192,7 @@ VOYAGE_API_KEY=
 GEMINI_API_KEY=
 TAVILY_API_KEY=                       # web research
 ADMIN_PASSWORD=                       # enables /admin outside `npm run dev`
+ADMIN_USERNAME=                       # optional: the /admin login must use this username
 # optional: SEARCH_HYBRID=1, SEARCH_MIN_SIMILARITY=0.35, EMBED_TEXT_VERSION=v2, LANGSMITH_TRACING=true
 ```
 

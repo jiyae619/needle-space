@@ -14,7 +14,7 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
 ## Tech Stack
 - **Framework:** Next.js 16 (App Router). Middleware lives in `src/proxy.ts` (Next 16 naming).
 - **Database:** Supabase (PostgreSQL + pgvector), Supabase Storage bucket `cafe-photos`
-- **Auth:** None for visitors. `/admin` and `/api/admin/*` use HTTP Basic auth with `ADMIN_PASSWORD` (404 when unset outside dev).
+- **Auth:** None for visitors. `/admin` and `/api/admin/*` use HTTP Basic auth with `ADMIN_PASSWORD`, plus `ADMIN_USERNAME` when set (any username otherwise); 404 when the password is unset outside dev.
 - **Maps:** Google Maps JavaScript API (browser key)
 - **Cafe Data:** Google Places API, pulled only by pipeline scripts, never on user requests
 - **AI:** Voyage-3 embeddings (search), Gemini 2.5 Flash (tagging + vision), LangGraph.js (tagging graph)
@@ -61,6 +61,8 @@ Live at https://needle-space.netlify.app. About 470 cafes in the catalog.
   The merge exists in `src/lib/merge-tags.ts`, `scripts/_shared.mjs` and `match_cafes()` in SQL. Keep all three identical; `scripts/_shared.test.mjs` checks the JS copies against each other.
 - Evidence must be about the cafe and explicit (Oct 2026, after Reddit posts about other cafes tagged 90 cafes). Allowed: its own Google reviews, its own website, Reddit text that names it (and the branch's area for a chain), Yelp's free-WiFi category. A text tag stands only with a grounded quote that names its category (`explicitQuotes` in `scripts/_shared.mjs`); otherwise it is stored as "unknown". Tavily's AI `answer` is never used. `tagging_confidence[attr].from` records where the quote came from, shown on the cafe page.
 - Daily pipeline (`npm run pipeline`, `scripts/run-pipeline.mjs`): web research → LLM tagging → vision gap-fill → quality gate → finalize. The workflow first refreshes Places info, caches photos, and fetches reviews for new cafes.
+  - New-cafe discovery (`fetch-cafes.mjs`) runs on the 1st of the month: the area grid, each full (20-result) search split into 4, plus Eastside spots; only cafe-like Google categories (`isCafeType`). About 190 searches of the 1,000 free. Its `--dry-run` bills to the cheaper Pro allowance.
+  - The Places refresh re-checks at most 30 cafes a day, oldest first (`refreshTargets`), so it stays under 1,000 a month however big the catalog gets.
   - `analyze-reviews-llm.mjs` tags; it does not embed. It reads reviews in a fixed order plus `google_review_summary`, selects cafes with `taggingReason()` in `scripts/_shared.mjs` (never tagged, or evidence newer than the tag), handles at most 100 a run for the Gemini free tier, and stops after 3 consecutive API failures.
   - `analyze-reviews.mjs --summaries-only` (a workflow step) fills in Google's review summary for cafes without one that still have an unknown tag, most unknowns first, 100 a run. A new summary queues the cafe for re-tagging only if it mentions something about working there.
   - To save Gemini calls, the quote step only asks about attributes whose value changed (or whose old quote no longer checks out), skips the call when nothing changed, and runs without "thinking".

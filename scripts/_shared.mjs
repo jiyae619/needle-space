@@ -72,7 +72,7 @@ export function embedText(cafe, merged, reviews) {
     cafe.name,
     cafe.neighborhood,
     cafe.address,
-    (cafe.vibe_keywords ?? []).join(", "),
+    [...(cafe.vibe_keywords ?? []), ...moodWords(cafe.mood)].join(", "),
     tagSummary,
     corpusSnippet,
   ].filter(Boolean).join(" — ");
@@ -107,7 +107,76 @@ export function describeCafe(cafe, merged) {
   const place = [cafe.neighborhood, city && city !== cafe.neighborhood ? city : null].filter(Boolean).join(", ");
   const tags = ATTRS.map(([, k]) => TAG_SENTENCES[k][merged[k]]).filter(Boolean);
   const vibes = (cafe.vibe_keywords ?? []).length ? `Known for ${cafe.vibe_keywords.join(", ")}.` : null;
-  return [`${cafe.name} is a cafe${place ? ` in ${place}` : ""}.`, ...tags, vibes].filter(Boolean).join(" ");
+  return [`${cafe.name} is a cafe${place ? ` in ${place}` : ""}.`, ...tags, vibes, moodSentence(cafe.mood)]
+    .filter(Boolean).join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Photo mood (scripts/mood-tag-cafes.mjs). Descriptive only: it reaches search
+// text and the cafe page, never the productivity score.
+// ---------------------------------------------------------------------------
+export const MOOD_STYLES = ["cozy", "minimal", "plant-filled", "industrial", "artsy"];
+export const MOOD_FOCUS = ["focus", "social"];
+export const MOOD_CONF_FLOOR = 0.7;
+export const MOOD_MAX_STYLES = 2;
+
+/**
+ * Turn the model's answer into what is stored. A label stands only if the
+ * model was sure (>= 0.7) AND it names a photo it was shown that it called an
+ * interior shot; anything else is dropped (style) or "unknown" (focus). The
+ * photo number becomes that photo's URL, so the cafe page can show it.
+ */
+export function applyMood(raw, photoUrls) {
+  const interior = new Set((raw?.photos ?? []).filter(p => p.kind === "interior").map(p => p.index));
+  const grounded = (l) => l != null && l.confidence >= MOOD_CONF_FLOOR && Number.isInteger(l.photo)
+    && l.photo >= 1 && l.photo <= photoUrls.length && interior.has(l.photo);
+  const entry = (l) => ({ value: l.value, confidence: l.confidence, photo: photoUrls[l.photo - 1], reason: l.reason ?? null });
+  const seen = new Set();
+  const style = (raw?.style ?? [])
+    .filter(l => MOOD_STYLES.includes(l.value) && grounded(l))
+    .sort((a, b) => b.confidence - a.confidence)
+    .filter(l => !seen.has(l.value) && seen.add(l.value))
+    .slice(0, MOOD_MAX_STYLES)
+    .map(entry);
+  const f = raw?.focus;
+  const focus = f && MOOD_FOCUS.includes(f.value) && grounded(f) ? entry(f) : { value: "unknown" };
+  return { style, focus };
+}
+
+const FOCUS_WORDS = { focus: "good for focus", social: "lively, good for meeting up" };
+const FOCUS_SENTENCES = { focus: "Looks like a place for focused work.", social: "Looks like a place for meeting up." };
+
+/** Mood as search words: ["cozy", "plant-filled", "good for focus"]. */
+export function moodWords(mood) {
+  if (!mood) return [];
+  return [...(mood.style ?? []).map(s => s.value), FOCUS_WORDS[mood.focus?.value]].filter(Boolean);
+}
+
+/** Mood as a sentence for describeCafe, or null when nothing is known. */
+export function moodSentence(mood) {
+  const styles = (mood?.style ?? []).map(s => s.value);
+  return [styles.length ? `The room looks ${styles.join(" and ")}.` : null, FOCUS_SENTENCES[mood?.focus?.value]]
+    .filter(Boolean).join(" ") || null;
+}
+
+/**
+ * Start of the current Google billing month (Pacific time). Uses 07:00 UTC on
+ * the 1st, the earlier of PDT/PST midnight, so a download near the boundary is
+ * counted in the new month too: the cap errs toward spending less.
+ */
+export function billingMonthStart(now = new Date()) {
+  const [y, m] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit" })
+    .format(now).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1, 7));
+}
+
+/** Google photo downloads the mood pass may still make this billing month. */
+export function moodPhotoBudget(rows, cap, now = new Date()) {
+  const start = billingMonthStart(now).getTime();
+  const used = rows
+    .filter(r => r.mood_photos_at && new Date(r.mood_photos_at).getTime() >= start)
+    .reduce((n, r) => n + (r.mood_photos?.length ?? 0), 0);
+  return Math.max(0, cap - used);
 }
 
 export function embedTextV2(cafe, merged, reviews) {
@@ -541,6 +610,47 @@ export function neighborhoodFor({ addressComponents, lat, lng, current }) {
 const NOT_A_CAFE = /^\s*(7[-\s]?eleven|mcdonald['’]?s|am\s?\/?\s?pm|circle k)\b/i;
 export const isNotACafe = (name) => NOT_A_CAFE.test(name ?? "");
 
+// Google's main category (primaryType) for places a person could sit and work
+// in. The cafe search also returns places that merely list "cafe" as a side
+// category: a clothing store with an espresso bar, a golf center, pho
+// restaurants. A place with no main category is kept.
+const CAFE_TYPES = new Set([
+  "cafe", "coffee_shop", "coffee_roastery", "coffee_stand", "tea_house",
+  "cat_cafe", "dog_cafe", "internet_cafe", "bakery", "bagel_shop",
+]);
+export const isCafeType = (primaryType) => !primaryType || CAFE_TYPES.has(primaryType);
+
+// The daily Google refresh (refresh-cafe-information.mjs) bills as "Place
+// Details Enterprise": 1,000 free a month. It used to refresh every due cafe
+// at once, so the whole catalog came due on one day every 27 days, and a month
+// with two of those days (Dec 2026: the 1st and the 28th) doubled the count.
+// 30 a day is at most 930 in a 31-day month, however big the catalog gets; up
+// to 810 cafes still refresh every 27 days.
+export const REFRESH_PER_DAY = 30;
+const REFRESH_AFTER_MS = 27 * 24 * 60 * 60 * 1000;
+
+/** Cafes last checked 27+ days ago (all, with force), oldest first, at most `limit` (0 = no cap). */
+export function refreshTargets(cafes, now, { force = false, limit = REFRESH_PER_DAY } = {}) {
+  const checked = (c) => (c.business_status_checked_at ? new Date(c.business_status_checked_at).getTime() : 0);
+  const due = cafes
+    .filter((c) => force || now - checked(c) >= REFRESH_AFTER_MS)
+    .sort((a, b) => checked(a) - checked(b));
+  return { due: due.length, targets: limit ? due.slice(0, limit) : due };
+}
+
+/**
+ * Four smaller circles that together cover a search circle: the circle's
+ * bounding square cut into quarters, each quarter inside a circle of radius
+ * r/√2. For re-searching a circle where Google stopped at 20 results.
+ */
+export function splitCircle({ lat, lng }, radiusM) {
+  const half = radiusM / 2;
+  const dLat = half / 111320;                                   // meters per degree of latitude
+  const dLng = half / (111320 * Math.cos((lat * Math.PI) / 180));
+  const radius = Math.ceil(radiusM / Math.SQRT2);
+  return [[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([a, b]) => ({ lat: lat + a * dLat, lng: lng + b * dLng, radius }));
+}
+
 /** In GitHub Actions, also show `text` as a note at the top of the run's page. */
 export function runNote(title, text) {
   if (!process.env.GITHUB_ACTIONS) return;
@@ -588,12 +698,17 @@ export function tagQuality(rows) {
 }
 
 /** Metrics that got worse by more than `tolerance` from `before` to `after` (both from tagQuality). */
+// silent_rate is reported, not gated. It only splits unknown tags by the
+// confidence the model attached to "unknown", which nothing downstream reads.
+// Older prompts stored unknown at 0.6–0.85; re-tagging rewrites those to 0.3,
+// so it "regressed" with no tag lost (the 2026-11-04 false alarm).
+// unknown_rate already catches lost tags.
 export function qualityRegressions(before, after, tolerance) {
   const out = [];
   for (const attr of TAG_KEYS) {
     const was = before?.[attr], now = after?.[attr];
     if (!was || !now) continue;
-    for (const metric of ["unknown_rate", "evidence_backed_rate", "silent_rate"]) {
+    for (const metric of ["unknown_rate", "evidence_backed_rate"]) {
       if (now[metric] == null || was[metric] == null) continue;
       const delta = round3(now[metric] - was[metric]);
       const worse = metric === "evidence_backed_rate" ? -delta > tolerance : delta > tolerance;

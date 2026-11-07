@@ -20,7 +20,9 @@
  *                                                                 GROUNDEDNESS
  *   silent_rate           confidence <=0.3 with no evidence — the "reviews are
  *                         silent on this attribute" default the tagger prompt
- *                         asks for. A second read on coverage.
+ *                         asks for. A second read on coverage. Reported,
+ *                         not gated: it moves when old unknowns are re-saved
+ *                         at 0.3, with no tag lost (see qualityRegressions).
  *   mean_confidence       self-reported, across all cafes.
  *
  * THE PIPELINE'S GATE (--since-last-pass) compares the same cafes before and

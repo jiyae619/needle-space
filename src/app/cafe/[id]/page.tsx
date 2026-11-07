@@ -3,7 +3,9 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import ScoreBreakdown from "@/components/ScoreBreakdown";
 import BackLink from "@/components/BackLink";
+import PhotoCarousel from "@/components/PhotoCarousel";
 import { seattleNow } from "@/lib/open-now";
+import type { CafeMood } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,18 @@ function safePhotoUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (url.includes("places.googleapis.com")) return null;
   return url;
+}
+
+const FOCUS_WORDS: Record<string, string> = { focus: "good for focus", social: "good for meeting up" };
+
+// Mood labels grouped by the photo each was read from, so each photo at the top
+// can say "cozy, good for focus". Unknown is left out.
+function moodByPhoto(mood: CafeMood | null | undefined) {
+  const labels = [...(mood?.style ?? []), ...(mood?.focus && "photo" in mood.focus ? [mood.focus] : [])]
+    .filter(l => l.photo && l.value !== "unknown");
+  const groups = new Map<string, string[]>();
+  for (const l of labels) groups.set(l.photo, [...(groups.get(l.photo) ?? []), FOCUS_WORDS[l.value] ?? l.value]);
+  return [...groups].map(([photo, words]) => ({ photo, words }));
 }
 
 export default async function CafeDetailPage({
@@ -33,6 +47,13 @@ export default async function CafeDetailPage({
   const photo = safePhotoUrl(cafe.photo_url);
   // The main photo is already the hero; don't show it twice. Newest first.
   const visitPhotos = [...(cafe.visit_photos ?? [])].reverse().filter(url => url !== photo);
+  const mood = moodByPhoto(cafe.mood);
+  // The top photo, then the extra photos the mood pass stored, then any other
+  // photo a mood word came from; each captioned with the words read from it.
+  const captions = new Map(mood.map(g => [g.photo, g.words.join(" · ")]));
+  const slides = [...new Set([photo, ...(cafe.mood_photos ?? []), ...mood.map(g => g.photo)])]
+    .filter((url): url is string => !!url)
+    .map(url => ({ url, caption: captions.get(url) }));
 
   const now = seattleNow();
   const today = DAYS[now.getDay()];
@@ -46,11 +67,7 @@ export default async function CafeDetailPage({
       <article className="rc">
         <div className="rc-meta"><span>Dine-in · 1 laptop</span><span>{printed}</span></div>
 
-        {photo && (
-          <div className="rc-photo">
-            <Image src={photo} alt={`Inside ${cafe.name}`} fill sizes="(max-width: 768px) 100vw, 640px" className="object-cover" unoptimized priority />
-          </div>
-        )}
+        {slides.length > 0 && <PhotoCarousel slides={slides} name={cafe.name} />}
 
         <header className="rc-head">
           <p className="rc-where">{cafe.neighborhood}</p>
@@ -67,6 +84,15 @@ export default async function CafeDetailPage({
           <h2 className="rc-h" id="rc-items-h">Your order, itemized</h2>
           <ScoreBreakdown cafe={cafe} />
         </section>
+
+        {/* Read offline from the cafe's own photos (scripts/mood-tag-cafes.mjs). */}
+        {mood.length > 0 && (
+          <section className="rc-section" aria-labelledby="rc-mood-h">
+            <h2 className="rc-h" id="rc-mood-h">The room</h2>
+            <p className="rc-note">{mood.flatMap(g => g.words).join(" · ")}</p>
+            <p className="rc-fine">Read from the cafe&apos;s photos by AI, so it can be wrong. Each photo above says what was read from it.</p>
+          </section>
+        )}
 
         {/* What was recorded in person via /admin/visit. */}
         {(cafe.visit_note || visitPhotos.length > 0) && (

@@ -8,11 +8,12 @@
  *   scores each photo with Gemini Vision (interior+seating > logo/menu/food),
  *   and replaces photo_url with the Supabase-cached version of the best one.
  *
- * Cost per cafe (~$0.06):
- *   - Place Details (New):  $0.017  (gets photo refs)
- *   - Photo media × 5:      $0.035  (one per candidate)
- *   - Gemini Flash vision:  ~$0.0006 (free tier covers this)
- *   - Total batch (252):    ~$15  (within $200 monthly Google credit)
+ * Cost per cafe:
+ *   - Place Details, photos field only: "Essentials (IDs Only)", free with no limit
+ *   - Photo downloads × 3: "Place Details Photos", 1,000 free a month, then $7 per 1,000.
+ *     cache-photos.mjs uses the same allowance (one per new cafe), so a run
+ *     stops at --max-downloads (default 600) to stay inside the free 1,000.
+ *   - Gemini Flash vision: about $0.0005 a photo
  *
  * Usage:
  *   node scripts/curate-photos.mjs --dry-run --limit 3
@@ -23,6 +24,9 @@
  *
  *   node scripts/curate-photos.mjs
  *     → live, all cafes that haven't been curated yet
+ *
+ *   node scripts/curate-photos.mjs --since 2026-11-05 --max-downloads 600
+ *     → only cafes added on or after that date, at most 600 photo downloads
  *
  *   node scripts/curate-photos.mjs --force
  *     → re-curate cafes already curated (ignores the curated_photo_at marker)
@@ -44,7 +48,7 @@ const GOOGLE_KEY  = env.GOOGLE_PLACES_SERVER_KEY;
 if (!GOOGLE_KEY) { console.error("GOOGLE_PLACES_SERVER_KEY is not set (environment or .env.local)."); process.exit(1); }
 const BUCKET      = "cafe-photos";
 const VISION_MODEL = "gemini-2.5-flash";
-const MAX_PHOTOS  = 5;        // candidates per cafe (cost-controlled)
+const MAX_PHOTOS  = 3;        // candidates per cafe (each download counts against the 1,000 free)
 const PHOTO_PX    = 600;      // height; high enough for both vision + display
 
 // ---------------------------------------------------------------------------
@@ -61,6 +65,9 @@ const DRY_RUN = !!flag("--dry-run");
 const FORCE   = !!flag("--force");
 const LIMIT   = typeof flag("--limit") === "string" ? parseInt(flag("--limit"), 10) : null;
 const CAFE    = typeof flag("--cafe")  === "string" ? flag("--cafe") : null;
+const SINCE   = typeof flag("--since") === "string" ? flag("--since") : null;
+const MAX_DOWNLOADS = typeof flag("--max-downloads") === "string" ? parseInt(flag("--max-downloads"), 10) : 600;
+if (!Number.isInteger(MAX_DOWNLOADS) || MAX_DOWNLOADS < 0) { console.error("--max-downloads must be a whole number"); process.exit(1); }
 
 // ---------------------------------------------------------------------------
 // Vision scoring
@@ -147,12 +154,15 @@ async function main() {
   console.log(`   Mode:    ${DRY_RUN ? "DRY RUN — no writes, no uploads" : "LIVE — writes to Supabase + Storage"}`);
   console.log(`   Vision:  Gemini ${VISION_MODEL}`);
   console.log(`   Per cafe: up to ${MAX_PHOTOS} photo candidates @ ${PHOTO_PX}px height`);
+  console.log(`   Budget:  at most ${MAX_DOWNLOADS} photo downloads this run`);
   console.log();
 
   let q = supabase
     .from("cafes")
     .select("id, name, neighborhood, google_place_id, photo_url, curated_photo_at")
+    .eq("hidden", false)
     .order("name");
+  if (SINCE) q = q.gte("created_at", SINCE);
   if (CAFE) q = q.ilike("name", `%${CAFE}%`);
   if (!FORCE && !CAFE) q = q.is("curated_photo_at", null);
   if (LIMIT) q = q.limit(LIMIT);
@@ -171,6 +181,8 @@ async function main() {
   console.log(`📋 ${cafes.length} cafe${cafes.length > 1 ? "s" : ""} to curate\n`);
 
   const counts = { curated: 0, kept: 0, failed: 0 };
+  let downloads = 0;
+  let quotaHit = false;
 
   for (const cafe of cafes) {
     console.log(`━━━ ${cafe.name} (${cafe.neighborhood ?? "?"})`);
@@ -178,22 +190,36 @@ async function main() {
       // 1) Get photo refs
       const refs = await fetchPhotoRefs(cafe.google_place_id);
       if (!refs.length) { console.log("     ⊘ no photos available"); counts.failed++; continue; }
+      if (downloads + refs.length > MAX_DOWNLOADS) {
+        console.log(`     ⏸ download budget reached (${downloads}/${MAX_DOWNLOADS}); stopping`);
+        break;
+      }
       console.log(`     ${refs.length} candidate photo${refs.length > 1 ? "s" : ""}`);
 
       // 2) Download + score each
       const scored = [];
       for (let i = 0; i < refs.length; i++) {
         try {
+          downloads++;
           const { buf, contentType } = await fetchPhoto(refs[i]);
           const { score, reason } = await scorePhoto(buf);
           scored.push({ idx: i, buf, contentType, score, reason });
           console.log(`       [${i}] ${score.toFixed(1)}/10  — ${reason}`);
         } catch (e) {
           console.log(`       [${i}] failed: ${e.message}`);
+          if (e.message === "Photo media 429") { quotaHit = true; break; }
         }
       }
+      // Google's daily photo quota is used up: stop instead of asking again
+      // for every remaining cafe. This cafe stays uncurated for the next run.
+      if (quotaHit) { console.log("     ⏸ Google photo quota reached for today; stopping"); counts.failed++; break; }
 
       if (!scored.length) { console.log("     ✗ all candidates failed"); counts.failed++; continue; }
+      // If Gemini failed on every photo, the "winner" is just the first one:
+      // leave the cafe uncurated so a later run can try again.
+      if (scored.every(s => s.reason.startsWith("vision error"))) {
+        console.log("     ✗ vision failed on every photo; left for a later run"); counts.failed++; continue;
+      }
 
       // 3) Pick the winner
       scored.sort((a, b) => b.score - a.score);
@@ -222,6 +248,7 @@ async function main() {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`Curated: ${counts.curated}`);
   console.log(`Failed:  ${counts.failed}`);
+  console.log(`Photo downloads: ${downloads} (budget ${MAX_DOWNLOADS})`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
