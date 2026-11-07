@@ -5,10 +5,20 @@ import { timingSafeEqual } from "node:crypto";
 // they ship in the same deployment as the public site. Being unlinked from the
 // nav is not protection: anyone could POST to /api/admin/update-cafe.
 //
-// Set ADMIN_PASSWORD to enable them behind HTTP Basic auth (any username).
-// Without it they work only on `npm run dev`, and 404 everywhere else.
+// Set ADMIN_PASSWORD to enable them behind HTTP Basic auth. Set ADMIN_USERNAME
+// too and the username must match; without it any username is accepted.
+// Without ADMIN_PASSWORD they work only on `npm run dev`, and 404 everywhere else.
+
+// Constant-time compare, so response timing doesn't leak how much matched.
+function same(given: string, expected: string) {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export function proxy(request: NextRequest) {
   const password = process.env.ADMIN_PASSWORD;
+  const username = process.env.ADMIN_USERNAME;
   if (!password) {
     return process.env.NODE_ENV === "development"
       ? NextResponse.next()
@@ -19,11 +29,10 @@ export function proxy(request: NextRequest) {
   const [scheme, encoded] = header.split(" ");
   if (scheme === "Basic" && encoded) {
     const decoded = Buffer.from(encoded, "base64").toString("utf8");
-    const given = Buffer.from(decoded.slice(decoded.indexOf(":") + 1));
-    const expected = Buffer.from(password);
-    if (given.length === expected.length && timingSafeEqual(given, expected)) {
-      return NextResponse.next();
-    }
+    const sep = decoded.indexOf(":");
+    const passOk = same(decoded.slice(sep + 1), password);
+    const userOk = !username || (sep !== -1 && same(decoded.slice(0, sep), username));
+    if (passOk && userOk) return NextResponse.next();
   }
   return new NextResponse("Authentication required", {
     status: 401,
