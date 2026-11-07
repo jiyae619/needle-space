@@ -1,28 +1,28 @@
 /**
- * Refresh Google-backed cafe information before it is 28 days old.
+ * Refresh Google-backed cafe information when it is 27 days old.
  *
- * A due run first discovers new cafes with the existing coverage search, then
- * refreshes status, name, address, location, hours, website, and phone for
- * stale existing records. It never downloads photos or rewrites editorial
- * workspace fields.
+ * On the 1st of the month (or with --discover) it first discovers new cafes
+ * with the coverage search (scripts/fetch-cafes.mjs, about 190 searches of the
+ * 1,000 free a month). Every day it then refreshes status, name, address,
+ * location, hours, website, and phone for the stale records, oldest first and
+ * at most REFRESH_PER_DAY of them (see refreshTargets in _shared.mjs). It
+ * never downloads photos or rewrites editorial workspace fields.
  *
  * Usage:
  *   node scripts/refresh-cafe-information.mjs
  *   node scripts/refresh-cafe-information.mjs --dry-run
- *   node scripts/refresh-cafe-information.mjs --force --delay-ms 500
+ *   node scripts/refresh-cafe-information.mjs --discover            # discover new cafes today too
+ *   node scripts/refresh-cafe-information.mjs --force --limit 0     # every cafe now (watch the 1,000 free)
  */
 
 import { spawnSync } from "child_process";
 import { appendFileSync } from "fs";
 import { createClient } from "@supabase/supabase-js";
 import { env } from "./_env.mjs";
-import { neighborhoodFor } from "./_shared.mjs";
+import { neighborhoodFor, refreshTargets, REFRESH_PER_DAY } from "./_shared.mjs";
 
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 const GOOGLE_KEY = env.GOOGLE_PLACES_SERVER_KEY;
-// The workflow checks daily. Refreshing at day 27 leaves a one-day cushion
-// for a delayed GitHub schedule while keeping Google-derived content fresh.
-const STALE_AFTER_MS = 27 * 24 * 60 * 60 * 1000;
 // addressComponents (for the neighborhood) is in a cheaper tier than hours,
 // so asking for it adds no cost.
 const FIELDS = [
@@ -35,6 +35,7 @@ const argv = process.argv.slice(2);
 const DRY_RUN = argv.includes("--dry-run");
 const FORCE = argv.includes("--force");
 const SKIP_DISCOVERY = argv.includes("--skip-discovery");
+const DISCOVER = argv.includes("--discover");
 const numberFlag = (name, fallback) => {
   const index = argv.indexOf(name);
   if (index === -1) return fallback;
@@ -43,12 +44,8 @@ const numberFlag = (name, fallback) => {
   return value;
 };
 const DELAY_MS = numberFlag("--delay-ms", 500);
-const LIMIT = numberFlag("--limit", 0);
+const LIMIT = numberFlag("--limit", REFRESH_PER_DAY);   // 0 = no cap
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-function isStale(checkedAt, now) {
-  return !checkedAt || now - new Date(checkedAt).getTime() >= STALE_AFTER_MS;
-}
 
 function toHoursJson(hours) {
   if (!hours?.weekdayDescriptions) return null;
@@ -91,6 +88,9 @@ async function discoverNewCafes() {
 async function main() {
   if (!GOOGLE_KEY) throw new Error("GOOGLE_PLACES_SERVER_KEY is not set");
   const now = new Date();
+  // Discovery runs once a month, on its own day, not whenever a refresh is due.
+  if (!SKIP_DISCOVERY && (DISCOVER || now.getUTCDate() === 1)) await discoverNewCafes();
+
   const { data, error } = await supabase
     .from("cafes")
     .select("id,name,address,lat,lng,neighborhood,phone,website,hours_json,google_place_id,business_status,business_status_checked_at,moved_place_id")
@@ -98,15 +98,13 @@ async function main() {
     .order("name");
   if (error) throw new Error(`Unable to load cafes: ${error.message}`);
 
-  let targets = (data ?? []).filter(cafe => FORCE || isStale(cafe.business_status_checked_at, now));
-  if (LIMIT) targets = targets.slice(0, LIMIT);
-  console.log(`Cafe information refresh: ${targets.length} of ${data?.length ?? 0} cafe(s) due (${DRY_RUN ? "dry run" : "live"}).`);
+  const { due, targets } = refreshTargets(data ?? [], now, { force: FORCE, limit: LIMIT });
+  console.log(`Cafe information refresh: ${due} of ${data?.length ?? 0} cafe(s) due, refreshing ${targets.length}` +
+    `${LIMIT ? ` (at most ${LIMIT} a run)` : ""} (${DRY_RUN ? "dry run" : "live"}).`);
   if (targets.length === 0) {
     writeSummary(["## Cafe information refresh", "No cafes were due for refresh."]);
     return;
   }
-
-  if (!SKIP_DISCOVERY) await discoverNewCafes();
 
   const changes = [];
   const failures = [];
@@ -176,6 +174,7 @@ async function main() {
     `- Refreshed: ${refreshed}`,
     `- Changed: ${changes.length}`,
     `- Failed: ${failures.length}`,
+    `- Due but left for the next days: ${due - targets.length}`,
     ...(changes.length ? ["", "### Changed cafes", ...changes.map(change => `- **${change.name}** (${change.status}): ${change.fields.join(", ")}`)] : []),
     ...(failures.length ? ["", "### Needs review", ...failures.map(failure => `- ⚠️ **${failure.name}**: ${failure.error}`)] : []),
   ]);
