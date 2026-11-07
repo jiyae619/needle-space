@@ -34,3 +34,6 @@ traces/
 
 # Local Netlify folder
 .netlify
+
+# Dry-run reports from scripts/mood-tag-cafes.mjs hold Google photos: keep them local.
+html-previews/mood-dry-run/
